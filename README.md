@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QueueDrop
 
-## Getting Started
+QueueDrop is a multi-tenant, web-based queue management SaaS for service businesses. Customers use a browser—no app download required.
 
-First, run the development server:
+## Environment model
+
+- **DEV:** local Next.js + Docker + local Supabase
+- **TEST:** cloud Supabase project (`QueueDrop Test`) + staging web deployment
+- **PROD:** separate cloud Supabase project + production web deployment
+
+## Local setup
+
+1. Install Node.js, Docker Desktop, and Supabase CLI support.
+2. Copy `.env.example` to `.env.local` and enter **local** Supabase values from `npx supabase status`.
+3. Start Docker Desktop.
+4. Run `npx supabase start`.
+5. Run `npm install`.
+6. Run `npm run dev`.
+7. Open `http://localhost:3000`.
+
+## Database
+
+Database changes live under `supabase/migrations/`. The local DEV database can be rebuilt with:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx supabase db reset
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Never point local development credentials at PROD. Promote tested migrations through TEST before PROD.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Current application milestone
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Responsive QueueDrop marketing page
+- Supabase SSR browser/server clients
+- Next.js Proxy session refresh
+- Email/password sign-in and sign-up foundation
+- Auth callback route
+- Protected dashboard shell
+- Existing QueueDrop schema/RLS/migrations preserved
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The secure business onboarding transaction, queue operations, kiosk/customer public join flow, reporting, subscriptions, and system-admin functions are the next implementation milestones.
