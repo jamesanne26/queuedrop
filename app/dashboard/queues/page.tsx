@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
 import { createClient } from "@/lib/supabase/server";
 import { callNextAction, updateTicketAction, updateCustomerDetailsAction } from "./actions";
+import { LiveQueueRefresh } from "./live-queue-refresh";
 
 type Props = {
   searchParams: Promise<{ branch?: string; success?: string; error?: string }>;
@@ -16,6 +17,19 @@ type ChangeRow = {
   old_value: string | null;
   new_value: string | null;
   changed_by_type: string;
+  created_at: string;
+};
+
+
+type QueueNotification = {
+  id: string;
+  ticket_id: string | null;
+  channel: "sms" | "web" | "email";
+  notification_type: string;
+  recipient: string | null;
+  message: string;
+  status: "pending" | "sent" | "failed";
+  queue_position: number | null;
   created_at: string;
 };
 
@@ -164,6 +178,20 @@ export default async function QueuesPage({ searchParams }: Props) {
     list.push(change);
     changesByTicket.set(change.ticket_id, list);
   }
+  const { data: notificationRows } = selectedBranchId
+    ? await supabase
+        .from("notifications")
+        .select("id, ticket_id, channel, notification_type, recipient, message, status, queue_position, created_at")
+        .eq("branch_id", selectedBranchId)
+        .eq("notification_type", "queue_position")
+        .order("created_at", { ascending: false })
+        .limit(20)
+    : { data: [] };
+
+  const recentNotifications = (notificationRows ?? []) as QueueNotification[];
+  const ticketNumberById = new Map(tickets.map((ticket) => [ticket.id, ticket.display_number]));
+  const pendingNotificationCount = recentNotifications.filter((notification) => notification.status === "pending").length;
+
   const canEditName = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_name : queueConfig?.staff_can_edit_name);
   const canEditMobile = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_mobile : queueConfig?.staff_can_edit_mobile);
 
@@ -185,6 +213,8 @@ export default async function QueuesPage({ searchParams }: Props) {
 
         {params.success ? <div className="notice notice-success">{params.success}</div> : null}
         {params.error ? <div className="notice notice-error">{params.error}</div> : null}
+
+        <LiveQueueRefresh />
 
         <section className="dashboard-section dashboard-section-stack management-list-card">
           <div className="section-row">
@@ -278,6 +308,45 @@ export default async function QueuesPage({ searchParams }: Props) {
             <div className="mini-empty">
               <strong>No active queue tickets.</strong>
               <span>Open the customer join page and create a DEV ticket.</span>
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-section dashboard-section-stack management-list-card">
+          <div className="section-row">
+            <div>
+              <p className="eyebrow">Notification trigger outbox</p>
+              <h2>Position notification jobs</h2>
+              <p className="muted page-lead">
+                QueueDrop creates each SMS/browser job once when a waiting ticket reaches a configured position. Actual provider delivery is connected in a later milestone.
+              </p>
+            </div>
+            <span className="status-chip">{pendingNotificationCount} pending</span>
+          </div>
+
+          {recentNotifications.length ? (
+            <div className="queue-notification-list">
+              {recentNotifications.map((notification) => (
+                <article className="queue-notification-row" key={notification.id}>
+                  <div>
+                    <strong>
+                      {notification.ticket_id ? ticketNumberById.get(notification.ticket_id) ?? "Queue ticket" : "Queue ticket"}
+                      {notification.queue_position ? ` · position ${notification.queue_position}` : ""}
+                    </strong>
+                    <span>{notification.message}</span>
+                  </div>
+                  <div className="queue-notification-meta">
+                    <span className="status-chip">{notification.channel === "web" ? "browser" : notification.channel}</span>
+                    <span className={notification.status === "failed" ? "status-chip status-chip-off" : "status-chip"}>{notification.status}</span>
+                    <small>{new Date(notification.created_at).toLocaleString()}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="mini-empty">
+              <strong>No position notification jobs yet.</strong>
+              <span>Move the queue so a waiting customer reaches one of this branch&apos;s configured notification positions.</span>
             </div>
           )}
         </section>

@@ -608,3 +608,65 @@ button, input { font: inherit; }
     align-items: flex-start;
   }
 }
+
+/* Milestone 8: live queue + notification outbox */
+.queue-live-refresh {
+  margin: 0 0 1rem;
+  padding: .7rem .9rem;
+  border: 1px solid #d8e6de;
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.queue-notification-list {
+  display: grid;
+  gap: .75rem;
+}
+
+.queue-notification-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .85rem 1rem;
+  border: 1px solid #dce7e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.queue-notification-row > div:first-child {
+  display: grid;
+  gap: .25rem;
+  min-width: 0;
+}
+
+.queue-notification-row > div:first-child span {
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.queue-notification-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .45rem;
+  flex-wrap: wrap;
+  text-align: right;
+}
+
+.queue-notification-meta small {
+  width: 100%;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .queue-notification-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .queue-notification-meta {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
