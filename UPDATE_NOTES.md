@@ -68,3 +68,20 @@ Added the first end-to-end customer queue flow:
 - Additional ticket indexes for queue reads
 
 This milestone intentionally does **not** yet add staff actions (call / serve / complete / no-show). Those are the next queue-operations layer.
+
+## Milestone 5 — Staff Queue Operations
+
+- Added secure staff queue RPCs with server-side permission checks.
+- Added per-service **Call next** workflow.
+- Added **Start serving**, **Recall**, **Complete**, **No-show**, and **Cancel** actions.
+- Enforced safe ticket state transitions in PostgreSQL rather than trusting the browser.
+- Added ticket events and business audit logs for staff queue actions.
+- Customer queue position automatically changes because called/serving/completed tickets leave the waiting-position calculation.
+- Added active queue and recent-history sections to the staff queue dashboard.
+
+## Milestone 5 branch-isolation hotfix
+- Owner/Admin: business-wide branch visibility and queue operation.
+- Manager/Staff: only branches explicitly assigned through `branch_users`.
+- Branch, service, queue, and queue-config reads are branch-scoped for non-admin users.
+- Queue RPC authorization no longer gives managers implicit access to every branch in the business.
+- Includes the 10-client local DEV seed dataset.

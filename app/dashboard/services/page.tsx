@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createService, setServiceActive } from "./actions";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
+type Role = "owner" | "admin" | "manager" | "staff";
 
 export default async function ServicesPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -20,14 +21,32 @@ export default async function ServicesPage({ searchParams }: Props) {
     .maybeSingle();
   if (!membership) redirect("/onboarding");
 
+  const role = membership.role as Role;
+  const canManage = role === "owner" || role === "admin";
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
-  const { data: branches } = await supabase
-    .from("branches")
-    .select("id, name, status")
-    .eq("business_id", membership.business_id)
-    .order("created_at", { ascending: true });
 
-  const branchIds = (branches ?? []).map((branch) => branch.id);
+  let allowedBranchIds: string[] | null = null;
+  if (!canManage) {
+    const { data: assignments } = await supabase
+      .from("branch_users")
+      .select("branch_id")
+      .eq("user_id", user.id);
+    allowedBranchIds = (assignments ?? []).map((assignment) => assignment.branch_id);
+  }
+
+  let branches: { id: string; name: string; status: string }[] = [];
+  if (canManage || (allowedBranchIds?.length ?? 0) > 0) {
+    let query = supabase
+      .from("branches")
+      .select("id, name, status")
+      .eq("business_id", membership.business_id)
+      .order("created_at", { ascending: true });
+    if (!canManage && allowedBranchIds) query = query.in("id", allowedBranchIds);
+    const { data } = await query;
+    branches = data ?? [];
+  }
+
+  const branchIds = branches.map((branch) => branch.id);
   const { data: services } = branchIds.length
     ? await supabase
         .from("services")
@@ -36,8 +55,7 @@ export default async function ServicesPage({ searchParams }: Props) {
         .order("created_at", { ascending: true })
     : { data: [] };
 
-  const branchById = new Map((branches ?? []).map((branch) => [branch.id, branch]));
-  const canManage = membership.role === "owner" || membership.role === "admin";
+  const branchById = new Map(branches.map((branch) => [branch.id, branch]));
 
   return (
     <main className="dashboard-shell">
@@ -45,9 +63,9 @@ export default async function ServicesPage({ searchParams }: Props) {
       <section className="dashboard-content">
         <header className="dashboard-header">
           <div>
-            <p className="eyebrow">Service management</p>
+            <p className="eyebrow">{canManage ? "Service management" : "Assigned branch services"}</p>
             <h1>{business?.name ?? "QueueDrop"}</h1>
-            <p className="muted page-lead">Services are branch-specific and will become the categories customers choose before joining a queue.</p>
+            <p className="muted page-lead">{canManage ? "Services are branch-specific and become the categories customers choose before joining a queue." : "Staff can only view services belonging to their assigned branch locations."}</p>
           </div>
           <span className="env-badge">DEV</span>
         </header>
@@ -83,7 +101,7 @@ export default async function ServicesPage({ searchParams }: Props) {
                   );
                 })}
               </div>
-            ) : <div className="mini-empty"><strong>No services yet</strong><span>Create the first queue category for a branch.</span></div>}
+            ) : <div className="mini-empty"><strong>No services available.</strong><span>No services are configured for your assigned branch.</span></div>}
           </section>
 
           {canManage ? (
@@ -93,7 +111,7 @@ export default async function ServicesPage({ searchParams }: Props) {
                 <label>Branch
                   <select name="branch_id" required defaultValue="">
                     <option value="" disabled>Select branch</option>
-                    {(branches ?? []).filter((branch) => branch.status === "active").map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}
+                    {branches.filter((branch) => branch.status === "active").map((branch) => <option value={branch.id} key={branch.id}>{branch.name}</option>)}
                   </select>
                 </label>
                 <label>Service name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Haircut" /></label>
@@ -102,7 +120,7 @@ export default async function ServicesPage({ searchParams }: Props) {
                   <label>Queue prefix <em>optional</em><input name="queue_prefix" maxLength={6} placeholder="HC" /></label>
                   <label>Estimated minutes <em>optional</em><input name="estimated_minutes" type="number" min={1} max={480} step={1} placeholder="30" /></label>
                 </div>
-                <button className="button button-primary" type="submit" disabled={!branches?.length}>Create service</button>
+                <button className="button button-primary" type="submit" disabled={!branches.length}>Create service</button>
               </form>
             </section>
           ) : null}

@@ -311,3 +311,25 @@ button, input { font: inherit; }
   .queue-ticket-row { grid-template-columns:1fr; gap:.4rem; }
   .ticket-live-row { align-items:flex-start; gap:.5rem; }
 }
+
+/* Milestone 5: staff queue operations */
+.queue-service-controls { display:grid; gap:.7rem; margin:1rem 0 1.1rem; }
+.queue-service-control { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.9rem 1rem; border:1px solid var(--line); border-radius:14px; background:#fff; }
+.queue-service-control > div { display:grid; gap:.18rem; }
+.queue-service-control span { color:var(--muted); font-size:.82rem; }
+.queue-ticket-side { display:grid; justify-items:end; gap:.55rem; }
+.queue-actions { display:flex; justify-content:flex-end; gap:.4rem; flex-wrap:wrap; }
+.queue-actions form { margin:0; }
+.button-danger { background:#fff; color:#9b3f39; border:1px solid #e8c9c6; }
+.button-danger:hover { background:#fff5f4; }
+.queue-ticket-called { border-color:#ead28c; background:#fffdf5; }
+.queue-ticket-serving { border-color:#aac5ed; background:#f7faff; }
+.queue-history-list { opacity:.88; }
+.notice { padding:.85rem 1rem; border-radius:12px; margin-bottom:1rem; font-weight:700; }
+.notice-success { background:#e9f6ee; color:#176b47; border:1px solid #c9e6d5; }
+.notice-error { background:#fff1f0; color:#8b3f39; border:1px solid #efcfcc; }
+@media (max-width: 760px) {
+  .queue-service-control { align-items:flex-start; flex-direction:column; }
+  .queue-ticket-side { justify-items:start; }
+  .queue-actions { justify-content:flex-start; }
+}

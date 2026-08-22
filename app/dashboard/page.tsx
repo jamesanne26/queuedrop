@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 type Props = { searchParams: Promise<{ message?: string }> };
 
+type Role = "owner" | "admin" | "manager" | "staff";
+
 export default async function DashboardPage({ searchParams }: Props) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -22,21 +24,48 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   const hasWorkspace = Boolean(memberships?.length);
   const primaryMembership = memberships?.[0];
+  const role = primaryMembership?.role as Role | undefined;
+  const businessWide = role === "owner" || role === "admin";
   const primaryBusiness = primaryMembership
     ? Array.isArray(primaryMembership.businesses)
       ? primaryMembership.businesses[0]
       : primaryMembership.businesses
     : null;
 
-  const { data: branches } = primaryMembership
-    ? await supabase
+  let branches: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    address: string | null;
+    phone: string | null;
+  }[] = [];
+
+  if (primaryMembership) {
+    let allowedBranchIds: string[] | null = null;
+
+    if (!businessWide) {
+      const { data: assignments } = await supabase
+        .from("branch_users")
+        .select("branch_id")
+        .eq("user_id", user.id);
+      allowedBranchIds = (assignments ?? []).map((assignment) => assignment.branch_id);
+    }
+
+    if (businessWide || (allowedBranchIds?.length ?? 0) > 0) {
+      let query = supabase
         .from("branches")
         .select("id, name, slug, status, address, phone")
         .eq("business_id", primaryMembership.business_id)
-        .order("created_at", { ascending: true })
-    : { data: [] };
+        .order("created_at", { ascending: true });
 
-  const branchIds = (branches ?? []).map((branch) => branch.id);
+      if (!businessWide && allowedBranchIds) query = query.in("id", allowedBranchIds);
+      const { data } = await query;
+      branches = data ?? [];
+    }
+  }
+
+  const branchIds = branches.map((branch) => branch.id);
   const { count: serviceCount } = branchIds.length
     ? await supabase.from("services").select("id", { count: "exact", head: true }).in("branch_id", branchIds)
     : { count: 0 };
@@ -71,17 +100,17 @@ export default async function DashboardPage({ searchParams }: Props) {
               <article className="stat-card stat-card-wide">
                 <p className="stat-label">Active workspace</p>
                 <h2>{primaryBusiness?.name ?? "QueueDrop business"}</h2>
-                <p className="muted">Your role: {primaryMembership?.role}</p>
+                <p className="muted">Your role: {role}</p>
               </article>
               <article className="stat-card">
-                <p className="stat-label">Branches</p>
-                <div className="metric-number">{branches?.length ?? 0}</div>
-                <Link className="text-link stat-link" href="/dashboard/branches">Manage locations</Link>
+                <p className="stat-label">{businessWide ? "Branches" : "Assigned branches"}</p>
+                <div className="metric-number">{branches.length}</div>
+                <Link className="text-link stat-link" href="/dashboard/branches">{businessWide ? "Manage locations" : "View assignment"}</Link>
               </article>
               <article className="stat-card">
                 <p className="stat-label">Services</p>
                 <div className="metric-number">{serviceCount ?? 0}</div>
-                <Link className="text-link stat-link" href="/dashboard/services">Manage services</Link>
+                <Link className="text-link stat-link" href="/dashboard/services">{businessWide ? "Manage services" : "View services"}</Link>
               </article>
               <article className="stat-card">
                 <p className="stat-label">Business status</p>
@@ -92,27 +121,27 @@ export default async function DashboardPage({ searchParams }: Props) {
 
             <section className="dashboard-section dashboard-section-stack" id="branches">
               <div className="section-row">
-                <div><p className="eyebrow">Setup progress</p><h2>Prepare branches and services</h2></div>
-                <span className="coming-badge">Milestone 4</span>
+                <div><p className="eyebrow">Workspace access</p><h2>{businessWide ? "Manage your business" : "Your assigned branch workspace"}</h2></div>
+                <span className="coming-badge">Milestone 5</span>
               </div>
               <div className="quick-actions">
-                <Link href="/dashboard/branches" className="quick-action-card"><strong>Branches</strong><span>Add locations and review queue defaults.</span><b>Open →</b></Link>
-                <Link href="/dashboard/services" className="quick-action-card"><strong>Services</strong><span>Create queue categories, prefixes, and ETA settings.</span><b>Open →</b></Link>
+                <Link href="/dashboard/branches" className="quick-action-card"><strong>{businessWide ? "Branches" : "My branch"}</strong><span>{businessWide ? "Add locations and review queue defaults." : "View only the branch locations assigned to you."}</span><b>Open →</b></Link>
+                <Link href="/dashboard/services" className="quick-action-card"><strong>Services</strong><span>{businessWide ? "Create queue categories, prefixes, and ETA settings." : "View services for your assigned branch."}</span><b>Open →</b></Link>
               </div>
               <div className="quick-actions quick-actions-single">
-                <Link href="/dashboard/queues" className="quick-action-card"><strong>Live queue</strong><span>Open the customer join link and watch tickets arrive by branch.</span><b>Open queues →</b></Link>
+                <Link href="/dashboard/queues" className="quick-action-card"><strong>Live queue</strong><span>{businessWide ? "Operate queues across your business branches." : "Operate queues only for your assigned branch."}</span><b>Open queues →</b></Link>
               </div>
             </section>
           </>
         )}
 
         <section className="dashboard-section" id="queues">
-          <div><p className="eyebrow">System foundation</p><h2>{hasWorkspace ? "Workspace management online" : "Environment connected"}</h2></div>
+          <div><p className="eyebrow">Access model</p><h2>{hasWorkspace ? "Role-aware workspace online" : "Environment connected"}</h2></div>
           <div className="status-list">
             <div><span className="status-dot" />Supabase SSR authentication</div>
             <div><span className="status-dot" />RLS-protected database</div>
             <div><span className="status-dot" />Atomic owner onboarding</div>
-            <div><span className="status-dot" />Branch & service management</div>
+            <div><span className="status-dot" />Branch-scoped staff access</div>
             <div><span className="status-dot" />Public customer queue joining</div>
           </div>
         </section>

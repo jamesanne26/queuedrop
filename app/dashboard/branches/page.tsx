@@ -5,6 +5,7 @@ import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
+type Role = "owner" | "admin" | "manager" | "staff";
 
 export default async function BranchesPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -22,14 +23,41 @@ export default async function BranchesPage({ searchParams }: Props) {
 
   if (!membership) redirect("/onboarding");
 
+  const role = membership.role as Role;
+  const canManage = role === "owner" || role === "admin";
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
-  const { data: branches } = await supabase
-    .from("branches")
-    .select("id, name, slug, status, address, phone, created_at")
-    .eq("business_id", membership.business_id)
-    .order("created_at", { ascending: true });
 
-  const branchIds = (branches ?? []).map((branch) => branch.id);
+  let allowedBranchIds: string[] | null = null;
+  if (!canManage) {
+    const { data: assignments } = await supabase
+      .from("branch_users")
+      .select("branch_id")
+      .eq("user_id", user.id);
+    allowedBranchIds = (assignments ?? []).map((assignment) => assignment.branch_id);
+  }
+
+  let branches: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    address: string | null;
+    phone: string | null;
+    created_at: string;
+  }[] = [];
+
+  if (canManage || (allowedBranchIds?.length ?? 0) > 0) {
+    let query = supabase
+      .from("branches")
+      .select("id, name, slug, status, address, phone, created_at")
+      .eq("business_id", membership.business_id)
+      .order("created_at", { ascending: true });
+    if (!canManage && allowedBranchIds) query = query.in("id", allowedBranchIds);
+    const { data } = await query;
+    branches = data ?? [];
+  }
+
+  const branchIds = branches.map((branch) => branch.id);
   const { data: configs } = branchIds.length
     ? await supabase
         .from("queue_configurations")
@@ -38,7 +66,6 @@ export default async function BranchesPage({ searchParams }: Props) {
     : { data: [] };
 
   const configByBranch = new Map((configs ?? []).map((config) => [config.branch_id, config]));
-  const canManage = membership.role === "owner" || membership.role === "admin";
 
   return (
     <main className="dashboard-shell">
@@ -46,9 +73,9 @@ export default async function BranchesPage({ searchParams }: Props) {
       <section className="dashboard-content">
         <header className="dashboard-header">
           <div>
-            <p className="eyebrow">Branch management</p>
+            <p className="eyebrow">{canManage ? "Branch management" : "Assigned branch"}</p>
             <h1>{business?.name ?? "QueueDrop"}</h1>
-            <p className="muted page-lead">Manage physical locations and the default queue settings created for each branch.</p>
+            <p className="muted page-lead">{canManage ? "Manage physical locations and the default queue settings created for each branch." : "You can only view the branch locations assigned to your staff account."}</p>
           </div>
           <span className="env-badge">DEV</span>
         </header>
@@ -59,11 +86,11 @@ export default async function BranchesPage({ searchParams }: Props) {
         <div className="management-grid">
           <section className="dashboard-section dashboard-section-stack management-list-card">
             <div className="section-row">
-              <div><p className="eyebrow">Locations</p><h2>{branches?.length ?? 0} branch{branches?.length === 1 ? "" : "es"}</h2></div>
-              <Link className="text-link" href="/dashboard/services">Manage services →</Link>
+              <div><p className="eyebrow">Locations</p><h2>{branches.length} branch{branches.length === 1 ? "" : "es"}</h2></div>
+              <Link className="text-link" href="/dashboard/services">View services →</Link>
             </div>
             <div className="branch-list">
-              {(branches ?? []).map((branch) => {
+              {branches.map((branch) => {
                 const config = configByBranch.get(branch.id);
                 return (
                   <article className="branch-row branch-row-rich" key={branch.id}>
@@ -79,6 +106,7 @@ export default async function BranchesPage({ searchParams }: Props) {
                   </article>
                 );
               })}
+              {!branches.length ? <div className="mini-empty"><strong>No branch assignment.</strong><span>Ask a business owner/admin to assign this account to a branch.</span></div> : null}
             </div>
           </section>
 

@@ -2,8 +2,77 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
 import { createClient } from "@/lib/supabase/server";
+import { callNextAction, updateTicketAction } from "./actions";
 
-type Props = { searchParams: Promise<{ branch?: string }> };
+type Props = {
+  searchParams: Promise<{ branch?: string; success?: string; error?: string }>;
+};
+
+type Role = "owner" | "admin" | "manager" | "staff";
+
+type QueueTicket = {
+  id: string;
+  display_number: string;
+  status: "waiting" | "called" | "serving" | "completed" | "cancelled" | "no_show";
+  joined_at: string;
+  service_id: string;
+  customers: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null;
+  services: { id: string; name: string } | { id: string; name: string }[] | null;
+};
+
+function relationOne<T>(value: T | T[] | null): T | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function TicketActions({ ticket, branchId }: { ticket: QueueTicket; branchId: string }) {
+  if (ticket.status === "completed" || ticket.status === "cancelled" || ticket.status === "no_show") return null;
+
+  return (
+    <div className="queue-actions">
+      {ticket.status === "called" ? (
+        <>
+          <form action={updateTicketAction}>
+            <input type="hidden" name="branch_id" value={branchId} />
+            <input type="hidden" name="ticket_id" value={ticket.id} />
+            <input type="hidden" name="action" value="serve" />
+            <button className="button button-primary button-small" type="submit">Start serving</button>
+          </form>
+          <form action={updateTicketAction}>
+            <input type="hidden" name="branch_id" value={branchId} />
+            <input type="hidden" name="ticket_id" value={ticket.id} />
+            <input type="hidden" name="action" value="recall" />
+            <button className="button button-secondary button-small" type="submit">Recall</button>
+          </form>
+        </>
+      ) : null}
+
+      {ticket.status === "serving" ? (
+        <form action={updateTicketAction}>
+          <input type="hidden" name="branch_id" value={branchId} />
+          <input type="hidden" name="ticket_id" value={ticket.id} />
+          <input type="hidden" name="action" value="complete" />
+          <button className="button button-primary button-small" type="submit">Complete</button>
+        </form>
+      ) : null}
+
+      {ticket.status === "waiting" || ticket.status === "called" ? (
+        <form action={updateTicketAction}>
+          <input type="hidden" name="branch_id" value={branchId} />
+          <input type="hidden" name="ticket_id" value={ticket.id} />
+          <input type="hidden" name="action" value="no_show" />
+          <button className="button button-secondary button-small" type="submit">No-show</button>
+        </form>
+      ) : null}
+
+      <form action={updateTicketAction}>
+        <input type="hidden" name="branch_id" value={branchId} />
+        <input type="hidden" name="ticket_id" value={ticket.id} />
+        <input type="hidden" name="action" value="cancel" />
+        <button className="button button-danger button-small" type="submit">Cancel</button>
+      </form>
+    </div>
+  );
+}
 
 export default async function QueuesPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -20,27 +89,57 @@ export default async function QueuesPage({ searchParams }: Props) {
     .maybeSingle();
 
   if (!membership) redirect("/onboarding");
-  const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
+  const business = relationOne(membership.businesses);
+  const role = membership.role as Role;
+  const businessWide = role === "owner" || role === "admin";
 
-  const { data: branches } = await supabase
-    .from("branches")
-    .select("id, name, slug, status")
-    .eq("business_id", membership.business_id)
-    .order("created_at", { ascending: true });
+  let allowedBranchIds: string[] | null = null;
+  if (!businessWide) {
+    const { data: assignments } = await supabase
+      .from("branch_users")
+      .select("branch_id")
+      .eq("user_id", user.id);
+    allowedBranchIds = (assignments ?? []).map((assignment) => assignment.branch_id);
+  }
 
-  const selectedBranchId = params.branch && (branches ?? []).some((branch) => branch.id === params.branch)
+  let branches: { id: string; name: string; slug: string; status: string }[] = [];
+  if (businessWide || (allowedBranchIds?.length ?? 0) > 0) {
+    let query = supabase
+      .from("branches")
+      .select("id, name, slug, status")
+      .eq("business_id", membership.business_id)
+      .order("created_at", { ascending: true });
+    if (!businessWide && allowedBranchIds) query = query.in("id", allowedBranchIds);
+    const { data } = await query;
+    branches = data ?? [];
+  }
+
+  const selectedBranchId = params.branch && branches.some((branch) => branch.id === params.branch)
     ? params.branch
-    : branches?.[0]?.id;
-  const selectedBranch = (branches ?? []).find((branch) => branch.id === selectedBranchId);
+    : branches[0]?.id;
+  const selectedBranch = branches.find((branch) => branch.id === selectedBranchId);
 
-  const { data: tickets } = selectedBranchId
+  const { data: services } = selectedBranchId
+    ? await supabase
+        .from("services")
+        .select("id, name, queue_prefix, is_active")
+        .eq("branch_id", selectedBranchId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+    : { data: [] };
+
+  const { data: rawTickets } = selectedBranchId
     ? await supabase
         .from("tickets")
-        .select("id, display_number, status, joined_at, customers(name, phone), services(name)")
+        .select("id, display_number, status, joined_at, service_id, customers(name, phone), services(id, name)")
         .eq("branch_id", selectedBranchId)
         .order("joined_at", { ascending: true })
-        .limit(100)
+        .limit(150)
     : { data: [] };
+
+  const tickets = (rawTickets ?? []) as QueueTicket[];
+  const activeTickets = tickets.filter((ticket) => ["waiting", "called", "serving"].includes(ticket.status));
+  const finishedTickets = tickets.filter((ticket) => ["completed", "cancelled", "no_show"].includes(ticket.status)).reverse().slice(0, 20);
 
   return (
     <main className="dashboard-shell">
@@ -48,12 +147,15 @@ export default async function QueuesPage({ searchParams }: Props) {
       <section className="dashboard-content">
         <header className="dashboard-header">
           <div>
-            <p className="eyebrow">Live queue</p>
+            <p className="eyebrow">{businessWide ? "Business queue operations" : "Assigned branch queue"}</p>
             <h1>{business?.name ?? "QueueDrop"}</h1>
-            <p className="muted page-lead">Milestone 4 reads customer-created tickets in real time. Staff queue actions come next.</p>
+            <p className="muted page-lead">{businessWide ? "Operate queues across your business branches." : "You can operate only queues for branch locations assigned to your account."} Customer positions update automatically.</p>
           </div>
           <span className="env-badge">DEV</span>
         </header>
+
+        {params.success ? <div className="notice notice-success">{params.success}</div> : null}
+        {params.error ? <div className="notice notice-error">{params.error}</div> : null}
 
         <section className="dashboard-section dashboard-section-stack management-list-card">
           <div className="section-row">
@@ -69,37 +171,90 @@ export default async function QueuesPage({ searchParams }: Props) {
           </div>
 
           <div className="queue-branch-tabs">
-            {(branches ?? []).map((branch) => (
+            {branches.map((branch) => (
               <Link key={branch.id} className={`queue-tab ${branch.id === selectedBranchId ? "queue-tab-active" : ""}`} href={`/dashboard/queues?branch=${branch.id}`}>
                 {branch.name}
               </Link>
             ))}
           </div>
 
-          {(tickets ?? []).length ? (
-            <div className="queue-ticket-list">
-              {(tickets ?? []).map((ticket) => {
-                const customer = Array.isArray(ticket.customers) ? ticket.customers[0] : ticket.customers;
-                const service = Array.isArray(ticket.services) ? ticket.services[0] : ticket.services;
+          {selectedBranchId && (services ?? []).length ? (
+            <div className="queue-service-controls">
+              {(services ?? []).map((service) => {
+                const serviceTickets = activeTickets.filter((ticket) => ticket.service_id === service.id);
+                const calledOrServing = serviceTickets.find((ticket) => ticket.status === "called" || ticket.status === "serving");
+                const waitingCount = serviceTickets.filter((ticket) => ticket.status === "waiting").length;
                 return (
-                  <article className="queue-ticket-row" key={ticket.id}>
+                  <article className="queue-service-control" key={service.id}>
+                    <div>
+                      <strong>{service.name}</strong>
+                      <span>{waitingCount} waiting{calledOrServing ? ` · ${calledOrServing.display_number} ${calledOrServing.status}` : ""}</span>
+                    </div>
+                    <form action={callNextAction}>
+                      <input type="hidden" name="branch_id" value={selectedBranchId} />
+                      <input type="hidden" name="service_id" value={service.id} />
+                      <button className="button button-primary button-small" type="submit" disabled={!waitingCount || Boolean(calledOrServing)}>
+                        Call next
+                      </button>
+                    </form>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {activeTickets.length ? (
+            <div className="queue-ticket-list">
+              {activeTickets.map((ticket) => {
+                const customer = relationOne(ticket.customers);
+                const service = relationOne(ticket.services);
+                return (
+                  <article className={`queue-ticket-row queue-ticket-${ticket.status}`} key={ticket.id}>
                     <div className="queue-ticket-number">{ticket.display_number}</div>
                     <div className="queue-ticket-main">
                       <strong>{customer?.name ?? "Customer"}</strong>
                       <span>{service?.name ?? "Service"} · {customer?.phone ?? "No phone"}</span>
                     </div>
-                    <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
+                    <div className="queue-ticket-side">
+                      <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
+                      {selectedBranchId ? <TicketActions ticket={ticket} branchId={selectedBranchId} /> : null}
+                    </div>
                   </article>
                 );
               })}
             </div>
           ) : (
             <div className="mini-empty">
-              <strong>No queue tickets yet.</strong>
-              <span>Open the customer join page and create the first DEV ticket.</span>
+              <strong>No active queue tickets.</strong>
+              <span>Open the customer join page and create a DEV ticket.</span>
             </div>
           )}
         </section>
+
+        {finishedTickets.length ? (
+          <section className="dashboard-section dashboard-section-stack management-list-card">
+            <div>
+              <p className="eyebrow">Recent history</p>
+              <h2>Finished tickets</h2>
+            </div>
+            <div className="queue-ticket-list queue-history-list">
+              {finishedTickets.map((ticket) => {
+                const customer = relationOne(ticket.customers);
+                const service = relationOne(ticket.services);
+                return (
+                  <article className="queue-ticket-row" key={ticket.id}>
+                    <div className="queue-ticket-number">{ticket.display_number}</div>
+                    <div className="queue-ticket-main">
+                      <strong>{customer?.name ?? "Customer"}</strong>
+                      <span>{service?.name ?? "Service"}</span>
+                    </div>
+                    <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </section>
     </main>
   );

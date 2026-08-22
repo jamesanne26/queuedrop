@@ -38,3 +38,10 @@ QueueDrop now contains the first usable queue loop in local DEV. Business owners
 Database migration: `supabase/migrations/20260822134000_public_queue_engine.sql`.
 
 The next milestone adds authenticated staff queue actions and the queue state machine (call, serve, complete, no-show, cancel), plus stronger operational controls.
+
+### Milestone 5
+
+Staff queue operations are now available from `/dashboard/queues`: call next by service, recall a called customer, start serving, complete, mark no-show, or cancel. Queue state transitions are validated inside PostgreSQL and recorded in ticket events/audit logs.
+
+### Branch-scoped access
+Owner/Admin accounts can view and operate all branches in their business. Manager/Staff accounts are limited to branches explicitly assigned through `branch_users`; queue operations enforce the same rule in PostgreSQL.
