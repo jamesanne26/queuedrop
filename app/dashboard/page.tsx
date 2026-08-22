@@ -93,11 +93,14 @@ export default async function DashboardPage({ searchParams }: Props) {
             <section className="dashboard-section dashboard-section-stack" id="branches">
               <div className="section-row">
                 <div><p className="eyebrow">Setup progress</p><h2>Prepare branches and services</h2></div>
-                <span className="coming-badge">Milestone 3</span>
+                <span className="coming-badge">Milestone 4</span>
               </div>
               <div className="quick-actions">
                 <Link href="/dashboard/branches" className="quick-action-card"><strong>Branches</strong><span>Add locations and review queue defaults.</span><b>Open →</b></Link>
                 <Link href="/dashboard/services" className="quick-action-card"><strong>Services</strong><span>Create queue categories, prefixes, and ETA settings.</span><b>Open →</b></Link>
+              </div>
+              <div className="quick-actions quick-actions-single">
+                <Link href="/dashboard/queues" className="quick-action-card"><strong>Live queue</strong><span>Open the customer join link and watch tickets arrive by branch.</span><b>Open queues →</b></Link>
               </div>
             </section>
           </>
@@ -110,6 +113,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             <div><span className="status-dot" />RLS-protected database</div>
             <div><span className="status-dot" />Atomic owner onboarding</div>
             <div><span className="status-dot" />Branch & service management</div>
+            <div><span className="status-dot" />Public customer queue joining</div>
           </div>
         </section>
       </section>

@@ -30,3 +30,11 @@ Local environment values belong in `.env.local` and must never be committed.
 
 ### Milestone 3
 Branch and service management is available in local DEV under `/dashboard/branches` and `/dashboard/services`. New branches are created transactionally with their queue defaults, and services support branch-specific prefixes, ETA values, and active/inactive state.
+
+## Milestone 4 — Public Queue Engine
+
+QueueDrop now contains the first usable queue loop in local DEV. Business owners can create branches and services, open `/dashboard/queues`, and launch a public customer join page. Customers can select a service, enter a name and international mobile number, receive a service-prefixed queue number, and keep a private status URL that refreshes their current position.
+
+Database migration: `supabase/migrations/20260822134000_public_queue_engine.sql`.
+
+The next milestone adds authenticated staff queue actions and the queue state machine (call, serve, complete, no-show, cancel), plus stronger operational controls.

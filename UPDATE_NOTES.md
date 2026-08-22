@@ -47,3 +47,24 @@ Local verification sequence:
 
 ### Milestone 3 hotfix
 - Auth proxy now verifies the user with Supabase Auth (`getUser`) so stale local cookies after `supabase db reset` cannot cause an auth redirect loop.
+
+## Milestone 4 — Public Queue Engine
+
+Added the first end-to-end customer queue flow:
+
+- Public branch join route: `/q/[businessSlug]/[branchSlug]`
+- Public service selection and customer name/mobile capture
+- International-format mobile validation using country code (E.164-style)
+- Atomic queue-session creation and per-service ticket numbering
+- Service-specific prefixes (for example `HC001`, `HS001`)
+- Duplicate active-ticket protection per service/mobile number
+- Private 24-hour customer ticket links using `customer_sessions.session_token`
+- Live ticket status page with automatic refresh
+- Queue position calculation per service
+- Dashboard `/dashboard/queues` view for branch members
+- Branch timezone foundation (default `Asia/Manila`)
+- Configurable branch-contact visibility field
+- `service_queue_counters` for concurrency-safe per-service numbering
+- Additional ticket indexes for queue reads
+
+This milestone intentionally does **not** yet add staff actions (call / serve / complete / no-show). Those are the next queue-operations layer.
