@@ -97,3 +97,20 @@ This milestone intentionally does **not** yet add staff actions (call / serve / 
 - Team member changes are audited through `team.member_added` / `team.member_updated`.
 - Staff do not see the Team navigation item.
 - Current workflow uses a temporary password; outbound invitation email will be added when TEST/PROD email delivery is connected.
+
+## Milestone 7 — Queue Configuration & Operating Rules
+
+- Added `/dashboard/settings` for business Owner/Admin only.
+- Per-branch queue prefix, starting number, no-show grace period, QR/public join toggle, queue active toggle, contact visibility, and timezone.
+- Weekly operating-hours editor.
+- Public queue joining is now enforced against branch operating hours at the database RPC layer.
+- Customer join page shows a closed state outside configured hours.
+- Operating-hours visibility is branch-scoped for staff while Owner/Admin remain business-wide.
+- Anne Salon / Commonwealth DEV seed is intentionally open all days so seeded queue tickets remain deterministic during local resets.
+
+## Milestone 7.1 — Position notifications and queue data edits
+- Branch-specific position notification rules (SMS/browser flags; delivery provider wiring comes later).
+- Customer/Staff/Manager edit permissions for queue name/mobile.
+- Ticket-level customer detail overrides so edits do not rewrite historical customer master data.
+- Staff-visible change history with actor type and timestamp.
+- Managers can open Settings for assigned branches only; Staff cannot.

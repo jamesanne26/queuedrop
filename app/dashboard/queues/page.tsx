@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
 import { createClient } from "@/lib/supabase/server";
-import { callNextAction, updateTicketAction } from "./actions";
+import { callNextAction, updateTicketAction, updateCustomerDetailsAction } from "./actions";
 
 type Props = {
   searchParams: Promise<{ branch?: string; success?: string; error?: string }>;
@@ -10,12 +10,23 @@ type Props = {
 
 type Role = "owner" | "admin" | "manager" | "staff";
 
+type ChangeRow = {
+  ticket_id: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_by_type: string;
+  created_at: string;
+};
+
 type QueueTicket = {
   id: string;
   display_number: string;
   status: "waiting" | "called" | "serving" | "completed" | "cancelled" | "no_show";
   joined_at: string;
   service_id: string;
+  customer_name_override: string | null;
+  customer_phone_override: string | null;
   customers: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null;
   services: { id: string; name: string } | { id: string; name: string }[] | null;
 };
@@ -131,13 +142,31 @@ export default async function QueuesPage({ searchParams }: Props) {
   const { data: rawTickets } = selectedBranchId
     ? await supabase
         .from("tickets")
-        .select("id, display_number, status, joined_at, service_id, customers(name, phone), services(id, name)")
+        .select("id, display_number, status, joined_at, service_id, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)")
         .eq("branch_id", selectedBranchId)
         .order("joined_at", { ascending: true })
         .limit(150)
     : { data: [] };
 
   const tickets = (rawTickets ?? []) as QueueTicket[];
+
+  const { data: queueConfig } = selectedBranchId
+    ? await supabase.from("queue_configurations").select("staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile").eq("branch_id", selectedBranchId).maybeSingle()
+    : { data: null };
+
+  const ticketIds = tickets.map((ticket) => ticket.id);
+  const { data: changeRows } = ticketIds.length
+    ? await supabase.from("ticket_customer_changes").select("ticket_id, field_name, old_value, new_value, changed_by_type, created_at").in("ticket_id", ticketIds).order("created_at", { ascending: false })
+    : { data: [] };
+  const changesByTicket = new Map<string, ChangeRow[]>();
+  for (const change of (changeRows ?? []) as ChangeRow[]) {
+    const list = changesByTicket.get(change.ticket_id) ?? [];
+    list.push(change);
+    changesByTicket.set(change.ticket_id, list);
+  }
+  const canEditName = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_name : queueConfig?.staff_can_edit_name);
+  const canEditMobile = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_mobile : queueConfig?.staff_can_edit_mobile);
+
   const activeTickets = tickets.filter((ticket) => ["waiting", "called", "serving"].includes(ticket.status));
   const finishedTickets = tickets.filter((ticket) => ["completed", "cancelled", "no_show"].includes(ticket.status)).reverse().slice(0, 20);
 
@@ -212,8 +241,30 @@ export default async function QueuesPage({ searchParams }: Props) {
                   <article className={`queue-ticket-row queue-ticket-${ticket.status}`} key={ticket.id}>
                     <div className="queue-ticket-number">{ticket.display_number}</div>
                     <div className="queue-ticket-main">
-                      <strong>{customer?.name ?? "Customer"}</strong>
-                      <span>{service?.name ?? "Service"} · {customer?.phone ?? "No phone"}</span>
+                      <strong>{ticket.customer_name_override ?? customer?.name ?? "Customer"}</strong>
+                      <span>{service?.name ?? "Service"} · {ticket.customer_phone_override ?? customer?.phone ?? "No phone"}</span>
+                      {(canEditName || canEditMobile) ? (
+                        <details className="queue-edit-details">
+                          <summary>Edit customer details</summary>
+                          <form action={updateCustomerDetailsAction} className="queue-inline-edit">
+                            <input type="hidden" name="branch_id" value={selectedBranchId ?? ""} />
+                            <input type="hidden" name="ticket_id" value={ticket.id} />
+                            {canEditName ? <input name="name" maxLength={100} defaultValue={ticket.customer_name_override ?? customer?.name ?? ""} aria-label="Customer name" /> : <input type="hidden" name="name" value={ticket.customer_name_override ?? customer?.name ?? ""} />}
+                            {canEditMobile ? <input name="phone" defaultValue={ticket.customer_phone_override ?? customer?.phone ?? ""} aria-label="Customer mobile" /> : <input type="hidden" name="phone" value={ticket.customer_phone_override ?? customer?.phone ?? ""} />}
+                            <button className="button button-secondary button-small" type="submit">Save</button>
+                          </form>
+                        </details>
+                      ) : null}
+                      {(changesByTicket.get(ticket.id) ?? []).length ? (
+                        <details className="queue-history-details">
+                          <summary>Change history ({(changesByTicket.get(ticket.id) ?? []).length})</summary>
+                          <ul>
+                            {(changesByTicket.get(ticket.id) ?? []).map((change, index) => (
+                              <li key={`${change.created_at}-${index}`}><strong>{change.field_name}</strong>: {change.old_value || "—"} → {change.new_value || "—"} <span>by {change.changed_by_type} · {new Date(change.created_at).toLocaleString()}</span></li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
                     </div>
                     <div className="queue-ticket-side">
                       <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
@@ -245,7 +296,7 @@ export default async function QueuesPage({ searchParams }: Props) {
                   <article className="queue-ticket-row" key={ticket.id}>
                     <div className="queue-ticket-number">{ticket.display_number}</div>
                     <div className="queue-ticket-main">
-                      <strong>{customer?.name ?? "Customer"}</strong>
+                      <strong>{ticket.customer_name_override ?? customer?.name ?? "Customer"}</strong>
                       <span>{service?.name ?? "Service"}</span>
                     </div>
                     <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>

@@ -3,7 +3,13 @@ import { signOut } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
-  active: "overview" | "branches" | "services" | "queues" | "team";
+  active:
+    | "overview"
+    | "branches"
+    | "services"
+    | "queues"
+    | "team"
+    | "settings";
 };
 
 export async function DashboardSidebar({ active }: Props) {
@@ -21,22 +27,89 @@ export async function DashboardSidebar({ active }: Props) {
         .maybeSingle()
     : { data: null };
 
-  const canManageTeam = membership?.role === "owner" || membership?.role === "admin";
+  const canManageTeam =
+    membership?.role === "owner" ||
+    membership?.role === "admin" ||
+    membership?.role === "manager";
+
+  const canViewSettings =
+    membership?.role === "owner" ||
+    membership?.role === "admin" ||
+    membership?.role === "manager";
 
   return (
     <aside className="sidebar">
-      <Link href="/" className="brand-mark brand-light">QueueDrop</Link>
+      <Link href="/" className="brand-mark brand-light">
+        QueueDrop
+      </Link>
+
       <nav>
-        <Link className={`nav-item ${active === "overview" ? "nav-item-active" : ""}`} href="/dashboard">Overview</Link>
-        <Link className={`nav-item ${active === "branches" ? "nav-item-active" : ""}`} href="/dashboard/branches">Branches</Link>
-        <Link className={`nav-item ${active === "services" ? "nav-item-active" : ""}`} href="/dashboard/services">Services</Link>
-        <Link className={`nav-item ${active === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues">Queues</Link>
+        <Link
+          className={`nav-item ${
+            active === "overview" ? "nav-item-active" : ""
+          }`}
+          href="/dashboard"
+        >
+          Overview
+        </Link>
+
+        <Link
+          className={`nav-item ${
+            active === "branches" ? "nav-item-active" : ""
+          }`}
+          href="/dashboard/branches"
+        >
+          Branches
+        </Link>
+
+        <Link
+          className={`nav-item ${
+            active === "services" ? "nav-item-active" : ""
+          }`}
+          href="/dashboard/services"
+        >
+          Services
+        </Link>
+
+        <Link
+          className={`nav-item ${
+            active === "queues" ? "nav-item-active" : ""
+          }`}
+          href="/dashboard/queues"
+        >
+          Queues
+        </Link>
+
         {canManageTeam ? (
-          <Link className={`nav-item ${active === "team" ? "nav-item-active" : ""}`} href="/dashboard/team">Team</Link>
+          <Link
+            className={`nav-item ${
+              active === "team" ? "nav-item-active" : ""
+            }`}
+            href="/dashboard/team"
+          >
+            Team
+          </Link>
+        ) : null}
+
+        {canViewSettings ? (
+          <Link
+            className={`nav-item ${
+              active === "settings" ? "nav-item-active" : ""
+            }`}
+            href="/dashboard/settings"
+          >
+            Settings
+          </Link>
         ) : null}
       </nav>
+
       <form action={signOut} className="sidebar-footer">
-        <button className="button button-ghost-light" type="submit">Sign out</button>
+        <button
+          className="button button-ghost-light"
+          type="submit"
+        >
+          Sign out
+        </button>
       </form>
     </aside>
   );

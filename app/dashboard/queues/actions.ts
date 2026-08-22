@@ -60,3 +60,18 @@ export async function updateTicketAction(formData: FormData) {
   revalidatePath("/dashboard/queues");
   redirect(`/dashboard/queues?branch=${encodeURIComponent(branchId)}&success=${encodeURIComponent("Queue updated")}`);
 }
+
+export async function updateCustomerDetailsAction(formData: FormData) {
+  const branchId = String(formData.get("branch_id") ?? "");
+  const ticketId = String(formData.get("ticket_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  if (!branchId || !ticketId) redirect("/dashboard/queues?error=Missing%20ticket%20details");
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
+  const { error } = await supabase.rpc("update_ticket_customer_by_operator", { target_ticket_id: ticketId, target_name: name, target_phone: phone });
+  if (error) redirect(`/dashboard/queues?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent(error.message)}`);
+  revalidatePath("/dashboard/queues");
+  redirect(`/dashboard/queues?branch=${encodeURIComponent(branchId)}&success=${encodeURIComponent("Customer queue details updated")}`);
+}

@@ -27,6 +27,8 @@ type PublicQueue = {
     timezone: string;
   };
   services: Service[];
+  queue_open: boolean;
+  queue_status_message: string;
 };
 
 export default async function PublicQueuePage({ params, searchParams }: Props) {
@@ -57,7 +59,11 @@ export default async function PublicQueuePage({ params, searchParams }: Props) {
 
         {query.error ? <div className="notice notice-error">{query.error}</div> : null}
 
-        {queue.services.length ? (
+        {!queue.queue_open ? (
+          <div className="notice notice-error public-queue-closed">{queue.queue_status_message || "This branch is currently closed."}</div>
+        ) : null}
+
+        {queue.queue_open && queue.services.length ? (
           <form action={joinQueue} className="form-stack public-queue-form">
             <input type="hidden" name="business_slug" value={route.businessSlug} />
             <input type="hidden" name="branch_slug" value={route.branchSlug} />
@@ -95,8 +101,8 @@ export default async function PublicQueuePage({ params, searchParams }: Props) {
           </form>
         ) : (
           <div className="mini-empty">
-            <strong>No services are available right now.</strong>
-            <span>Please ask the branch staff for assistance.</span>
+            <strong>{queue.queue_open ? "No services are available right now." : "Queue joining is closed."}</strong>
+            <span>{queue.queue_open ? "Please ask the branch staff for assistance." : "Please return during branch operating hours."}</span>
           </div>
         )}
 

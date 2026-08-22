@@ -197,9 +197,11 @@ on conflict (branch_id, name) do update set
 -- day_of_week follows PostgreSQL extract(dow): Sunday=0 ... Saturday=6
 -- -----------------------------------------------------------------------------
 insert into public.operating_hours (branch_id, day_of_week, is_open, open_time, close_time)
-select br.id, d.day_of_week, (d.day_of_week <> 0),
-       case when d.day_of_week <> 0 then '09:00'::time else null end,
-       case when d.day_of_week <> 0 then '18:00'::time else null end
+select br.id,
+       d.day_of_week,
+       case when br.id = '30000000-0000-4000-8000-000000000001'::uuid then true else (d.day_of_week <> 0) end,
+       case when br.id = '30000000-0000-4000-8000-000000000001'::uuid then '00:00'::time when d.day_of_week <> 0 then '09:00'::time else null end,
+       case when br.id = '30000000-0000-4000-8000-000000000001'::uuid then '23:59'::time when d.day_of_week <> 0 then '18:00'::time else null end
 from public.branches br
 cross join generate_series(0, 6) as d(day_of_week)
 where br.id between '30000000-0000-4000-8000-000000000001'::uuid
@@ -243,3 +245,21 @@ values (
   '20000000-0000-4000-8000-000000000001',
   jsonb_build_object('note', 'QueueDrop local development seed loaded', 'business_count', 10)
 );
+
+-- Milestone 7.1 DEV defaults: make Anne Salon / Commonwealth easy to test.
+update public.queue_configurations
+set customer_can_edit_name = true,
+    customer_can_edit_mobile = true,
+    staff_can_edit_name = true,
+    staff_can_edit_mobile = true,
+    manager_can_edit_name = true,
+    manager_can_edit_mobile = true
+where branch_id = '30000000-0000-4000-8000-000000000001'::uuid;
+
+insert into public.position_notification_rules(branch_id, position, send_sms_once, browser_notification)
+values
+  ('30000000-0000-4000-8000-000000000001', 2, true, true),
+  ('30000000-0000-4000-8000-000000000001', 1, false, true)
+on conflict (branch_id, position) do update set
+  send_sms_once = excluded.send_sms_once,
+  browser_notification = excluded.browser_notification;

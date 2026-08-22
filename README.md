@@ -49,3 +49,9 @@ Owner/Admin accounts can view and operate all branches in their business. Manage
 ### Milestone 6: Team management
 
 Business owners/admins can manage team members at `/dashboard/team`. Admins have business-wide access; managers and staff are explicitly assigned to one or more branches. QueueDrop enforces inactive membership and branch scope in PostgreSQL helper functions as well as in the application UI.
+
+### Queue configuration (Milestone 7)
+Business owners/admins can configure each branch under `/dashboard/settings`: numbering, queue availability, public/QR joining, no-show grace period, branch contact visibility, timezone, and weekly operating hours. Public queue joining is rejected by PostgreSQL outside configured hours.
+
+### Queue settings (Milestone 7.1)
+QueueDrop supports per-branch position notification rules and per-role permissions for editing queue customer name/mobile. Customer edits are stored as ticket-level overrides with change history. Position rules are configuration-only until SMS/browser push delivery is connected.
