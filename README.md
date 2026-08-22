@@ -27,3 +27,6 @@ npm run dev
 ```
 
 Local environment values belong in `.env.local` and must never be committed.
+
+### Milestone 3
+Branch and service management is available in local DEV under `/dashboard/branches` and `/dashboard/services`. New branches are created transactionally with their queue defaults, and services support branch-specific prefixes, ETA values, and active/inactive state.

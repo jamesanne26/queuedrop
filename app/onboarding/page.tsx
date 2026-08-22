@@ -10,8 +10,8 @@ type Props = {
 export default async function OnboardingPage({ searchParams }: Props) {
   const { error } = await searchParams;
   const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const userId = claimsData?.claims?.sub;
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
 
   if (!userId) {
     redirect("/auth/login?next=%2Fonboarding");

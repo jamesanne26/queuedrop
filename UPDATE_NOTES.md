@@ -23,3 +23,27 @@ This package builds on the tested Milestone 1 authentication foundation.
 After copying this package over the existing project, keep the existing `.env.local` and `.git` directory. With Docker Desktop and local Supabase running, apply the new local migration before testing Milestone 2.
 
 Do not push this migration to TEST until local onboarding has been verified.
+
+## Milestone 3 — Branch & Service Management
+
+Added:
+- Reusable dashboard navigation.
+- `/dashboard/branches` for listing and creating branches.
+- Automatic default queue configuration + creator branch membership for every new branch.
+- `/dashboard/services` for creating branch-specific services.
+- Service queue prefix, estimated duration, active/inactive controls.
+- Audit-log entries for branch/service management actions.
+- Server-side auth hardening via `auth.getUser()` for sensitive flows.
+- Migration `20260822130000_branch_service_management.sql`.
+
+Local verification sequence:
+1. Copy/replace package source files into the existing repo (keep `.git` and `.env.local`).
+2. Run `npx supabase db reset` (LOCAL DEV only).
+3. Create a fresh local DEV account after reset.
+4. Create a business workspace.
+5. Create a second branch at `/dashboard/branches`.
+6. Create services at `/dashboard/services` and test deactivate/activate.
+7. Run `npm run build`.
+
+### Milestone 3 hotfix
+- Auth proxy now verifies the user with Supabase Auth (`getUser`) so stale local cookies after `supabase db reset` cannot cause an auth redirect loop.

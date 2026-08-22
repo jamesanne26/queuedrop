@@ -26,11 +26,18 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data } = await supabase.auth.getClaims();
-  const isAuthenticated = Boolean(data?.claims?.sub);
+  // Validate the session against Supabase Auth instead of trusting only JWT claims.
+  // This prevents redirect loops when a local db reset deletes auth.users while an
+  // old browser cookie is still cryptographically valid.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isAuthenticated = Boolean(user);
   const pathname = request.nextUrl.pathname;
   const isProtectedRoute = pathname.startsWith("/dashboard");
-  const isAuthRoute = pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
+  const isAuthRoute =
+    pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
 
   if (isProtectedRoute && !isAuthenticated) {
     const urlToLogin = request.nextUrl.clone();
