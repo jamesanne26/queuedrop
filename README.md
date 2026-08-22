@@ -1,41 +1,29 @@
 # QueueDrop
 
-QueueDrop is a multi-tenant, web-based queue management SaaS for service businesses. Customers use a browser—no app download required.
+QueueDrop is a multi-tenant web-based queue management SaaS built with Next.js, TypeScript, Tailwind CSS, and Supabase.
 
 ## Environment model
 
-- **DEV:** local Next.js + Docker + local Supabase
-- **TEST:** cloud Supabase project (`QueueDrop Test`) + staging web deployment
-- **PROD:** separate cloud Supabase project + production web deployment
+- DEV: local Next.js + local Supabase via Docker
+- TEST: cloud Supabase / cloud web deployment
+- PROD: isolated production cloud environment
 
-## Local setup
+## Current development milestone
 
-1. Install Node.js, Docker Desktop, and Supabase CLI support.
-2. Copy `.env.example` to `.env.local` and enter **local** Supabase values from `npx supabase status`.
-3. Start Docker Desktop.
-4. Run `npx supabase start`.
-5. Run `npm install`.
-6. Run `npm run dev`.
-7. Open `http://localhost:3000`.
+Milestone 2 adds secure owner business onboarding on top of the authentication foundation:
 
-## Database
+1. User signs up / signs in.
+2. Authenticated user creates the initial business workspace.
+3. One atomic PostgreSQL RPC creates the business, owner membership, first branch, branch membership, queue defaults, and audit record.
+4. The dashboard reads the new workspace through the existing RLS policies.
 
-Database changes live under `supabase/migrations/`. The local DEV database can be rebuilt with:
+## Local development
 
 ```bash
-npx supabase db reset
+npm install
+npx supabase start
+npx supabase migration up --local
+npm run dev
 ```
 
-Never point local development credentials at PROD. Promote tested migrations through TEST before PROD.
-
-## Current application milestone
-
-- Responsive QueueDrop marketing page
-- Supabase SSR browser/server clients
-- Next.js Proxy session refresh
-- Email/password sign-in and sign-up foundation
-- Auth callback route
-- Protected dashboard shell
-- Existing QueueDrop schema/RLS/migrations preserved
-
-The secure business onboarding transaction, queue operations, kiosk/customer public join flow, reporting, subscriptions, and system-admin functions are the next implementation milestones.
+Local environment values belong in `.env.local` and must never be committed.

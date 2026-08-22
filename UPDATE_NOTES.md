@@ -1,39 +1,25 @@
-# QueueDrop Update Package
+# QueueDrop Update Notes
 
-This package keeps the existing Supabase schema and migrations and adds the first application-code foundation.
+## Milestone 2 — Business onboarding foundation
 
-## Added
+This package builds on the tested Milestone 1 authentication foundation.
 
-- Supabase browser client (`lib/supabase/client.ts`)
-- Supabase server client (`lib/supabase/server.ts`)
-- Supabase session refresh helper and Next.js `proxy.ts`
-- Email/password sign-in and sign-up flow
-- PKCE auth callback route
-- Protected `/dashboard` shell
-- QueueDrop responsive landing page
-- `/api/health` endpoint
-- `.env.example`
-- Updated README
+### Added
+- Secure `create_initial_business_workspace(...)` PostgreSQL RPC migration.
+- Atomic creation of the first business, owner membership, first branch, branch membership, default queue configuration, and audit log.
+- Authenticated onboarding page at `/onboarding`.
+- Server-side onboarding validation and error handling.
+- Dashboard workspace summary after onboarding.
+- First branch display and onboarding success state.
 
-## Safe copy workflow
+### Security design
+- The onboarding transaction is `SECURITY DEFINER` because normal RLS correctly prevents a user from inserting a business before membership exists.
+- The function obtains the acting user from `auth.uid()` and does not accept a user ID from the browser.
+- `anon` and `PUBLIC` cannot execute the onboarding function; only `authenticated` receives `EXECUTE`.
+- A per-user transaction advisory lock prevents double-submit races from creating duplicate initial workspaces.
+- All related records are created in one database transaction. Any failure rolls back the whole onboarding operation.
 
-Do **not** overwrite your existing `.env.local` or `.git` folder.
+### Apply locally
+After copying this package over the existing project, keep the existing `.env.local` and `.git` directory. With Docker Desktop and local Supabase running, apply the new local migration before testing Milestone 2.
 
-1. Back up `C:\queuedrop`.
-2. Extract this package to a temporary folder.
-3. Copy the package contents into `C:\queuedrop` and allow source files to replace existing files.
-4. Keep your existing `C:\queuedrop\.env.local` and `C:\queuedrop\.git` untouched.
-5. Run `npm install`.
-6. Start Docker Desktop and run `npx supabase start`.
-7. Run `npm run dev`.
-8. Open `http://localhost:3000`.
-
-## Environment variables
-
-Your local `.env.local` should contain at least:
-
-- `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000`
-- `NEXT_PUBLIC_SUPABASE_URL=...`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...`
-
-`SUPABASE_SECRET_KEY` is reserved for later server-only workflows and must never use a `NEXT_PUBLIC_` prefix.
+Do not push this migration to TEST until local onboarding has been verified.
