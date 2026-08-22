@@ -1,74 +1,82 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
+import QRCode from "qrcode";
+import { signOut } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
-import { callNextAction, updateTicketAction, updateCustomerDetailsAction } from "./actions";
+import {
+  callNextAction,
+  updateCustomerDetailsAction,
+  updateTicketAction,
+} from "./actions";
 import { LiveQueueRefresh } from "./live-queue-refresh";
 
 type Props = {
-  searchParams: Promise<{ branch?: string; success?: string; error?: string }>;
+  searchParams: Promise<{
+    branch?: string;
+    service?: string;
+    success?: string;
+    error?: string;
+  }>;
 };
 
 type Role = "owner" | "admin" | "manager" | "staff";
 
-type ChangeRow = {
-  ticket_id: string;
-  field_name: string;
-  old_value: string | null;
-  new_value: string | null;
-  changed_by_type: string;
-  created_at: string;
-};
-
-
-type QueueNotification = {
-  id: string;
-  ticket_id: string | null;
-  channel: "sms" | "web" | "email";
-  notification_type: string;
-  recipient: string | null;
-  message: string;
-  status: "pending" | "sent" | "failed";
-  queue_position: number | null;
-  created_at: string;
-};
-
 type QueueTicket = {
   id: string;
   display_number: string;
-  status: "waiting" | "called" | "serving" | "completed" | "cancelled" | "no_show";
+  status:
+    | "waiting"
+    | "called"
+    | "serving"
+    | "completed"
+    | "cancelled"
+    | "no_show";
   joined_at: string;
   service_id: string;
+  ticket_number: number;
   customer_name_override: string | null;
   customer_phone_override: string | null;
-  customers: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null;
-  services: { id: string; name: string } | { id: string; name: string }[] | null;
+  customers:
+    | { name: string | null; phone: string | null }
+    | { name: string | null; phone: string | null }[]
+    | null;
+  services:
+    | { id: string; name: string }
+    | { id: string; name: string }[]
+    | null;
 };
 
 function relationOne<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function TicketActions({ ticket, branchId }: { ticket: QueueTicket; branchId: string }) {
-  if (ticket.status === "completed" || ticket.status === "cancelled" || ticket.status === "no_show") return null;
+function TicketActions({
+  ticket,
+  branchId,
+}: {
+  ticket: QueueTicket;
+  branchId: string;
+}) {
+  if (
+    ticket.status === "completed" ||
+    ticket.status === "cancelled" ||
+    ticket.status === "no_show"
+  ) {
+    return null;
+  }
 
   return (
-    <div className="queue-actions">
+    <div className="live-row-actions">
       {ticket.status === "called" ? (
-        <>
-          <form action={updateTicketAction}>
-            <input type="hidden" name="branch_id" value={branchId} />
-            <input type="hidden" name="ticket_id" value={ticket.id} />
-            <input type="hidden" name="action" value="serve" />
-            <button className="button button-primary button-small" type="submit">Start serving</button>
-          </form>
-          <form action={updateTicketAction}>
-            <input type="hidden" name="branch_id" value={branchId} />
-            <input type="hidden" name="ticket_id" value={ticket.id} />
-            <input type="hidden" name="action" value="recall" />
-            <button className="button button-secondary button-small" type="submit">Recall</button>
-          </form>
-        </>
+        <form action={updateTicketAction}>
+          <input type="hidden" name="branch_id" value={branchId} />
+          <input type="hidden" name="ticket_id" value={ticket.id} />
+          <input type="hidden" name="action" value="serve" />
+          <button className="button button-primary button-small" type="submit">
+            Serve
+          </button>
+        </form>
       ) : null}
 
       {ticket.status === "serving" ? (
@@ -76,7 +84,9 @@ function TicketActions({ ticket, branchId }: { ticket: QueueTicket; branchId: st
           <input type="hidden" name="branch_id" value={branchId} />
           <input type="hidden" name="ticket_id" value={ticket.id} />
           <input type="hidden" name="action" value="complete" />
-          <button className="button button-primary button-small" type="submit">Complete</button>
+          <button className="button button-primary button-small" type="submit">
+            Complete
+          </button>
         </form>
       ) : null}
 
@@ -85,16 +95,11 @@ function TicketActions({ ticket, branchId }: { ticket: QueueTicket; branchId: st
           <input type="hidden" name="branch_id" value={branchId} />
           <input type="hidden" name="ticket_id" value={ticket.id} />
           <input type="hidden" name="action" value="no_show" />
-          <button className="button button-secondary button-small" type="submit">No-show</button>
+          <button className="button button-secondary button-small" type="submit">
+            No-show
+          </button>
         </form>
       ) : null}
-
-      <form action={updateTicketAction}>
-        <input type="hidden" name="branch_id" value={branchId} />
-        <input type="hidden" name="ticket_id" value={ticket.id} />
-        <input type="hidden" name="action" value="cancel" />
-        <button className="button button-danger button-small" type="submit">Cancel</button>
-      </form>
     </div>
   );
 }
@@ -102,6 +107,7 @@ function TicketActions({ ticket, branchId }: { ticket: QueueTicket; branchId: st
 export default async function QueuesPage({ searchParams }: Props) {
   const params = await searchParams;
   const supabase = await createClient();
+
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
   if (!user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
@@ -114,6 +120,7 @@ export default async function QueuesPage({ searchParams }: Props) {
     .maybeSingle();
 
   if (!membership) redirect("/onboarding");
+
   const business = relationOne(membership.businesses);
   const role = membership.role as Role;
   const businessWide = role === "owner" || role === "admin";
@@ -124,25 +131,44 @@ export default async function QueuesPage({ searchParams }: Props) {
       .from("branch_users")
       .select("branch_id")
       .eq("user_id", user.id);
-    allowedBranchIds = (assignments ?? []).map((assignment) => assignment.branch_id);
+
+    allowedBranchIds = (assignments ?? []).map(
+      (assignment) => assignment.branch_id,
+    );
   }
 
-  let branches: { id: string; name: string; slug: string; status: string }[] = [];
+  let branches: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    address: string | null;
+  }[] = [];
+
   if (businessWide || (allowedBranchIds?.length ?? 0) > 0) {
     let query = supabase
       .from("branches")
-      .select("id, name, slug, status")
+      .select("id, name, slug, status, address")
       .eq("business_id", membership.business_id)
       .order("created_at", { ascending: true });
-    if (!businessWide && allowedBranchIds) query = query.in("id", allowedBranchIds);
+
+    if (!businessWide && allowedBranchIds) {
+      query = query.in("id", allowedBranchIds);
+    }
+
     const { data } = await query;
     branches = data ?? [];
   }
 
-  const selectedBranchId = params.branch && branches.some((branch) => branch.id === params.branch)
-    ? params.branch
-    : branches[0]?.id;
-  const selectedBranch = branches.find((branch) => branch.id === selectedBranchId);
+  const selectedBranchId =
+    params.branch &&
+    branches.some((branch) => branch.id === params.branch)
+      ? params.branch
+      : branches[0]?.id;
+
+  const selectedBranch = branches.find(
+    (branch) => branch.id === selectedBranchId,
+  );
 
   const { data: services } = selectedBranchId
     ? await supabase
@@ -153,228 +179,402 @@ export default async function QueuesPage({ searchParams }: Props) {
         .order("created_at", { ascending: true })
     : { data: [] };
 
+  const selectedService =
+    (services ?? []).find((service) => service.id === params.service) ?? null;
+
   const { data: rawTickets } = selectedBranchId
     ? await supabase
         .from("tickets")
-        .select("id, display_number, status, joined_at, service_id, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)")
+        .select(
+          "id, display_number, status, joined_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)",
+        )
         .eq("branch_id", selectedBranchId)
+        .in("status", ["waiting", "called", "serving"])
         .order("joined_at", { ascending: true })
-        .limit(150)
+        .limit(250)
     : { data: [] };
 
   const tickets = (rawTickets ?? []) as QueueTicket[];
 
   const { data: queueConfig } = selectedBranchId
-    ? await supabase.from("queue_configurations").select("staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile").eq("branch_id", selectedBranchId).maybeSingle()
+    ? await supabase
+        .from("queue_configurations")
+        .select(
+          "staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+        )
+        .eq("branch_id", selectedBranchId)
+        .maybeSingle()
     : { data: null };
 
-  const ticketIds = tickets.map((ticket) => ticket.id);
-  const { data: changeRows } = ticketIds.length
-    ? await supabase.from("ticket_customer_changes").select("ticket_id, field_name, old_value, new_value, changed_by_type, created_at").in("ticket_id", ticketIds).order("created_at", { ascending: false })
-    : { data: [] };
-  const changesByTicket = new Map<string, ChangeRow[]>();
-  for (const change of (changeRows ?? []) as ChangeRow[]) {
-    const list = changesByTicket.get(change.ticket_id) ?? [];
-    list.push(change);
-    changesByTicket.set(change.ticket_id, list);
+  const canEditName =
+    businessWide ||
+    (role === "manager"
+      ? queueConfig?.manager_can_edit_name
+      : queueConfig?.staff_can_edit_name);
+
+  const canEditMobile =
+    businessWide ||
+    (role === "manager"
+      ? queueConfig?.manager_can_edit_mobile
+      : queueConfig?.staff_can_edit_mobile);
+
+  const waitingPositionByTicket = new Map<string, number>();
+
+  for (const service of services ?? []) {
+    const waiting = tickets
+      .filter(
+        (ticket) =>
+          ticket.service_id === service.id && ticket.status === "waiting",
+      )
+      .sort((a, b) => a.ticket_number - b.ticket_number);
+
+    waiting.forEach((ticket, index) => {
+      waitingPositionByTicket.set(ticket.id, index + 1);
+    });
   }
-  const { data: notificationRows } = selectedBranchId
-    ? await supabase
-        .from("notifications")
-        .select("id, ticket_id, channel, notification_type, recipient, message, status, queue_position, created_at")
-        .eq("branch_id", selectedBranchId)
-        .eq("notification_type", "queue_position")
-        .order("created_at", { ascending: false })
-        .limit(20)
-    : { data: [] };
 
-  const recentNotifications = (notificationRows ?? []) as QueueNotification[];
-  const ticketNumberById = new Map(tickets.map((ticket) => [ticket.id, ticket.display_number]));
-  const pendingNotificationCount = recentNotifications.filter((notification) => notification.status === "pending").length;
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host") ??
+    "localhost:3000";
+  const protocol =
+    requestHeaders.get("x-forwarded-proto") ??
+    (host.includes("localhost") ? "http" : "https");
+  const origin = `${protocol}://${host}`;
 
-  const canEditName = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_name : queueConfig?.staff_can_edit_name);
-  const canEditMobile = businessWide || (role === "manager" ? queueConfig?.manager_can_edit_mobile : queueConfig?.staff_can_edit_mobile);
+  let joinUrl: string | null = null;
+  let qrDataUrl: string | null = null;
 
-  const activeTickets = tickets.filter((ticket) => ["waiting", "called", "serving"].includes(ticket.status));
-  const finishedTickets = tickets.filter((ticket) => ["completed", "cancelled", "no_show"].includes(ticket.status)).reverse().slice(0, 20);
+  if (business && selectedBranch && selectedService) {
+    joinUrl = `${origin}/q/${business.slug}/${selectedBranch.slug}?service=${encodeURIComponent(
+      selectedService.id,
+    )}`;
+
+    qrDataUrl = await QRCode.toDataURL(joinUrl, {
+      width: 420,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    });
+  }
 
   return (
-    <main className="dashboard-shell">
-      <DashboardSidebar active="queues" />
-      <section className="dashboard-content">
-        <header className="dashboard-header">
+    <main className="live-queue-shell">
+      <LiveQueueRefresh />
+
+      <header className="live-queue-topbar">
+        <div className="live-queue-brand">
+          <Link href="/" className="brand-mark">
+            QueueDrop
+          </Link>
           <div>
-            <p className="eyebrow">{businessWide ? "Business queue operations" : "Assigned branch queue"}</p>
-            <h1>{business?.name ?? "QueueDrop"}</h1>
-            <p className="muted page-lead">{businessWide ? "Operate queues across your business branches." : "You can operate only queues for branch locations assigned to your account."} Customer positions update automatically.</p>
+            <span className="live-dot" />
+            <strong>Live Queue</strong>
+            <small>
+              {selectedBranch?.name ?? "No branch"}
+              {selectedBranch?.address
+                ? ` · ${selectedBranch.address}`
+                : ""}
+            </small>
           </div>
-          <span className="env-badge">DEV</span>
-        </header>
+        </div>
 
-        {params.success ? <div className="notice notice-success">{params.success}</div> : null}
-        {params.error ? <div className="notice notice-error">{params.error}</div> : null}
-
-        <LiveQueueRefresh />
-
-        <section className="dashboard-section dashboard-section-stack management-list-card">
-          <div className="section-row">
-            <div>
-              <p className="eyebrow">Branch</p>
-              <h2>{selectedBranch?.name ?? "No branch"}</h2>
+        <div className="live-queue-top-actions">
+          {branches.length > 1 ? (
+            <div className="live-branch-switcher">
+              {branches.map((branch) => (
+                <Link
+                  key={branch.id}
+                  href={`/dashboard/queues?branch=${branch.id}`}
+                  className={
+                    branch.id === selectedBranchId
+                      ? "live-branch-chip live-branch-chip-active"
+                      : "live-branch-chip"
+                  }
+                >
+                  {branch.name}
+                </Link>
+              ))}
             </div>
-            {business && selectedBranch ? (
-              <Link className="button button-secondary button-small" href={`/q/${business.slug}/${selectedBranch.slug}`} target="_blank">
-                Open customer join page ↗
-              </Link>
+          ) : null}
+
+          {role === "staff" ? (
+            <form action={signOut}>
+              <button className="button button-secondary" type="submit">
+                Logout
+              </button>
+            </form>
+          ) : (
+            <Link href="/dashboard" className="button button-secondary">
+              Exit live view
+            </Link>
+          )}
+        </div>
+      </header>
+
+      {params.success ? (
+        <div className="notice notice-success live-queue-notice">
+          {params.success}
+        </div>
+      ) : null}
+
+      {params.error ? (
+        <div className="notice notice-error live-queue-notice">
+          {params.error}
+        </div>
+      ) : null}
+
+      <section className="live-queue-workspace">
+        <div className="live-queue-list-panel">
+          <div className="live-panel-heading">
+            <div>
+              <p className="eyebrow">Current queue</p>
+              <h1>Queue list</h1>
+            </div>
+            <span className="status-chip">{tickets.length} active</span>
+          </div>
+
+          <div className="live-queue-table-wrap">
+            <table className="live-queue-table">
+              <thead>
+                <tr>
+                  <th>Queue</th>
+                  <th>Service</th>
+                  <th>Position</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {tickets.map((ticket) => {
+                  const customer = relationOne(ticket.customers);
+                  const service = relationOne(ticket.services);
+                  const position = waitingPositionByTicket.get(ticket.id);
+
+                  return (
+                    <tr key={ticket.id}>
+                      <td>
+                        <strong>{ticket.display_number}</strong>
+                      </td>
+                      <td>
+                        <span>{service?.name ?? "Service"}</span>
+                        {(canEditName || canEditMobile) ? (
+                          <details className="live-customer-edit">
+                            <summary>
+                              {ticket.customer_name_override ??
+                                customer?.name ??
+                                "Customer"}
+                            </summary>
+                            <form
+                              action={updateCustomerDetailsAction}
+                              className="queue-inline-edit"
+                            >
+                              <input
+                                type="hidden"
+                                name="branch_id"
+                                value={selectedBranchId ?? ""}
+                              />
+                              <input
+                                type="hidden"
+                                name="ticket_id"
+                                value={ticket.id}
+                              />
+                              {canEditName ? (
+                                <input
+                                  name="name"
+                                  maxLength={100}
+                                  defaultValue={
+                                    ticket.customer_name_override ??
+                                    customer?.name ??
+                                    ""
+                                  }
+                                  aria-label="Customer name"
+                                />
+                              ) : (
+                                <input
+                                  type="hidden"
+                                  name="name"
+                                  value={
+                                    ticket.customer_name_override ??
+                                    customer?.name ??
+                                    ""
+                                  }
+                                />
+                              )}
+                              {canEditMobile ? (
+                                <input
+                                  name="phone"
+                                  defaultValue={
+                                    ticket.customer_phone_override ??
+                                    customer?.phone ??
+                                    ""
+                                  }
+                                  aria-label="Customer mobile"
+                                />
+                              ) : (
+                                <input
+                                  type="hidden"
+                                  name="phone"
+                                  value={
+                                    ticket.customer_phone_override ??
+                                    customer?.phone ??
+                                    ""
+                                  }
+                                />
+                              )}
+                              <button
+                                className="button button-secondary button-small"
+                                type="submit"
+                              >
+                                Save
+                              </button>
+                            </form>
+                          </details>
+                        ) : null}
+                      </td>
+                      <td>
+                        <strong>{position ?? "—"}</strong>
+                      </td>
+                      <td>
+                        <span
+                          className={`ticket-status-chip ticket-status-${ticket.status}`}
+                        >
+                          {ticket.status.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td>
+                        {selectedBranchId ? (
+                          <TicketActions
+                            ticket={ticket}
+                            branchId={selectedBranchId}
+                          />
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {!tickets.length ? (
+              <div className="mini-empty">
+                <strong>No active queue tickets.</strong>
+                <span>Select a service and display its QR code.</span>
+              </div>
             ) : null}
           </div>
+        </div>
 
-          <div className="queue-branch-tabs">
-            {branches.map((branch) => (
-              <Link key={branch.id} className={`queue-tab ${branch.id === selectedBranchId ? "queue-tab-active" : ""}`} href={`/dashboard/queues?branch=${branch.id}`}>
-                {branch.name}
+        <aside className="live-service-panel">
+          <div className="live-panel-heading">
+            <div>
+              <p className="eyebrow">Customer entry</p>
+              <h2>Select a service</h2>
+            </div>
+          </div>
+
+          <div className="live-service-buttons">
+            {(services ?? []).map((service) => (
+              <Link
+                key={service.id}
+                href={`/dashboard/queues?branch=${selectedBranchId}&service=${service.id}`}
+                scroll={false}
+                className={
+                  selectedService?.id === service.id
+                    ? "live-service-button live-service-button-active"
+                    : "live-service-button"
+                }
+              >
+                <strong>{service.name}</strong>
+                <span>Generate customer QR</span>
               </Link>
             ))}
           </div>
 
-          {selectedBranchId && (services ?? []).length ? (
-            <div className="queue-service-controls">
-              {(services ?? []).map((service) => {
-                const serviceTickets = activeTickets.filter((ticket) => ticket.service_id === service.id);
-                const calledOrServing = serviceTickets.find((ticket) => ticket.status === "called" || ticket.status === "serving");
-                const waitingCount = serviceTickets.filter((ticket) => ticket.status === "waiting").length;
-                return (
-                  <article className="queue-service-control" key={service.id}>
-                    <div>
-                      <strong>{service.name}</strong>
-                      <span>{waitingCount} waiting{calledOrServing ? ` · ${calledOrServing.display_number} ${calledOrServing.status}` : ""}</span>
-                    </div>
-                    <form action={callNextAction}>
-                      <input type="hidden" name="branch_id" value={selectedBranchId} />
-                      <input type="hidden" name="service_id" value={service.id} />
-                      <button className="button button-primary button-small" type="submit" disabled={!waitingCount || Boolean(calledOrServing)}>
-                        Call next
-                      </button>
-                    </form>
-                  </article>
-                );
-              })}
-            </div>
-          ) : null}
+          <form className="live-service-mobile-form" method="get">
+            <input
+              type="hidden"
+              name="branch"
+              value={selectedBranchId ?? ""}
+            />
+            <label>
+              Service
+              <select
+                name="service"
+                defaultValue={selectedService?.id ?? ""}
+                required
+              >
+                <option value="" disabled>
+                  Select service
+                </option>
+                {(services ?? []).map((service) => (
+                  <option value={service.id} key={service.id}>
+                    {service.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="button button-primary" type="submit">
+              Generate QR
+            </button>
+          </form>
 
-          {activeTickets.length ? (
-            <div className="queue-ticket-list">
-              {activeTickets.map((ticket) => {
-                const customer = relationOne(ticket.customers);
-                const service = relationOne(ticket.services);
-                return (
-                  <article className={`queue-ticket-row queue-ticket-${ticket.status}`} key={ticket.id}>
-                    <div className="queue-ticket-number">{ticket.display_number}</div>
-                    <div className="queue-ticket-main">
-                      <strong>{ticket.customer_name_override ?? customer?.name ?? "Customer"}</strong>
-                      <span>{service?.name ?? "Service"} · {ticket.customer_phone_override ?? customer?.phone ?? "No phone"}</span>
-                      {(canEditName || canEditMobile) ? (
-                        <details className="queue-edit-details">
-                          <summary>Edit customer details</summary>
-                          <form action={updateCustomerDetailsAction} className="queue-inline-edit">
-                            <input type="hidden" name="branch_id" value={selectedBranchId ?? ""} />
-                            <input type="hidden" name="ticket_id" value={ticket.id} />
-                            {canEditName ? <input name="name" maxLength={100} defaultValue={ticket.customer_name_override ?? customer?.name ?? ""} aria-label="Customer name" /> : <input type="hidden" name="name" value={ticket.customer_name_override ?? customer?.name ?? ""} />}
-                            {canEditMobile ? <input name="phone" defaultValue={ticket.customer_phone_override ?? customer?.phone ?? ""} aria-label="Customer mobile" /> : <input type="hidden" name="phone" value={ticket.customer_phone_override ?? customer?.phone ?? ""} />}
-                            <button className="button button-secondary button-small" type="submit">Save</button>
-                          </form>
-                        </details>
-                      ) : null}
-                      {(changesByTicket.get(ticket.id) ?? []).length ? (
-                        <details className="queue-history-details">
-                          <summary>Change history ({(changesByTicket.get(ticket.id) ?? []).length})</summary>
-                          <ul>
-                            {(changesByTicket.get(ticket.id) ?? []).map((change, index) => (
-                              <li key={`${change.created_at}-${index}`}><strong>{change.field_name}</strong>: {change.old_value || "—"} → {change.new_value || "—"} <span>by {change.changed_by_type} · {new Date(change.created_at).toLocaleString()}</span></li>
-                            ))}
-                          </ul>
-                        </details>
-                      ) : null}
-                    </div>
-                    <div className="queue-ticket-side">
-                      <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
-                      {selectedBranchId ? <TicketActions ticket={ticket} branchId={selectedBranchId} /> : null}
-                    </div>
-                  </article>
-                );
-              })}
+          {selectedService && qrDataUrl && joinUrl ? (
+            <div className="live-qr-card">
+              <div className="live-selected-service">
+                <span>Selected service</span>
+                <strong>{selectedService.name}</strong>
+              </div>
+
+              <img
+                src={qrDataUrl}
+                alt={`QR code for ${selectedService.name}`}
+                className="live-qr-image"
+              />
+
+              <p>Scan this QR code to join the queue.</p>
+
+              <div className="live-qr-actions">
+                <Link
+                  className="button button-secondary"
+                  href={`${joinUrl}&assist=1`}
+                  target="_blank"
+                >
+                  Fill up for customer
+                </Link>
+
+                <form action={callNextAction}>
+                  <input
+                    type="hidden"
+                    name="branch_id"
+                    value={selectedBranchId ?? ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="service_id"
+                    value={selectedService.id}
+                  />
+                  <button className="button button-primary" type="submit">
+                    Call next
+                  </button>
+                </form>
+              </div>
+
+              <small>
+                Use “Fill up for customer” when staff needs to assist a senior,
+                PWD, or any customer who cannot complete the form.
+              </small>
             </div>
           ) : (
-            <div className="mini-empty">
-              <strong>No active queue tickets.</strong>
-              <span>Open the customer join page and create a DEV ticket.</span>
+            <div className="live-service-empty">
+              <strong>Select a service.</strong>
+              <span>
+                QueueDrop will show the QR code customers can scan using their
+                phone.
+              </span>
             </div>
           )}
-        </section>
-
-        <section className="dashboard-section dashboard-section-stack management-list-card">
-          <div className="section-row">
-            <div>
-              <p className="eyebrow">Notification trigger outbox</p>
-              <h2>Position notification jobs</h2>
-              <p className="muted page-lead">
-                QueueDrop creates each SMS/browser job once when a waiting ticket reaches a configured position. Actual provider delivery is connected in a later milestone.
-              </p>
-            </div>
-            <span className="status-chip">{pendingNotificationCount} pending</span>
-          </div>
-
-          {recentNotifications.length ? (
-            <div className="queue-notification-list">
-              {recentNotifications.map((notification) => (
-                <article className="queue-notification-row" key={notification.id}>
-                  <div>
-                    <strong>
-                      {notification.ticket_id ? ticketNumberById.get(notification.ticket_id) ?? "Queue ticket" : "Queue ticket"}
-                      {notification.queue_position ? ` · position ${notification.queue_position}` : ""}
-                    </strong>
-                    <span>{notification.message}</span>
-                  </div>
-                  <div className="queue-notification-meta">
-                    <span className="status-chip">{notification.channel === "web" ? "browser" : notification.channel}</span>
-                    <span className={notification.status === "failed" ? "status-chip status-chip-off" : "status-chip"}>{notification.status}</span>
-                    <small>{new Date(notification.created_at).toLocaleString()}</small>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="mini-empty">
-              <strong>No position notification jobs yet.</strong>
-              <span>Move the queue so a waiting customer reaches one of this branch&apos;s configured notification positions.</span>
-            </div>
-          )}
-        </section>
-
-        {finishedTickets.length ? (
-          <section className="dashboard-section dashboard-section-stack management-list-card">
-            <div>
-              <p className="eyebrow">Recent history</p>
-              <h2>Finished tickets</h2>
-            </div>
-            <div className="queue-ticket-list queue-history-list">
-              {finishedTickets.map((ticket) => {
-                const customer = relationOne(ticket.customers);
-                const service = relationOne(ticket.services);
-                return (
-                  <article className="queue-ticket-row" key={ticket.id}>
-                    <div className="queue-ticket-number">{ticket.display_number}</div>
-                    <div className="queue-ticket-main">
-                      <strong>{ticket.customer_name_override ?? customer?.name ?? "Customer"}</strong>
-                      <span>{service?.name ?? "Service"}</span>
-                    </div>
-                    <span className={`ticket-status-chip ticket-status-${ticket.status}`}>{ticket.status.replace("_", " ")}</span>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
+        </aside>
       </section>
     </main>
   );
