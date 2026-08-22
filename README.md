@@ -45,3 +45,7 @@ Staff queue operations are now available from `/dashboard/queues`: call next by 
 
 ### Branch-scoped access
 Owner/Admin accounts can view and operate all branches in their business. Manager/Staff accounts are limited to branches explicitly assigned through `branch_users`; queue operations enforce the same rule in PostgreSQL.
+
+### Milestone 6: Team management
+
+Business owners/admins can manage team members at `/dashboard/team`. Admins have business-wide access; managers and staff are explicitly assigned to one or more branches. QueueDrop enforces inactive membership and branch scope in PostgreSQL helper functions as well as in the application UI.

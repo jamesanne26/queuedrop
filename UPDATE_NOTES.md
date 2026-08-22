@@ -85,3 +85,15 @@ This milestone intentionally does **not** yet add staff actions (call / serve / 
 - Branch, service, queue, and queue-config reads are branch-scoped for non-admin users.
 - Queue RPC authorization no longer gives managers implicit access to every branch in the business.
 - Includes the 10-client local DEV seed dataset.
+
+## Milestone 6 — Team & Staff Management
+
+- Added `/dashboard/team` for business owners/admins.
+- Owners/admins can create Auth accounts for admins, managers, and staff.
+- Managers/staff require explicit branch assignments.
+- Team access can be activated/deactivated without deleting the Auth account.
+- Inactive memberships no longer grant business, branch, service, or queue access.
+- Added profile email synchronization for team lists.
+- Team member changes are audited through `team.member_added` / `team.member_updated`.
+- Staff do not see the Team navigation item.
+- Current workflow uses a temporary password; outbound invitation email will be added when TEST/PROD email delivery is connected.
