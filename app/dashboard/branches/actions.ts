@@ -12,32 +12,10 @@ function fail(message: string): never {
   redirect(`/dashboard/branches?error=${encodeURIComponent(message)}`);
 }
 
-function success(message: string): never {
-  redirect(`/dashboard/branches?message=${encodeURIComponent(message)}`);
-}
-
-function validateBranchFields(name: string, address: string, phone: string) {
-  if (name.length < 2 || name.length > 120) {
-    fail("Branch name must be between 2 and 120 characters.");
-  }
-  if (address.length > 300) {
-    fail("Address must be 300 characters or fewer.");
-  }
-  if (phone.length > 32) {
-    fail("Phone must be 32 characters or fewer.");
-  }
-  if (phone && !/^[0-9+() .-]{7,32}$/.test(phone)) {
-    fail("Phone contains invalid characters.");
-  }
-}
-
-async function getOwnerContext() {
+async function ownerAdminContext() {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !userData.user) {
-    redirect("/auth/login?next=%2Fdashboard%2Fbranches");
-  }
+  if (userError || !userData.user) redirect("/auth/login?next=%2Fdashboard%2Fbranches");
 
   const { data: membership } = await supabase
     .from("business_users")
@@ -48,22 +26,24 @@ async function getOwnerContext() {
     .limit(1)
     .maybeSingle();
 
-  if (!membership) {
-    fail("Only the business owner/admin can manage branches.");
-  }
-
+  if (!membership) fail("Only the business owner/admin can manage branches.");
   return { supabase, membership };
+}
+
+function validateBranchFields(name: string, address: string, phone: string) {
+  if (name.length < 2 || name.length > 120) fail("Branch name must be between 2 and 120 characters.");
+  if (address.length > 300) fail("Address must be 300 characters or fewer.");
+  if (phone.length > 32) fail("Phone must be 32 characters or fewer.");
+  if (phone && !/^[0-9+() .-]{7,32}$/.test(phone)) fail("Phone contains invalid characters.");
 }
 
 export async function createBranch(formData: FormData) {
   const name = value(formData, "name");
   const address = value(formData, "address");
   const phone = value(formData, "phone");
-
   validateBranchFields(name, address, phone);
 
-  const { supabase } = await getOwnerContext();
-
+  const { supabase } = await ownerAdminContext();
   const { error } = await supabase.rpc("create_branch_with_defaults", {
     branch_name: name,
     branch_address: address || null,
@@ -71,17 +51,14 @@ export async function createBranch(formData: FormData) {
   });
 
   if (error) {
-    if (
-      error.code === "23505" ||
-      error.message.toLowerCase().includes("duplicate")
-    ) {
+    if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
       fail("A branch with that name already exists in this business.");
     }
     fail(error.message || "Unable to create branch.");
   }
 
   revalidatePath("/dashboard/branches");
-  success("Branch created successfully.");
+  redirect("/dashboard/branches?message=Branch%20created%20successfully.");
 }
 
 export async function updateBranch(formData: FormData) {
@@ -93,70 +70,40 @@ export async function updateBranch(formData: FormData) {
 
   if (!branchId) fail("Missing branch.");
   validateBranchFields(name, address, phone);
+  if (!["active", "inactive"].includes(status)) fail("Invalid branch status.");
 
-  if (!["active", "inactive"].includes(status)) {
-    fail("Invalid branch status.");
-  }
-
-  const { supabase, membership } = await getOwnerContext();
-
-  const { data: branch } = await supabase
-    .from("branches")
-    .select("id")
-    .eq("id", branchId)
-    .eq("business_id", membership.business_id)
-    .maybeSingle();
-
-  if (!branch) fail("Branch not found in this business.");
-
-  // Keep slug stable so existing QR/public queue URLs do not break when
-  // the display name changes.
+  const { supabase, membership } = await ownerAdminContext();
   const { error } = await supabase
     .from("branches")
-    .update({
-      name,
-      address: address || null,
-      phone: phone || null,
-      status,
-    })
+    .update({ name, address: address || null, phone: phone || null, status })
     .eq("id", branchId)
     .eq("business_id", membership.business_id);
 
   if (error) {
+    if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
+      fail("A branch with that name already exists in this business.");
+    }
     fail(error.message || "Unable to update branch.");
   }
 
   revalidatePath("/dashboard/branches");
-  revalidatePath("/dashboard/settings");
-  success("Branch updated successfully.");
+  redirect("/dashboard/branches?message=Branch%20updated%20successfully.");
 }
 
 export async function deleteBranch(formData: FormData) {
   const branchId = value(formData, "branch_id");
   if (!branchId) fail("Missing branch.");
 
-  const { supabase, membership } = await getOwnerContext();
+  const { supabase, membership } = await ownerAdminContext();
 
-  const { data: branch } = await supabase
-    .from("branches")
-    .select("id, name")
-    .eq("id", branchId)
-    .eq("business_id", membership.business_id)
-    .maybeSingle();
-
-  if (!branch) fail("Branch not found in this business.");
-
-  // Hard-deleting a branch cascades into queue/service data in the current
-  // schema. Protect branches that already have tickets/history.
-  const { count: ticketCount } = await supabase
+  const { count: historyCount, error: historyError } = await supabase
     .from("tickets")
     .select("id", { count: "exact", head: true })
     .eq("branch_id", branchId);
 
-  if ((ticketCount ?? 0) > 0) {
-    fail(
-      "This branch already has queue history and cannot be deleted. Set it to Inactive instead.",
-    );
+  if (historyError) fail(historyError.message || "Unable to check branch history.");
+  if ((historyCount ?? 0) > 0) {
+    fail("This branch has queue history and cannot be deleted. Set it to inactive instead.");
   }
 
   const { error } = await supabase
@@ -165,11 +112,8 @@ export async function deleteBranch(formData: FormData) {
     .eq("id", branchId)
     .eq("business_id", membership.business_id);
 
-  if (error) {
-    fail(error.message || "Unable to delete branch.");
-  }
+  if (error) fail(error.message || "Unable to delete branch.");
 
   revalidatePath("/dashboard/branches");
-  revalidatePath("/dashboard/settings");
-  success(`${branch.name} deleted successfully.`);
+  redirect("/dashboard/branches?message=Branch%20deleted%20successfully.");
 }

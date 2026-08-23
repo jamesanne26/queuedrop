@@ -1,5 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
+import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
+import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
 import {
   createTeamMember,
@@ -13,7 +16,11 @@ import {
 } from "./team-forms";
 
 type Props = {
-  searchParams: Promise<{ message?: string; error?: string }>;
+  searchParams: Promise<{
+    message?: string;
+    error?: string;
+    branch?: string;
+  }>;
 };
 
 type Role = "owner" | "admin" | "manager" | "staff";
@@ -43,17 +50,6 @@ type BranchUser = {
   user_id: string;
   branch_id: string;
 };
-
-
-function initials(name: string | null | undefined) {
-  const value = (name ?? "").trim();
-  if (!value) return "Q";
-  return value
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 export default async function TeamPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -110,10 +106,6 @@ export default async function TeamPage({ searchParams }: Props) {
     );
   }
 
-  const { data: branches } = await branchQuery;
-  const visibleBranches = (branches ?? []) as Branch[];
-  const visibleBranchIds = visibleBranches.map((branch) => branch.id);
-
   let memberQuery = supabase
     .from("business_users")
     .select("id, user_id, role, is_active, created_at")
@@ -122,21 +114,33 @@ export default async function TeamPage({ searchParams }: Props) {
 
   if (isManager) memberQuery = memberQuery.eq("role", "staff");
 
-  const { data: rawMembers } = await memberQuery;
-  let members = (rawMembers ?? []) as Member[];
+  const [{ data: branches }, { data: rawMembers }] = await Promise.all([
+    branchQuery,
+    memberQuery,
+  ]);
 
+  const visibleBranches = (branches ?? []) as Branch[];
+  const visibleBranchIds = visibleBranches.map((branch) => branch.id);
+  let members = (rawMembers ?? []) as Member[];
   const candidateUserIds = members.map((member) => member.user_id);
 
-  const { data: rawAssignments } =
+  const [assignmentsResult, profilesResult] = await Promise.all([
     visibleBranchIds.length && candidateUserIds.length
-      ? await supabase
+      ? supabase
           .from("branch_users")
           .select("user_id, branch_id")
           .in("branch_id", visibleBranchIds)
           .in("user_id", candidateUserIds)
-      : { data: [] as BranchUser[] };
+      : Promise.resolve({ data: [] as BranchUser[] }),
+    candidateUserIds.length
+      ? supabase
+          .from("profiles")
+          .select("id, full_name, email, phone")
+          .in("id", candidateUserIds)
+      : Promise.resolve({ data: [] as Profile[] }),
+  ]);
 
-  const assignments = (rawAssignments ?? []) as BranchUser[];
+  const assignments = (assignmentsResult.data ?? []) as BranchUser[];
 
   if (isManager) {
     const visibleStaffIds = new Set(
@@ -147,14 +151,10 @@ export default async function TeamPage({ searchParams }: Props) {
     );
   }
 
-  const userIds = members.map((member) => member.user_id);
-
-  const { data: rawProfiles } = userIds.length
-    ? await supabase
-        .from("profiles")
-        .select("id, full_name, email, phone")
-        .in("id", userIds)
-    : { data: [] as Profile[] };
+  const visibleMemberIds = new Set(members.map((member) => member.user_id));
+  const rawProfiles = (profilesResult.data ?? []).filter((profile) =>
+    visibleMemberIds.has(profile.id),
+  );
 
   const profiles = (rawProfiles ?? []) as Profile[];
   const profileById = new Map(
@@ -172,6 +172,29 @@ export default async function TeamPage({ searchParams }: Props) {
     branchesByUser.set(assignment.user_id, list);
   }
 
+  const selectedBranchId =
+    params.branch &&
+    visibleBranches.some((branch) => branch.id === params.branch)
+      ? params.branch
+      : "all";
+
+  const memberCountByBranch = new Map<string, number>();
+  for (const branch of visibleBranches) {
+    const count = members.filter((member) =>
+      (branchesByUser.get(member.user_id) ?? []).includes(branch.id),
+    ).length;
+    memberCountByBranch.set(branch.id, count);
+  }
+
+  const displayedMembers =
+    selectedBranchId === "all"
+      ? members
+      : members.filter((member) =>
+          (branchesByUser.get(member.user_id) ?? []).includes(
+            selectedBranchId,
+          ),
+        );
+
   const canManageMember = (memberRole: Role) => {
     if (isManager) return memberRole === "staff";
     return memberRole === "manager" || memberRole === "staff";
@@ -182,9 +205,9 @@ export default async function TeamPage({ searchParams }: Props) {
   );
 
   return (
-    <main className="dashboard-shell">
-      <DashboardSidebar active="team" />
-
+    <>
+      <PreserveDashboardScroll />
+      <DashboardResultModal success={params.message} error={params.error} />
       <section className="dashboard-content">
         <header className="dashboard-header">
           <div>
@@ -199,12 +222,40 @@ export default async function TeamPage({ searchParams }: Props) {
           <span className="env-badge">DEV</span>
         </header>
 
-        {params.message ? (
-          <div className="notice notice-success">{params.message}</div>
-        ) : null}
-        {params.error ? (
-          <div className="notice notice-error">{params.error}</div>
-        ) : null}
+        <section className="dashboard-section team-branch-tabs-card">
+          <div className="service-branch-tabs">
+            <Link
+              href="/dashboard/team?branch=all"
+              scroll={false}
+              className={
+                selectedBranchId === "all"
+                  ? "service-branch-tab service-branch-tab-active"
+                  : "service-branch-tab"
+              }
+            >
+              <strong>View all team</strong>
+              <span>{members.length} total</span>
+            </Link>
+
+            {visibleBranches.map((branch) => (
+              <Link
+                key={branch.id}
+                href={`/dashboard/team?branch=${branch.id}`}
+                scroll={false}
+                className={
+                  selectedBranchId === branch.id
+                    ? "service-branch-tab service-branch-tab-active"
+                    : "service-branch-tab"
+                }
+              >
+                <strong>{branch.name}</strong>
+                <span>
+                  {memberCountByBranch.get(branch.id) ?? 0} people
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <div className="team-layout">
           <section className="dashboard-section dashboard-section-stack management-list-card">
@@ -214,14 +265,14 @@ export default async function TeamPage({ searchParams }: Props) {
                   {isManager ? "Staff in your branches" : "Business users"}
                 </p>
                 <h2>
-                  {members.length} team member
-                  {members.length === 1 ? "" : "s"}
+                  {displayedMembers.length} team member
+                  {displayedMembers.length === 1 ? "" : "s"}
                 </h2>
               </div>
             </div>
 
             <div className="team-list">
-              {members.map((member) => {
+              {displayedMembers.map((member) => {
                 const profile = profileById.get(member.user_id);
                 const assignedIds =
                   branchesByUser.get(member.user_id) ?? [];
@@ -236,23 +287,14 @@ export default async function TeamPage({ searchParams }: Props) {
                 return (
                   <article className="team-card" key={member.id}>
                     <div className="team-card-header">
-                      <div className="team-identity">
-                        <div
-                          className={`team-avatar team-avatar-${member.role}`}
-                          aria-hidden="true"
-                        >
-                          {initials(profile?.full_name)}
-                        </div>
-
-                        <div className="team-identity-copy">
-                          <strong>
-                            {profile?.full_name ?? "Team member"}
-                          </strong>
-                          <span>
-                            {profile?.email ?? "No email"}
-                            {profile?.phone ? ` · ${profile.phone}` : ""}
-                          </span>
-                        </div>
+                      <div>
+                        <strong>
+                          {profile?.full_name ?? "Team member"}
+                        </strong>
+                        <span>
+                          {profile?.email ?? "No email"}
+                          {profile?.phone ? ` · ${profile.phone}` : ""}
+                        </span>
                       </div>
 
                       <div className="team-chip-row">
@@ -266,15 +308,6 @@ export default async function TeamPage({ searchParams }: Props) {
                         >
                           {member.is_active ? "active" : "inactive"}
                         </span>
-                        {editable && !protectedRole ? (
-                          <button
-                            className="button button-primary button-small"
-                            type="submit"
-                            form={`team-member-${member.user_id}`}
-                          >
-                            Save changes
-                          </button>
-                        ) : null}
                       </div>
                     </div>
 
@@ -289,7 +322,6 @@ export default async function TeamPage({ searchParams }: Props) {
                     ) : (
                       <>
                         <form
-                          id={`team-member-${member.user_id}`}
                           action={updateTeamMember}
                           className="team-edit-form"
                         >
@@ -298,23 +330,11 @@ export default async function TeamPage({ searchParams }: Props) {
                             name="user_id"
                             value={member.user_id}
                           />
-
-                          <label className="team-field team-name-field">
-                            <span className="field-label">Full name</span>
-                            <input
-                              className="team-text-input"
-                              name="full_name"
-                              required
-                              minLength={2}
-                              maxLength={100}
-                              defaultValue={profile?.full_name ?? ""}
-                            />
-                            <small className="field-help">
-                              {isManager
-                                ? "Managers may rename staff accounts they manage."
-                                : "Owners/admins may rename manager and staff accounts."}
-                            </small>
-                          </label>
+                          <input
+                            type="hidden"
+                            name="view_branch"
+                            value={selectedBranchId}
+                          />
 
                           {isManager ? (
                             <>
@@ -396,11 +416,16 @@ export default async function TeamPage({ searchParams }: Props) {
 
                           <div className="team-form-footer">
                             <span>
-                              Assigned:{" "}
                               {assignedNames.length
                                 ? assignedNames.join(", ")
                                 : "No branch assigned"}
                             </span>
+                            <button
+                              className="button button-secondary button-small"
+                              type="submit"
+                            >
+                              Save changes
+                            </button>
                           </div>
                         </form>
 
@@ -409,6 +434,11 @@ export default async function TeamPage({ searchParams }: Props) {
                             type="hidden"
                             name="user_id"
                             value={member.user_id}
+                          />
+                          <input
+                            type="hidden"
+                            name="view_branch"
+                            value={selectedBranchId}
                           />
                           <DeleteMemberButton
                             memberName={
@@ -421,10 +451,18 @@ export default async function TeamPage({ searchParams }: Props) {
                   </article>
                 );
               })}
+              {!displayedMembers.length ? (
+                <div className="mini-empty">
+                  <strong>No team members in this branch.</strong>
+                  <span>
+                    Create or assign a manager/staff member to this branch.
+                  </span>
+                </div>
+              ) : null}
             </div>
           </section>
 
-          <section className="dashboard-section dashboard-section-stack management-form-card team-create-card">
+          <section className="dashboard-section dashboard-section-stack management-form-card">
             <div>
               <p className="eyebrow">Add team member</p>
               <h2>
@@ -440,7 +478,16 @@ export default async function TeamPage({ searchParams }: Props) {
             <form
               action={createTeamMember}
               className="form-stack management-form"
+              autoComplete="off"
+              data-lpignore="true"
+              data-1p-ignore="true"
             >
+              <input
+                type="hidden"
+                name="view_branch"
+                value={selectedBranchId}
+              />
+
               <label>
                 Full name
                 <input
@@ -449,6 +496,9 @@ export default async function TeamPage({ searchParams }: Props) {
                   minLength={2}
                   maxLength={100}
                   placeholder="e.g. Maria Santos"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                 />
               </label>
 
@@ -460,15 +510,22 @@ export default async function TeamPage({ searchParams }: Props) {
                   required
                   maxLength={254}
                   placeholder="maria@example.com"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  spellCheck={false}
                 />
               </label>
 
               <label>
                 Mobile <em>optional</em>
-                <input
+                <DigitsOnlyInput
                   name="phone"
-                  maxLength={16}
-                  placeholder="+639171234567"
+                  maxLength={20}
+                  placeholder="09171234567"
+                  autoComplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                 />
               </label>
 
@@ -481,6 +538,9 @@ export default async function TeamPage({ searchParams }: Props) {
                   minLength={10}
                   maxLength={72}
                   placeholder="At least 10 characters"
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                 />
               </label>
 
@@ -499,6 +559,6 @@ export default async function TeamPage({ searchParams }: Props) {
           </section>
         </div>
       </section>
-    </main>
+    </>
   );
 }

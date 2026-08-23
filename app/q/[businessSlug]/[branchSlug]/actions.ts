@@ -11,12 +11,13 @@ function queueUrl(businessSlug: string, branchSlug: string, message: string) {
   return `/q/${encodeURIComponent(businessSlug)}/${encodeURIComponent(branchSlug)}?error=${encodeURIComponent(message)}`;
 }
 
+
 export async function joinQueue(formData: FormData) {
   const businessSlug = field(formData, "business_slug");
   const branchSlug = field(formData, "branch_slug");
   const serviceId = field(formData, "service_id");
   const name = field(formData, "name");
-  const phone = field(formData, "phone").replace(/[\s-]/g, "");
+  const phone = field(formData, "phone").trim();
 
   if (!businessSlug || !branchSlug || !serviceId) {
     redirect(queueUrl(businessSlug, branchSlug, "Queue information is incomplete."));
@@ -27,8 +28,17 @@ export async function joinQueue(formData: FormData) {
   if (/[<>{}\[\]]/.test(name)) {
     redirect(queueUrl(businessSlug, branchSlug, "Name contains unsupported characters."));
   }
-  if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
-    redirect(queueUrl(businessSlug, branchSlug, "Use a mobile number with country code, for example +639171234567."));
+  if (!phone) {
+    redirect(queueUrl(businessSlug, branchSlug, "Mobile number is required."));
+  }
+  if (!/^[0-9]{1,20}$/.test(phone)) {
+    redirect(
+      queueUrl(
+        businessSlug,
+        branchSlug,
+        "Mobile number must contain numbers only.",
+      ),
+    );
   }
 
   const supabase = await createClient();

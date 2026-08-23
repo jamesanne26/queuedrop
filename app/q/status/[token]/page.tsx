@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LiveStatus } from "./live-status";
 import { updateCustomerTicket } from "./actions";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type Props = {
   params: Promise<{ token: string }>;
@@ -193,8 +194,9 @@ export default async function TicketStatusPage({
               {ticket.customer_can_edit_mobile ? (
                 <label>
                   Mobile
-                  <input
+                  <DigitsOnlyInput
                     name="phone"
+                    maxLength={20}
                     defaultValue={ticket.customer_phone ?? ""}
                   />
                 </label>

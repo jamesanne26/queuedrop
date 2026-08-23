@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 export function LiveQueueRefresh() {
   const router = useRouter();
   const [seconds, setSeconds] = useState(5);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let remaining = 5;
@@ -14,7 +15,12 @@ export function LiveQueueRefresh() {
       remaining -= 1;
 
       if (remaining <= 0) {
-        router.refresh();
+        const modalOpen = document.body.dataset.qdModalOpen === "true";
+
+        if (!modalOpen && !isPending) {
+          startTransition(() => router.refresh());
+        }
+
         remaining = 5;
       }
 
@@ -22,7 +28,7 @@ export function LiveQueueRefresh() {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [router]);
+  }, [isPending, router]);
 
   return (
     <div className="ticket-live-row queue-live-refresh">
@@ -33,7 +39,12 @@ export function LiveQueueRefresh() {
         type="button"
         className="text-link ticket-refresh"
         onClick={() => {
-          router.refresh();
+          if (
+            document.body.dataset.qdModalOpen !== "true" &&
+            !isPending
+          ) {
+            startTransition(() => router.refresh());
+          }
           setSeconds(5);
         }}
       >

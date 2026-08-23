@@ -6,8 +6,19 @@ import { createClient } from "@/lib/supabase/server";
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
-function fail(message: string): never {
-  redirect(`/dashboard/services?error=${encodeURIComponent(message)}`);
+function servicesUrl(
+  branchId: string,
+  key: "message" | "error",
+  message: string,
+) {
+  const params = new URLSearchParams();
+  if (branchId && branchId !== "all") params.set("branch", branchId);
+  params.set(key, message);
+  return `/dashboard/services?${params.toString()}`;
+}
+
+function fail(message: string, branchId = ""): never {
+  redirect(servicesUrl(branchId, "error", message));
 }
 
 export async function createService(formData: FormData) {
@@ -18,12 +29,12 @@ export async function createService(formData: FormData) {
   const estimatedRaw = value(formData, "estimated_minutes");
   const estimatedMinutes = estimatedRaw ? Number(estimatedRaw) : null;
 
-  if (!branchId) fail("Choose a branch.");
-  if (name.length < 2 || name.length > 120) fail("Service name must be between 2 and 120 characters.");
-  if (description.length > 500) fail("Description must be 500 characters or fewer.");
-  if (queuePrefix && !/^[A-Z0-9]{1,6}$/.test(queuePrefix)) fail("Queue prefix must be 1-6 letters or numbers.");
+  if (!branchId) fail("Choose a branch.", branchId);
+  if (name.length < 2 || name.length > 120) fail("Service name must be between 2 and 120 characters.", branchId);
+  if (description.length > 500) fail("Description must be 500 characters or fewer.", branchId);
+  if (queuePrefix && !/^[A-Z0-9]{1,6}$/.test(queuePrefix)) fail("Queue prefix must be 1-6 letters or numbers.", branchId);
   if (estimatedMinutes !== null && (!Number.isInteger(estimatedMinutes) || estimatedMinutes < 1 || estimatedMinutes > 480)) {
-    fail("Estimated minutes must be a whole number from 1 to 480.");
+    fail("Estimated minutes must be a whole number from 1 to 480.", branchId);
   }
 
   const supabase = await createClient();
@@ -39,17 +50,18 @@ export async function createService(formData: FormData) {
   });
 
   if (error) {
-    if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) fail("That service already exists in this branch.");
-    fail(error.message || "Unable to create service.");
+    if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) fail("That service already exists in this branch.", branchId);
+    fail(error.message || "Unable to create service.", branchId);
   }
 
-  redirect("/dashboard/services?message=Service%20created%20successfully.");
+  redirect(servicesUrl(branchId, "message", "Service created successfully."));
 }
 
 export async function setServiceActive(formData: FormData) {
   const serviceId = value(formData, "service_id");
+  const branchId = value(formData, "branch_id");
   const nextActive = value(formData, "next_active") === "true";
-  if (!serviceId) fail("Service ID is missing.");
+  if (!serviceId) fail("Service ID is missing.", branchId);
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -59,7 +71,13 @@ export async function setServiceActive(formData: FormData) {
     target_service_id: serviceId,
     target_is_active: nextActive,
   });
-  if (error) fail(error.message || "Unable to update service.");
+  if (error) fail(error.message || "Unable to update service.", branchId);
 
-  redirect(`/dashboard/services?message=${encodeURIComponent(nextActive ? "Service activated." : "Service deactivated.")}`);
+  redirect(
+    servicesUrl(
+      branchId,
+      "message",
+      nextActive ? "Service activated." : "Service deactivated.",
+    ),
+  );
 }

@@ -11,6 +11,14 @@ function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+
+function validateMobile(raw: string) {
+  const phone = raw.trim();
+  if (!phone) return null;
+  if (!/^[0-9]{1,20}$/.test(phone)) return null;
+  return phone;
+}
+
 function selectedBranches(formData: FormData) {
   return [
     ...new Set(
@@ -19,10 +27,21 @@ function selectedBranches(formData: FormData) {
   ];
 }
 
-function fail(message: string): never {
-  redirect(
-    `/dashboard/team?error=${encodeURIComponent(message)}`,
-  );
+function teamUrl(
+  viewBranch: string,
+  key: "message" | "error",
+  message: string,
+) {
+  const params = new URLSearchParams();
+  if (viewBranch && viewBranch !== "all") {
+    params.set("branch", viewBranch);
+  }
+  params.set(key, message);
+  return `/dashboard/team?${params.toString()}`;
+}
+
+function fail(message: string, viewBranch = ""): never {
+  redirect(teamUrl(viewBranch, "error", message));
 }
 
 async function getTeamContext() {
@@ -123,28 +142,28 @@ async function validateBranchSelection(
 }
 
 export async function createTeamMember(formData: FormData) {
+  const viewBranch = text(formData, "view_branch");
   const fullName = text(formData, "full_name");
   const email = text(formData, "email").toLowerCase();
-  const phone = text(formData, "phone");
+  const rawPhone = text(formData, "phone");
+  const phone = validateMobile(rawPhone);
   const password = text(formData, "temporary_password");
   const role = text(formData, "role");
   const branchIds = selectedBranches(formData);
 
   if (fullName.length < 2 || fullName.length > 100) {
-    fail("Full name must be between 2 and 100 characters.");
+    fail("Full name must be between 2 and 100 characters.", viewBranch);
   }
 
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     email.length > 254
   ) {
-    fail("Enter a valid email address.");
+    fail("Enter a valid email address.", viewBranch);
   }
 
-  if (phone && !/^\+[1-9]\d{6,14}$/.test(phone)) {
-    fail(
-      "Use an international phone number such as +639171234567.",
-    );
+  if (rawPhone && !phone) {
+    fail("Mobile number must contain numbers only.", viewBranch);
   }
 
   if (password.length < 10 || password.length > 72) {
@@ -218,25 +237,23 @@ export async function createTeamMember(formData: FormData) {
   revalidatePath("/dashboard/team");
 
   redirect(
-    `/dashboard/team?message=${encodeURIComponent(
+    teamUrl(
+      viewBranch,
+      "message",
       "Team member created successfully. Share the temporary password securely.",
-    )}`,
+    ),
   );
 }
 
 export async function updateTeamMember(formData: FormData) {
+  const viewBranch = text(formData, "view_branch");
   const userId = text(formData, "user_id");
-  const fullName = text(formData, "full_name");
   const role = text(formData, "role");
   const active = text(formData, "is_active") === "true";
   const branchIds = selectedBranches(formData);
 
   if (!userId) {
-    fail("Missing team member.");
-  }
-
-  if (fullName.length < 2 || fullName.length > 100) {
-    fail("Full name must be between 2 and 100 characters.");
+    fail("Missing team member.", viewBranch);
   }
 
   const {
@@ -268,41 +285,19 @@ export async function updateTeamMember(formData: FormData) {
     fail(error.message || "Unable to update team member.");
   }
 
-  // The RPC above is the authorization gate. Only after it succeeds do we
-  // update the user's display name in both public.profiles and Auth metadata.
-  const admin = createAdminClient();
-
-  const { error: profileError } = await admin
-    .from("profiles")
-    .update({ full_name: fullName })
-    .eq("id", userId);
-
-  if (profileError) {
-    fail(profileError.message || "Team access was updated, but the name could not be saved.");
-  }
-
-  const { error: authError } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { full_name: fullName },
-  });
-
-  if (authError) {
-    fail(authError.message || "Profile name was saved, but Auth metadata could not be updated.");
-  }
-
   revalidatePath("/dashboard/team");
 
   redirect(
-    `/dashboard/team?message=${encodeURIComponent(
-      "Team member access updated.",
-    )}`,
+    teamUrl(viewBranch, "message", "Team member access updated."),
   );
 }
 
 export async function deleteTeamMember(formData: FormData) {
+  const viewBranch = text(formData, "view_branch");
   const userId = text(formData, "user_id");
 
   if (!userId) {
-    fail("Missing team member.");
+    fail("Missing team member.", viewBranch);
   }
 
   const { supabase } = await getTeamContext();
@@ -336,8 +331,6 @@ export async function deleteTeamMember(formData: FormData) {
   revalidatePath("/dashboard/team");
 
   redirect(
-    `/dashboard/team?message=${encodeURIComponent(
-      "Team member deleted.",
-    )}`,
+    teamUrl(viewBranch, "message", "Team member deleted."),
   );
 }

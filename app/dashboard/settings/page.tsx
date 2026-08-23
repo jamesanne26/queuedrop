@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/app/dashboard/_components/sidebar";
+import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
+import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
 import { updateQueueSettings } from "./actions";
 import { DAYS, TIMEZONES } from "./constants";
 import { PositionRules } from "./position-rules";
+import { SettingsSaveGuard } from "./settings-save-guard";
 
 type Props = {
   searchParams: Promise<{
@@ -79,31 +81,35 @@ export default async function SettingsPage({ searchParams }: Props) {
     (branch) => branch.id === selectedBranchId,
   );
 
-  const { data: config } = selectedBranchId
-    ? await supabase
-        .from("queue_configurations")
-        .select(
-          "ticket_prefix, starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
-        )
-        .eq("branch_id", selectedBranchId)
-        .maybeSingle()
-    : { data: null };
+  const [configResult, hoursResult, notificationRulesResult] = selectedBranchId
+    ? await Promise.all([
+        supabase
+          .from("queue_configurations")
+          .select(
+            "ticket_prefix, starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+          )
+          .eq("branch_id", selectedBranchId)
+          .maybeSingle(),
+        supabase
+          .from("operating_hours")
+          .select("day_of_week, is_open, open_time, close_time")
+          .eq("branch_id", selectedBranchId)
+          .order("day_of_week", { ascending: true }),
+        supabase
+          .from("position_notification_rules")
+          .select("position, send_sms_once, browser_notification")
+          .eq("branch_id", selectedBranchId)
+          .order("position", { ascending: true }),
+      ])
+    : [
+        { data: null },
+        { data: [] },
+        { data: [] },
+      ];
 
-  const { data: hours } = selectedBranchId
-    ? await supabase
-        .from("operating_hours")
-        .select("day_of_week, is_open, open_time, close_time")
-        .eq("branch_id", selectedBranchId)
-        .order("day_of_week", { ascending: true })
-    : { data: [] };
-
-  const { data: notificationRules } = selectedBranchId
-    ? await supabase
-        .from("position_notification_rules")
-        .select("position, send_sms_once, browser_notification")
-        .eq("branch_id", selectedBranchId)
-        .order("position", { ascending: true })
-    : { data: [] };
+  const config = configResult.data;
+  const hours = hoursResult.data;
+  const notificationRules = notificationRulesResult.data;
 
   const hoursByDay = new Map(
     (hours ?? []).map((row) => [row.day_of_week, row]),
@@ -117,9 +123,9 @@ export default async function SettingsPage({ searchParams }: Props) {
   const settingsFormKey = `${selectedBranchId ?? "none"}:${params.saved ?? "initial"}`;
 
   return (
-    <main className="dashboard-shell">
-      <DashboardSidebar active="settings" />
-
+    <>
+      <PreserveDashboardScroll />
+      <DashboardResultModal success={params.message} error={params.error} />
       <section className="dashboard-content">
         <header className="dashboard-header">
           <div>
@@ -135,14 +141,6 @@ export default async function SettingsPage({ searchParams }: Props) {
 
           <span className="env-badge">DEV</span>
         </header>
-
-        {params.message ? (
-          <div className="notice notice-success">{params.message}</div>
-        ) : null}
-
-        {params.error ? (
-          <div className="notice notice-error">{params.error}</div>
-        ) : null}
 
         {selectedBranchId && selectedBranch ? (
           <form
@@ -248,13 +246,7 @@ export default async function SettingsPage({ searchParams }: Props) {
                 </Link>
               </div>
 
-              <button
-                className="button button-primary"
-                type="submit"
-                style={{ flexShrink: 0 }}
-              >
-                Save branch settings
-              </button>
+              <SettingsSaveGuard branchName={selectedBranch.name} />
             </div>
 
             <section className="dashboard-section dashboard-section-stack settings-card">
@@ -508,6 +500,6 @@ export default async function SettingsPage({ searchParams }: Props) {
           </section>
         )}
       </section>
-    </main>
+    </>
   );
 }

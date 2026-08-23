@@ -8,6 +8,13 @@ export async function updateCustomerTicket(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   if (!token) redirect("/");
+  if (!/^[0-9]{1,20}$/.test(phone)) {
+    redirect(
+      `/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent(
+        "Mobile number must contain numbers only.",
+      )}`,
+    );
+  }
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_public_ticket_customer", { target_session_token: token, target_name: name, target_phone: phone });
   if (error) redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent(error.message)}`);

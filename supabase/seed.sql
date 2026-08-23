@@ -223,12 +223,12 @@ begin
     from public.tickets t
     where t.branch_id = '30000000-0000-4000-8000-000000000001'::uuid
   ) then
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Maria Santos', '+639171111001');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Juan Dela Cruz', '+639171111002');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Ana Reyes', '+639171111003');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Paolo Garcia', '+639171111004');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Bea Mendoza', '+639171112001');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Carlo Ramos', '+639171112002');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Maria Santos', '09171111001');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Juan Dela Cruz', '09171111002');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Ana Reyes', '09171111003');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Paolo Garcia', '09171111004');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Bea Mendoza', '09171112001');
+    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Carlo Ramos', '09171112002');
   end if;
 end;
 $$;
