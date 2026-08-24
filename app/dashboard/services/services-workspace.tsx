@@ -43,6 +43,18 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
     return () => { delete document.body.dataset.qdModalOpen; };
   }, [modal, activeConfirm]);
 
+  useEffect(() => {
+    const handleResultModalOpen = () => {
+      setModal(null);
+      setActiveConfirm(null);
+      pendingActiveFormRef.current = null;
+      allowActiveSubmitRef.current = false;
+    };
+
+    window.addEventListener("qd:result-modal-open", handleResultModalOpen);
+    return () => window.removeEventListener("qd:result-modal-open", handleResultModalOpen);
+  }, []);
+
   function selectBranch(branchId: string) {
     setSelectedBranchId(branchId);
     const url = new URL(window.location.href);

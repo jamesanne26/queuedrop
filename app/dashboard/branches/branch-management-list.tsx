@@ -28,6 +28,12 @@ export function BranchManagementList({ branches, canManage }: Props) {
     return () => { delete document.body.dataset.qdModalOpen; };
   }, [modal]);
 
+  useEffect(() => {
+    const handleResultModalOpen = () => setModal(null);
+    window.addEventListener("qd:result-modal-open", handleResultModalOpen);
+    return () => window.removeEventListener("qd:result-modal-open", handleResultModalOpen);
+  }, []);
+
   return (
     <>
       <div className="branch-list">
