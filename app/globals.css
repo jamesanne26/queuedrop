@@ -2650,7 +2650,13 @@ html { scroll-behavior: auto; }
 }
 
 
-/* Round 6: action loading/result modal sequencing */
+/* Round 8: modal/loading/result sequencing.
+   Edit/confirm modals stay at 1000. Loading sits above them while the server action runs.
+   The result modal sits above everything after the action completes. */
 .qd-loading-backdrop {
-  z-index: 900;
+  z-index: 2000;
+}
+
+.qd-result-modal-backdrop {
+  z-index: 3000;
 }

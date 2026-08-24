@@ -43,7 +43,7 @@ export function DashboardResultModal({ success, error }: Props) {
   }
 
   return (
-    <div className="qd-modal-backdrop" role="presentation">
+    <div className="qd-modal-backdrop qd-result-modal-backdrop" role="presentation">
       <section
         className="qd-modal qd-confirm-modal"
         role="dialog"
