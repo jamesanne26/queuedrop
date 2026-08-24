@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -120,6 +121,32 @@ export async function updateService(formData: FormData) {
   }
 
   redirect(servicesUrl(branchId, "message", "Service updated successfully."));
+}
+
+export async function deleteService(formData: FormData) {
+  const serviceId = value(formData, "service_id");
+  const branchId = value(formData, "branch_id");
+
+  if (!serviceId) fail("Service ID is missing.", branchId);
+  if (!branchId || branchId === "all") fail("Choose a branch.", branchId);
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) {
+    redirect("/auth/login?next=%2Fdashboard%2Fservices");
+  }
+
+  const { error } = await supabase.rpc("delete_service_for_branch", {
+    target_service_id: serviceId,
+    target_branch_id: branchId,
+  });
+
+  if (error) {
+    fail(error.message || "Unable to delete service.", branchId);
+  }
+
+  revalidatePath("/dashboard/services");
+  redirect(servicesUrl(branchId, "message", "Service deleted successfully."));
 }
 
 export async function setServiceActive(formData: FormData) {

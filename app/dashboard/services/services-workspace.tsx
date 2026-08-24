@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { createService, setServiceActive, updateService } from "./actions";
+import { createService, deleteService, setServiceActive, updateService } from "./actions";
 
 type Service = {
   id: string;
@@ -16,7 +16,7 @@ type Service = {
 
 type Branch = { id: string; name: string; status: string; address: string | null };
 type Props = { branches: Branch[]; services: Service[]; canManage: boolean; initialBranchId: string };
-type Modal = null | { kind: "edit"; service: Service };
+type Modal = null | { kind: "edit"; service: Service } | { kind: "delete"; service: Service };
 type ActiveConfirm = { service: Service; nextActive: boolean };
 
 export function ServicesWorkspace({ branches, services, canManage, initialBranchId }: Props) {
@@ -129,6 +129,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
                 </div>
                 {canManage ? <div className="service-action-row">
                   <button className="button button-secondary button-small" type="button" onClick={() => setModal({ kind: "edit", service })}>Edit</button>
+                  <button className="button button-danger-outline button-small" type="button" onClick={() => setModal({ kind: "delete", service })}>Delete</button>
                   <form action={setServiceActive} onSubmit={(event) => requestActiveChange(event, service)}>
                     <input type="hidden" name="service_id" value={service.id}/><input type="hidden" name="branch_id" value={service.branch_id}/><input type="hidden" name="next_active" value={service.is_active ? "false" : "true"}/>
                     <button className="button button-secondary button-small" type="submit">{service.is_active ? "Deactivate" : "Activate"}</button>
@@ -159,6 +160,20 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
           <label>Description <em>optional</em><textarea name="description" maxLength={500} defaultValue={modal.service.description ?? ""}/></label>
           <div className="form-split"><label>Queue prefix <em>optional</em><input name="queue_prefix" maxLength={6} defaultValue={modal.service.queue_prefix ?? ""}/></label><label>Estimated minutes <em>optional</em><input name="estimated_minutes" type="number" min={1} max={480} step={1} defaultValue={modal.service.estimated_minutes ?? ""}/></label></div>
           <div className="qd-modal-actions"><button className="button button-secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" type="submit">Save service</button></div>
+        </form>
+      </section></div> : null}
+
+      {modal?.kind === "delete" ? <div className="qd-modal-backdrop" role="presentation"><section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-service-title">
+        <div className="qd-confirm-icon qd-confirm-icon-danger" aria-hidden="true">!</div>
+        <div className="qd-confirm-copy">
+          <h2 id="delete-service-title">Delete service?</h2>
+          <p>Are you sure you want to delete <strong>{modal.service.name}</strong>? Services with queue history are protected and cannot be deleted.</p>
+        </div>
+        <form action={deleteService} className="qd-modal-actions">
+          <input type="hidden" name="service_id" value={modal.service.id} />
+          <input type="hidden" name="branch_id" value={modal.service.branch_id} />
+          <button className="button button-secondary" type="button" onClick={() => setModal(null)}>Cancel</button>
+          <button className="button button-danger" type="submit">Delete service</button>
         </form>
       </section></div> : null}
 
