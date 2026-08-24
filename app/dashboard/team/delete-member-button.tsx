@@ -51,7 +51,14 @@ export function DeleteMemberButton({ memberName }: Props) {
               >
                 Cancel
               </button>
-              <button className="button button-danger" type="submit">
+              <button
+                className="button button-danger"
+                type="submit"
+                onClick={() => {
+                  setOpen(false);
+                  document.body.dataset.qdModalOpen = "false";
+                }}
+              >
                 Yes, delete user
               </button>
             </div>
