@@ -1349,7 +1349,7 @@ button, input { font: inherit; }
 .qd-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 1000;
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -2647,4 +2647,10 @@ html { scroll-behavior: auto; }
 @media (max-width: 700px) {
   .services-branch-picker-mobile { display: block; }
   .services-branch-picker-mobile .responsive-branch-select { display: grid; }
+}
+
+
+/* Round 6: action loading/result modal sequencing */
+.qd-loading-backdrop {
+  z-index: 900;
 }

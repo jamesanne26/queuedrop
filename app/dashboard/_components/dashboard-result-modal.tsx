@@ -18,6 +18,9 @@ export function DashboardResultModal({ success, error }: Props) {
 
   useEffect(() => {
     document.body.dataset.qdModalOpen = open ? "true" : "false";
+    if (open) {
+      window.dispatchEvent(new Event("qd:result-modal-open"));
+    }
     return () => {
       delete document.body.dataset.qdModalOpen;
     };

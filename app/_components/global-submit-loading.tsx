@@ -13,7 +13,6 @@ export function GlobalSubmitLoading() {
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
       if (form.dataset.noGlobalLoading === "true") return;
-      if (document.body.dataset.qdModalOpen === "true") return;
 
       setLoading(true);
       if (timeoutId) clearTimeout(timeoutId);
@@ -21,6 +20,7 @@ export function GlobalSubmitLoading() {
     };
 
     const handlePageShow = () => setLoading(false);
+    const handleResultModalOpen = () => setLoading(false);
 
     const observer = new MutationObserver(() => {
       if (document.body.dataset.qdModalOpen === "true") setLoading(false);
@@ -28,11 +28,13 @@ export function GlobalSubmitLoading() {
 
     document.addEventListener("submit", handleSubmit, true);
     window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("qd:result-modal-open", handleResultModalOpen);
     observer.observe(document.body, { attributes: true, attributeFilter: ["data-qd-modal-open"] });
 
     return () => {
       document.removeEventListener("submit", handleSubmit, true);
       window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("qd:result-modal-open", handleResultModalOpen);
       observer.disconnect();
       if (timeoutId) clearTimeout(timeoutId);
     };
