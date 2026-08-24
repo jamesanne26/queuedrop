@@ -2512,7 +2512,7 @@ html { scroll-behavior: auto; }
 .qd-loading-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 90;
   display: grid;
   place-items: center;
   padding: 1.25rem;

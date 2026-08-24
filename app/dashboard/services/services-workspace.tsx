@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { createService, setServiceActive, updateService } from "./actions";
 
 type Service = {
@@ -16,10 +17,15 @@ type Service = {
 type Branch = { id: string; name: string; status: string; address: string | null };
 type Props = { branches: Branch[]; services: Service[]; canManage: boolean; initialBranchId: string };
 type Modal = null | { kind: "edit"; service: Service };
+type ActiveConfirm = { service: Service; nextActive: boolean };
 
 export function ServicesWorkspace({ branches, services, canManage, initialBranchId }: Props) {
   const [selectedBranchId, setSelectedBranchId] = useState(initialBranchId);
   const [modal, setModal] = useState<Modal>(null);
+  const [activeConfirm, setActiveConfirm] = useState<ActiveConfirm | null>(null);
+  const pendingActiveFormRef = useRef<HTMLFormElement | null>(null);
+  const allowActiveSubmitRef = useRef(false);
+
   const branchById = useMemo(() => new Map(branches.map((b) => [b.id, b])), [branches]);
   const countByBranch = useMemo(() => {
     const counts = new Map<string, number>();
@@ -32,15 +38,43 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
   );
 
   useEffect(() => {
-    document.body.dataset.qdModalOpen = modal ? "true" : "false";
+    const modalOpen = Boolean(modal || activeConfirm);
+    document.body.dataset.qdModalOpen = modalOpen ? "true" : "false";
     return () => { delete document.body.dataset.qdModalOpen; };
-  }, [modal]);
+  }, [modal, activeConfirm]);
 
   function selectBranch(branchId: string) {
     setSelectedBranchId(branchId);
     const url = new URL(window.location.href);
-    url.searchParams.set("branch", branchId);
-    window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+    if (branchId === "all") url.searchParams.delete("branch");
+    else url.searchParams.set("branch", branchId);
+    window.history.replaceState(null, "", `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""}`);
+  }
+
+  function requestActiveChange(event: FormEvent<HTMLFormElement>, service: Service) {
+    if (allowActiveSubmitRef.current) {
+      allowActiveSubmitRef.current = false;
+      return;
+    }
+    event.preventDefault();
+    pendingActiveFormRef.current = event.currentTarget;
+    setActiveConfirm({ service, nextActive: !service.is_active });
+  }
+
+  function cancelActiveChange() {
+    pendingActiveFormRef.current = null;
+    allowActiveSubmitRef.current = false;
+    setActiveConfirm(null);
+  }
+
+  function confirmActiveChange() {
+    const form = pendingActiveFormRef.current;
+    setActiveConfirm(null);
+    pendingActiveFormRef.current = null;
+    if (!form) return;
+    document.body.dataset.qdModalOpen = "false";
+    allowActiveSubmitRef.current = true;
+    form.requestSubmit();
   }
 
   const selectedBranch = selectedBranchId === "all" ? null : branchById.get(selectedBranchId);
@@ -83,7 +117,10 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
                 </div>
                 {canManage ? <div className="service-action-row">
                   <button className="button button-secondary button-small" type="button" onClick={() => setModal({ kind: "edit", service })}>Edit</button>
-                  <form action={setServiceActive}><input type="hidden" name="service_id" value={service.id}/><input type="hidden" name="branch_id" value={service.branch_id}/><input type="hidden" name="next_active" value={service.is_active ? "false" : "true"}/><button className="button button-secondary button-small" type="submit">{service.is_active ? "Deactivate" : "Activate"}</button></form>
+                  <form action={setServiceActive} onSubmit={(event) => requestActiveChange(event, service)}>
+                    <input type="hidden" name="service_id" value={service.id}/><input type="hidden" name="branch_id" value={service.branch_id}/><input type="hidden" name="next_active" value={service.is_active ? "false" : "true"}/>
+                    <button className="button button-secondary button-small" type="submit">{service.is_active ? "Deactivate" : "Activate"}</button>
+                  </form>
                 </div> : null}
               </article>;
             })}
@@ -111,6 +148,18 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
           <div className="form-split"><label>Queue prefix <em>optional</em><input name="queue_prefix" maxLength={6} defaultValue={modal.service.queue_prefix ?? ""}/></label><label>Estimated minutes <em>optional</em><input name="estimated_minutes" type="number" min={1} max={480} step={1} defaultValue={modal.service.estimated_minutes ?? ""}/></label></div>
           <div className="qd-modal-actions"><button className="button button-secondary" type="button" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" type="submit">Save service</button></div>
         </form>
+      </section></div> : null}
+
+      {activeConfirm ? <div className="qd-modal-backdrop" role="presentation"><section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="service-active-confirm-title">
+        <div className={activeConfirm.nextActive ? "qd-confirm-icon" : "qd-confirm-icon qd-confirm-icon-danger"} aria-hidden="true">{activeConfirm.nextActive ? "✓" : "!"}</div>
+        <div className="qd-confirm-copy">
+          <h2 id="service-active-confirm-title">{activeConfirm.nextActive ? "Activate service?" : "Deactivate service?"}</h2>
+          <p>Are you sure you want to {activeConfirm.nextActive ? "activate" : "deactivate"} <strong>{activeConfirm.service.name}</strong>?</p>
+        </div>
+        <div className="qd-modal-actions">
+          <button className="button button-secondary" type="button" onClick={cancelActiveChange}>Cancel</button>
+          <button className={activeConfirm.nextActive ? "button button-primary" : "button button-danger"} type="button" onClick={confirmActiveChange}>{activeConfirm.nextActive ? "Activate" : "Deactivate"}</button>
+        </div>
       </section></div> : null}
     </>
   );
