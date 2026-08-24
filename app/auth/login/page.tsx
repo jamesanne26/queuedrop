@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signIn } from "../actions";
+import { PasswordInput } from "./password-input";
 
 type Props = {
   searchParams: Promise<{ error?: string; message?: string; next?: string }>;
@@ -29,7 +30,7 @@ export default async function LoginPage({ searchParams }: Props) {
           </label>
           <label>
             Password
-            <input name="password" type="password" autoComplete="current-password" required placeholder="••••••••" />
+            <PasswordInput />
           </label>
           <button className="button button-primary" type="submit">Sign in</button>
         </form>
@@ -39,3 +40,4 @@ export default async function LoginPage({ searchParams }: Props) {
     </main>
   );
 }
+
