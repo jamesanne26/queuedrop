@@ -2475,8 +2475,8 @@ html { scroll-behavior: auto; }
   top: 50%;
   right: .65rem;
   transform: translateY(-50%);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -2485,6 +2485,16 @@ html { scroll-behavior: auto; }
   background: transparent;
   color: #6f8177;
   cursor: pointer;
+}
+
+.password-toggle-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .password-toggle:hover {
@@ -2527,11 +2537,6 @@ html { scroll-behavior: auto; }
 
 .qd-loading-modal strong {
   font-size: 1.05rem;
-}
-
-.qd-loading-modal span {
-  color: #5d7669;
-  font-size: .9rem;
 }
 
 .qd-loading-spinner {

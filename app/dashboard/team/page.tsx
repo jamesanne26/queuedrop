@@ -495,7 +495,7 @@ export default async function TeamPage({ searchParams }: Props) {
                   required
                   minLength={2}
                   maxLength={100}
-                  placeholder="e.g. Maria Santos"
+                 
                   autoComplete="off"
                   data-lpignore="true"
                   data-1p-ignore="true"

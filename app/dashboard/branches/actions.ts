@@ -14,35 +14,23 @@ function fail(message: string): never {
 
 async function ownerAdminContext(targetBranchId?: string) {
   const supabase = await createClient();
+
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) redirect("/auth/login?next=%2Fdashboard%2Fbranches");
-
-  let businessId: string | null = null;
-
-  if (targetBranchId) {
-    const { data: branch } = await supabase
-      .from("branches")
-      .select("business_id")
-      .eq("id", targetBranchId)
-      .maybeSingle();
-    businessId = branch?.business_id ?? null;
+  if (userError || !userData.user) {
+    redirect("/auth/login?next=%2Fdashboard%2Fbranches");
   }
 
-  const membershipQuery = supabase
-    .from("business_users")
-    .select("business_id, role, is_active")
-    .eq("user_id", userData.user.id)
-    .eq("is_active", true)
-    .in("role", ["owner", "admin"]);
+  const { data: businessId, error: businessError } = targetBranchId
+    ? await supabase.rpc("get_admin_business_id_for_branch", {
+        target_branch_id: targetBranchId,
+      })
+    : await supabase.rpc("get_current_admin_business_id");
 
-  const { data: memberships } = businessId
-    ? await membershipQuery.eq("business_id", businessId)
-    : await membershipQuery;
+  if (businessError || !businessId) {
+    fail("Only the business owner/admin can manage branches.");
+  }
 
-  const membership = memberships?.[0] ?? null;
-
-  if (!membership) fail("Only the business owner/admin can manage branches.");
-  return { supabase, membership };
+  return { supabase, businessId };
 }
 
 function validateBranchFields(name: string, address: string, phone: string) {
@@ -87,12 +75,12 @@ export async function updateBranch(formData: FormData) {
   validateBranchFields(name, address, phone);
   if (!["active", "inactive"].includes(status)) fail("Invalid branch status.");
 
-  const { supabase, membership } = await ownerAdminContext(branchId);
+  const { supabase, businessId } = await ownerAdminContext(branchId);
   const { error } = await supabase
     .from("branches")
     .update({ name, address: address || null, phone: phone || null, status })
     .eq("id", branchId)
-    .eq("business_id", membership.business_id);
+    .eq("business_id", businessId);
 
   if (error) {
     if (error.code === "23505" || error.message.toLowerCase().includes("duplicate")) {
@@ -109,7 +97,7 @@ export async function deleteBranch(formData: FormData) {
   const branchId = value(formData, "branch_id");
   if (!branchId) fail("Missing branch.");
 
-  const { supabase, membership } = await ownerAdminContext(branchId);
+  const { supabase, businessId } = await ownerAdminContext(branchId);
 
   const { count: historyCount, error: historyError } = await supabase
     .from("tickets")
@@ -125,7 +113,7 @@ export async function deleteBranch(formData: FormData) {
     .from("branches")
     .delete()
     .eq("id", branchId)
-    .eq("business_id", membership.business_id);
+    .eq("business_id", businessId);
 
   if (error) fail(error.message || "Unable to delete branch.");
 

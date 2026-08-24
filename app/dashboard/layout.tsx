@@ -11,15 +11,22 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   let role: Role | null = null;
 
   if (userData.user) {
-    const { data: membership } = await supabase
-      .from("business_users")
-      .select("role")
-      .eq("user_id", userData.user.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+    const { data: currentRole, error: roleError } = await supabase.rpc(
+      "get_current_business_role",
+    );
 
-    role = (membership?.role as Role | undefined) ?? null;
+    if (!roleError && currentRole) {
+      role = currentRole as Role;
+    } else {
+      const { data: membership } = await supabase
+        .from("business_users")
+        .select("role")
+        .eq("user_id", userData.user.id)
+        .limit(1)
+        .maybeSingle();
+
+      role = (membership?.role as Role | undefined) ?? null;
+    }
   }
 
   return <DashboardFrame role={role}>{children}</DashboardFrame>;

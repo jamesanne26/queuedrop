@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { signIn } from "../actions";
-import { PasswordInput } from "./password-input";
+import { PasswordInput } from "../_components/password-input";
 
 type Props = {
   searchParams: Promise<{ error?: string; message?: string; next?: string }>;
