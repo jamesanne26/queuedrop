@@ -2640,3 +2640,11 @@ html { scroll-behavior: auto; }
     width: 100%;
   }
 }
+
+/* Round 4: services branch switching is client-side and instant. */
+.services-branch-picker-mobile { display: none; }
+.service-branch-tab { cursor: pointer; font: inherit; text-align: left; }
+@media (max-width: 700px) {
+  .services-branch-picker-mobile { display: block; }
+  .services-branch-picker-mobile .responsive-branch-select { display: grid; }
+}
