@@ -12,19 +12,34 @@ function fail(message: string): never {
   redirect(`/dashboard/branches?error=${encodeURIComponent(message)}`);
 }
 
-async function ownerAdminContext() {
+async function ownerAdminContext(targetBranchId?: string) {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) redirect("/auth/login?next=%2Fdashboard%2Fbranches");
 
-  const { data: membership } = await supabase
+  let businessId: string | null = null;
+
+  if (targetBranchId) {
+    const { data: branch } = await supabase
+      .from("branches")
+      .select("business_id")
+      .eq("id", targetBranchId)
+      .maybeSingle();
+    businessId = branch?.business_id ?? null;
+  }
+
+  const membershipQuery = supabase
     .from("business_users")
     .select("business_id, role, is_active")
     .eq("user_id", userData.user.id)
     .eq("is_active", true)
-    .in("role", ["owner", "admin"])
-    .limit(1)
-    .maybeSingle();
+    .in("role", ["owner", "admin"]);
+
+  const { data: memberships } = businessId
+    ? await membershipQuery.eq("business_id", businessId)
+    : await membershipQuery;
+
+  const membership = memberships?.[0] ?? null;
 
   if (!membership) fail("Only the business owner/admin can manage branches.");
   return { supabase, membership };
@@ -33,8 +48,8 @@ async function ownerAdminContext() {
 function validateBranchFields(name: string, address: string, phone: string) {
   if (name.length < 2 || name.length > 120) fail("Branch name must be between 2 and 120 characters.");
   if (address.length > 300) fail("Address must be 300 characters or fewer.");
-  if (phone.length > 32) fail("Phone must be 32 characters or fewer.");
-  if (phone && !/^[0-9+() .-]{7,32}$/.test(phone)) fail("Phone contains invalid characters.");
+  if (phone.length > 20) fail("Phone must be 20 digits or fewer.");
+  if (phone && !/^[0-9]{7,20}$/.test(phone)) fail("Phone must contain numbers only.");
 }
 
 export async function createBranch(formData: FormData) {
@@ -72,7 +87,7 @@ export async function updateBranch(formData: FormData) {
   validateBranchFields(name, address, phone);
   if (!["active", "inactive"].includes(status)) fail("Invalid branch status.");
 
-  const { supabase, membership } = await ownerAdminContext();
+  const { supabase, membership } = await ownerAdminContext(branchId);
   const { error } = await supabase
     .from("branches")
     .update({ name, address: address || null, phone: phone || null, status })
@@ -94,7 +109,7 @@ export async function deleteBranch(formData: FormData) {
   const branchId = value(formData, "branch_id");
   if (!branchId) fail("Missing branch.");
 
-  const { supabase, membership } = await ownerAdminContext();
+  const { supabase, membership } = await ownerAdminContext(branchId);
 
   const { count: historyCount, error: historyError } = await supabase
     .from("tickets")

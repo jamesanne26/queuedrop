@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { deleteBranch, updateBranch } from "./actions";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type BranchRow = {
   id: string;
@@ -65,7 +66,7 @@ export function BranchManagementList({ branches, canManage }: Props) {
               <input type="hidden" name="branch_id" value={modal.branch.id} />
               <label>Branch name<input name="name" required minLength={2} maxLength={120} defaultValue={modal.branch.name} /></label>
               <label>Address <em>optional</em><input name="address" maxLength={300} defaultValue={modal.branch.address ?? ""} /></label>
-              <label>Contact number <em>optional</em><input name="phone" maxLength={32} defaultValue={modal.branch.phone ?? ""} placeholder="09171234567" /></label>
+              <label>Contact number <em>optional</em><DigitsOnlyInput name="phone" maxLength={20} defaultValue={modal.branch.phone ?? ""} placeholder="09171234567" autoComplete="tel" /></label>
               <label>Status<select name="status" defaultValue={modal.branch.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
               <div className="qd-modal-actions">
                 <button className="button button-secondary" type="button" onClick={() => setModal(null)}>Cancel</button>

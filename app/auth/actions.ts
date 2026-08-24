@@ -8,7 +8,7 @@ function value(formData: FormData, key: string) {
 }
 
 export async function signIn(formData: FormData) {
-  const email = value(formData, "email").toLowerCase();
+  const email = value(formData, "login_email").toLowerCase();
   const password = value(formData, "password");
   const next = value(formData, "next") || "/dashboard";
 
@@ -35,13 +35,18 @@ export async function signUp(formData: FormData) {
     redirect("/auth/signup?error=Password%20must%20be%20at%20least%208%20characters.");
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (!siteUrl) {
+    redirect("/auth/signup?error=QueueDrop site URL is not configured.");
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000"}/auth/callback`,
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   });
 

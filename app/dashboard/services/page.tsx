@@ -126,7 +126,7 @@ export default async function ServicesPage({ searchParams }: Props) {
                 : "View the services available in your assigned branch locations."}
             </p>
           </div>
-          <span className="env-badge">DEV</span>
+          <span className="env-badge">TEST</span>
         </header>
 
         <section className="dashboard-section service-tabs-card">

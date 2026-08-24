@@ -21,7 +21,7 @@ export default async function SignupPage({ searchParams }: Props) {
         <form action={signUp} className="form-stack">
           <label>
             Full name
-            <input name="full_name" type="text" maxLength={100} required placeholder="Maria Santos" />
+            <input name="full_name" type="text" maxLength={100} required placeholder="Maria Santos" autoComplete="off" data-lpignore="true" data-1p-ignore="true" />
           </label>
           <label>
             Email

@@ -219,7 +219,7 @@ export default async function TeamPage({ searchParams }: Props) {
                 : "Owners/admins can manage managers and staff. Staff belongs to exactly one branch; managers may manage one or more branches."}
             </p>
           </div>
-          <span className="env-badge">DEV</span>
+          <span className="env-badge">TEST</span>
         </header>
 
         <section className="dashboard-section team-branch-tabs-card">

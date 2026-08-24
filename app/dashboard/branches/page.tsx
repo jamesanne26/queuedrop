@@ -5,6 +5,7 @@ import { BranchManagementList } from "./branch-management-list";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
 type Role = "owner" | "admin" | "manager" | "staff";
@@ -80,7 +81,7 @@ export default async function BranchesPage({ searchParams }: Props) {
             <h1>{business?.name ?? "QueueDrop"}</h1>
             <p className="muted page-lead">{canManage ? "Manage physical locations and the default queue settings created for each branch." : "You can only view the branch locations assigned to your staff account."}</p>
           </div>
-          <span className="env-badge">DEV</span>
+          <span className="env-badge">TEST</span>
         </header>
 
         <div className="management-grid">
@@ -111,7 +112,7 @@ export default async function BranchesPage({ searchParams }: Props) {
               <form action={createBranch} className="form-stack management-form">
                 <label>Branch name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Cubao Branch" /></label>
                 <label>Address <em>optional</em><input name="address" maxLength={300} placeholder="Branch address" /></label>
-                <label>Contact number <em>optional</em><input name="phone" maxLength={32} placeholder="+63 917 123 4567" /></label>
+                <label>Contact number <em>optional</em><DigitsOnlyInput name="phone" maxLength={20} placeholder="09171234567" autoComplete="tel" /></label>
                 <button className="button button-primary" type="submit">Create branch</button>
               </form>
             </section>

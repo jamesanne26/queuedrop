@@ -29,12 +29,12 @@ export async function createBusinessWorkspace(formData: FormData) {
     fail("Branch address must be 300 characters or fewer.");
   }
 
-  if (branchPhone.length > 32) {
-    fail("Branch phone must be 32 characters or fewer.");
+  if (branchPhone.length > 20) {
+    fail("Branch phone must be 20 digits or fewer.");
   }
 
-  if (branchPhone && !/^[0-9+() .-]{7,32}$/.test(branchPhone)) {
-    fail("Branch phone contains invalid characters.");
+  if (branchPhone && !/^[0-9]{7,20}$/.test(branchPhone)) {
+    fail("Branch phone must contain numbers only.");
   }
 
   const supabase = await createClient();

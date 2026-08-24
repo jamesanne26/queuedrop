@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createBusinessWorkspace } from "./actions";
 import { createClient } from "@/lib/supabase/server";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type Props = {
   searchParams: Promise<{ error?: string }>;
@@ -36,7 +37,7 @@ export default async function OnboardingPage({ searchParams }: Props) {
       <section className="onboarding-card">
         <div className="onboarding-topline">
           <Link href="/" className="brand-mark">QueueDrop</Link>
-          <span className="env-badge">DEV</span>
+          <span className="env-badge">TEST</span>
         </div>
 
         <div className="onboarding-heading">
@@ -104,11 +105,11 @@ export default async function OnboardingPage({ searchParams }: Props) {
 
           <label>
             Branch contact number <em>Optional</em>
-            <input
+            <DigitsOnlyInput
               name="branch_phone"
-              type="tel"
-              maxLength={32}
-              placeholder="+63 917 123 4567"
+              maxLength={20}
+              placeholder="09171234567"
+              autoComplete="tel"
             />
           </label>
 

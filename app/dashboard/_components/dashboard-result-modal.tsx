@@ -59,7 +59,7 @@ export function DashboardResultModal({ success, error }: Props) {
 
         <div className="qd-confirm-copy">
           <h2 id="dashboard-result-title">
-            {isError ? "Unable to save" : "Saved successfully"}
+            {isError ? "Unable to save" : "Successfully saved"}
           </h2>
           <p>{message}</p>
         </div>

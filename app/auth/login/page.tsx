@@ -26,7 +26,7 @@ export default async function LoginPage({ searchParams }: Props) {
           <input type="hidden" name="next" value={params.next ?? "/dashboard"} />
           <label>
             Email
-            <input name="email" type="email" autoComplete="email" required placeholder="you@business.com" />
+            <input name="login_email" type="email" autoComplete="off" required placeholder="you@business.com" data-lpignore="true" data-1p-ignore="true" spellCheck={false} />
           </label>
           <label>
             Password

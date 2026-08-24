@@ -139,7 +139,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             </p>
           </div>
 
-          <span className="env-badge">DEV</span>
+          <span className="env-badge">TEST</span>
         </header>
 
         {selectedBranchId && selectedBranch ? (

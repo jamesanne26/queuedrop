@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -656,17 +657,11 @@ export function LiveQueueWorkspace({
 
               <label>
                 Mobile number
-                <input
+                <DigitsOnlyInput
                   name="phone"
-                  type="tel"
                   required
                   maxLength={20}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  onInput={(event) => {
-                    event.currentTarget.value =
-                      event.currentTarget.value.replace(/\D/g, "");
-                  }}
+                  autoComplete="tel"
                   placeholder="09171234567"
                 />
               </label>
@@ -807,16 +802,11 @@ export function LiveQueueWorkspace({
               {canEditMobile ? (
                 <label>
                   Mobile number
-                  <input
+                  <DigitsOnlyInput
                     name="phone"
                     required
                     maxLength={20}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    onInput={(event) => {
-                      event.currentTarget.value =
-                        event.currentTarget.value.replace(/\D/g, "");
-                    }}
+                    autoComplete="tel"
                     defaultValue={activeTicket.customer_phone}
                   />
                 </label>
