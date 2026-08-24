@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
+import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -356,19 +357,30 @@ export function LiveQueueWorkspace({
       <header className="live-queue-banner">
         <div className="live-banner-branches">
           {branches.length > 1 ? (
-            branches.map((branch) => (
-              <Link
-                key={branch.id}
-                href={`/dashboard/queues?branch=${branch.id}`}
-                className={
-                  branch.id === selectedBranchId
-                    ? "live-banner-branch live-banner-branch-active"
-                    : "live-banner-branch"
-                }
-              >
-                {branch.name}
-              </Link>
-            ))
+            <>
+              <ResponsiveBranchSelect
+                branches={branches.map((branch) => ({
+                  id: branch.id,
+                  name: branch.name,
+                }))}
+                selectedBranchId={selectedBranchId}
+              />
+              <div className="live-banner-branch-links-desktop">
+                {branches.map((branch) => (
+                  <Link
+                    key={branch.id}
+                    href={`/dashboard/queues?branch=${branch.id}`}
+                    className={
+                      branch.id === selectedBranchId
+                        ? "live-banner-branch live-banner-branch-active"
+                        : "live-banner-branch"
+                    }
+                  >
+                    {branch.name}
+                  </Link>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="live-banner-single-branch">
               <strong>{selectedBranch.name}</strong>

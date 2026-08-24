@@ -2551,3 +2551,92 @@ html { scroll-behavior: auto; }
 @keyframes qd-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Round 3: responsive branch selectors and service actions */
+.responsive-branch-select {
+  display: none;
+  min-width: min(100%, 320px);
+  gap: .35rem;
+}
+
+.responsive-branch-select > span {
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.responsive-branch-select select {
+  width: 100%;
+  min-height: 46px;
+  padding: .7rem 2.3rem .7rem .8rem;
+  border: 1px solid #cbdad1;
+  border-radius: 11px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-weight: 750;
+}
+
+.responsive-branch-select select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(18,138,93,.11);
+}
+
+.service-action-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.live-banner-branch-links-desktop {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+@media (max-width: 700px) {
+  .service-branch-tabs-desktop,
+  .settings-branch-links-desktop,
+  .live-banner-branch-links-desktop {
+    display: none !important;
+  }
+
+  .responsive-branch-select {
+    display: grid;
+  }
+
+  .service-tabs-card .responsive-branch-select {
+    width: 100%;
+  }
+
+  .team-branch-tabs-card .responsive-branch-select {
+    width: 100%;
+  }
+
+  .live-banner-branches .responsive-branch-select {
+    width: min(100%, 320px);
+  }
+
+  .live-banner-branches {
+    overflow: visible;
+  }
+
+  .service-action-row {
+    width: 100%;
+  }
+
+  .service-action-row form,
+  .service-action-row button {
+    flex: 1;
+  }
+
+  .service-action-row button {
+    width: 100%;
+  }
+}

@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
-import { createService, setServiceActive } from "./actions";
+import { createService } from "./actions";
+import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
+import { ServiceManagementList } from "./service-management-list";
 
 type Props = {
   searchParams: Promise<{
@@ -130,7 +132,17 @@ export default async function ServicesPage({ searchParams }: Props) {
         </header>
 
         <section className="dashboard-section service-tabs-card">
-          <div className="service-branch-tabs">
+          <ResponsiveBranchSelect
+            branches={branches.map((branch) => ({
+              id: branch.id,
+              name: branch.name,
+              meta: `${countByBranch.get(branch.id) ?? 0} services`,
+            }))}
+            selectedBranchId={selectedBranchId}
+            includeAll
+            allLabel="View all services"
+          />
+          <div className="service-branch-tabs service-branch-tabs-desktop">
             <Link
               href="/dashboard/services?branch=all"
               scroll={false}
@@ -174,77 +186,22 @@ export default async function ServicesPage({ searchParams }: Props) {
               </div>
             </div>
 
-            {visibleServices.length ? (
-              <div className="service-list">
-                {visibleServices.map((service) => {
-                  const branch = branchById.get(service.branch_id);
-
-                  return (
-                    <article className="service-row" key={service.id}>
-                      <div className="service-main">
-                        <div className="service-title-row">
-                          <strong>{service.name}</strong>
-                          <span
-                            className={
-                              service.is_active
-                                ? "status-chip"
-                                : "status-chip status-chip-off"
-                            }
-                          >
-                            {service.is_active ? "active" : "inactive"}
-                          </span>
-                        </div>
-
-                        <span>
-                          {branch?.name ?? "Unknown branch"} · Prefix{" "}
-                          {service.queue_prefix || "branch default"} ·{" "}
-                          {service.estimated_minutes
-                            ? `${service.estimated_minutes} min`
-                            : "No ETA set"}
-                        </span>
-
-                        {service.description ? (
-                          <p>{service.description}</p>
-                        ) : null}
-                      </div>
-
-                      {canManage ? (
-                        <form action={setServiceActive}>
-                          <input
-                            type="hidden"
-                            name="service_id"
-                            value={service.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="branch_id"
-                            value={selectedBranchId}
-                          />
-                          <input
-                            type="hidden"
-                            name="next_active"
-                            value={service.is_active ? "false" : "true"}
-                          />
-                          <button
-                            className="button button-secondary button-small"
-                            type="submit"
-                          >
-                            {service.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                        </form>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mini-empty">
-                <strong>No services in this view.</strong>
-                <span>
-                  Select another branch tab or create a service for this branch.
-                </span>
-              </div>
-            )}
+            <ServiceManagementList
+              services={visibleServices.map((service) => ({
+                id: service.id,
+                branch_id: service.branch_id,
+                name: service.name,
+                description: service.description,
+                queue_prefix: service.queue_prefix,
+                estimated_minutes: service.estimated_minutes,
+                is_active: service.is_active,
+              }))}
+              branches={branches.map((branch) => ({
+                id: branch.id,
+                name: branch.name,
+              }))}
+              canManage={canManage}
+            />
           </section>
 
           {canManage ? (

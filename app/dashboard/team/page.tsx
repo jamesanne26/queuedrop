@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
+import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -223,7 +224,17 @@ export default async function TeamPage({ searchParams }: Props) {
         </header>
 
         <section className="dashboard-section team-branch-tabs-card">
-          <div className="service-branch-tabs">
+          <ResponsiveBranchSelect
+            branches={visibleBranches.map((branch) => ({
+              id: branch.id,
+              name: branch.name,
+              meta: `${memberCountByBranch.get(branch.id) ?? 0} people`,
+            }))}
+            selectedBranchId={selectedBranchId}
+            includeAll
+            allLabel="View all team"
+          />
+          <div className="service-branch-tabs service-branch-tabs-desktop">
             <Link
               href="/dashboard/team?branch=all"
               scroll={false}

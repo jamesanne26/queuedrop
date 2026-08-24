@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { updateQueueSettings } from "./actions";
 import { DAYS, TIMEZONES } from "./constants";
 import { PositionRules } from "./position-rules";
+import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { SettingsSaveGuard } from "./settings-save-guard";
 
 type Props = {
@@ -165,7 +166,17 @@ export default async function SettingsPage({ searchParams }: Props) {
                 flexWrap: "wrap",
               }}
             >
+              <ResponsiveBranchSelect
+                branches={(branches ?? []).map((branch) => ({
+                  id: branch.id,
+                  name: branch.name,
+                  meta: branch.address || undefined,
+                }))}
+                selectedBranchId={selectedBranchId ?? ""}
+              />
+
               <div
+                className="settings-branch-links-desktop"
                 style={{
                   display: "flex",
                   alignItems: "stretch",
