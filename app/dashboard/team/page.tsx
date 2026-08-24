@@ -62,9 +62,8 @@ export default async function TeamPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, is_active, businesses(name)")
+    .select("business_id, role, businesses(name)")
     .eq("user_id", user.id)
-    .eq("is_active", true)
     .limit(1)
     .maybeSingle();
 
@@ -304,7 +303,7 @@ export default async function TeamPage({ searchParams }: Props) {
                         </strong>
                         <span>
                           {profile?.email ?? "No email"}
-                          {profile?.phone ? ` · ${profile.phone}` : ""}
+                          {profile?.phone ? ` Â· ${profile.phone}` : ""}
                         </span>
                       </div>
 
@@ -325,9 +324,9 @@ export default async function TeamPage({ searchParams }: Props) {
                     {protectedRole || !editable ? (
                       <div className="team-owner-note">
                         {member.role === "owner"
-                          ? "Business owner · protected"
+                          ? "Business owner Â· protected"
                           : member.role === "admin"
-                            ? "Business admin · protected"
+                            ? "Business admin Â· protected"
                             : "You cannot manage this account"}
                       </div>
                     ) : (
