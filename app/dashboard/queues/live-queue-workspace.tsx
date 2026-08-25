@@ -646,9 +646,9 @@ export function LiveQueueWorkspace({
           >
             <div className="qd-modal-header">
               <div>
-                <p className="eyebrow">Staff assisted</p>
+
                 <h2 id="assist-title">Fill up customer details</h2>
-                <span>{selectedService.name}</span>
+                <span className="queue-service-name">{selectedService.name}</span>
               </div>
             </div>
 
@@ -663,7 +663,7 @@ export function LiveQueueWorkspace({
                   required
                   minLength={1}
                   maxLength={100}
-                  placeholder="Maria Santos"
+                  placeholder="Enter your name"
                 />
               </label>
 

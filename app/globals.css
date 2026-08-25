@@ -2660,3 +2660,5 @@ html { scroll-behavior: auto; }
 .qd-result-modal-backdrop {
   z-index: 3000;
 }
+
+.queue-service-name { display:block; margin-top:.25rem; font-size:1.25rem; font-weight:800; line-height:1.2; color:var(--text); }
