@@ -251,7 +251,7 @@ export async function loadTicketChangeHistoryAction(
     .eq("ticket_id", ticketId)
     .order("created_at", { ascending: false });
 
-  if (error) return [];
+  if (error) { console.error("loadTicketChangeHistoryAction:", error); return []; }
   return (data ?? []) as TicketCustomerChange[];
 }
 
