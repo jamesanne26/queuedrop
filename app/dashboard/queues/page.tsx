@@ -124,7 +124,7 @@ export default async function QueuesPage({ searchParams }: Props) {
     supabase
       .from("tickets")
       .select(
-        "id, display_number, status, joined_at, service_id, ticket_number, customers(name, phone), services(id, name)",
+        "id, display_number, status, joined_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)",
       )
       .eq("branch_id", selectedBranchId)
       .in("status", ["waiting", "called", "serving"])
