@@ -114,3 +114,14 @@ This milestone intentionally does **not** yet add staff actions (call / serve / 
 - Ticket-level customer detail overrides so edits do not rewrite historical customer master data.
 - Staff-visible change history with actor type and timestamp.
 - Managers can open Settings for assigned branches only; Staff cannot.
+
+
+## Queue Live View Reliability & Loading Fix — 2026-08-26
+
+This package includes the latest live-queue UX fixes:
+
+- Queue RPC errors now expose the actual Supabase/Postgres error message instead of collapsing non-`Error` PostgREST errors into `Queue action failed.`
+- Serve, Complete, No-show, Call next, and customer Save buttons now show an action-specific pending state and prevent duplicate submissions.
+- Global `Please wait` loading is explicitly cleared when a server-action result completes, preventing the loading overlay from remaining after a successful assisted queue add.
+- Branch selector navigation now shows the global loading state during branch transitions and clears it when the transition completes.
+- Queue loading controls use the existing transition/prefetch architecture rather than adding another page-level loading mechanism.

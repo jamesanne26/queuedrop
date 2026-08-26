@@ -21,6 +21,8 @@ export function GlobalSubmitLoading() {
 
     const handlePageShow = () => setLoading(false);
     const handleResultModalOpen = () => setLoading(false);
+    const handleSubmitStart = () => setLoading(true);
+    const handleSubmitComplete = () => setLoading(false);
 
     const observer = new MutationObserver(() => {
       if (document.body.dataset.qdModalOpen === "true") setLoading(false);
@@ -29,12 +31,16 @@ export function GlobalSubmitLoading() {
     document.addEventListener("submit", handleSubmit, true);
     window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("qd:result-modal-open", handleResultModalOpen);
+    window.addEventListener("qd:submit-start", handleSubmitStart);
+    window.addEventListener("qd:submit-complete", handleSubmitComplete);
     observer.observe(document.body, { attributes: true, attributeFilter: ["data-qd-modal-open"] });
 
     return () => {
       document.removeEventListener("submit", handleSubmit, true);
       window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("qd:result-modal-open", handleResultModalOpen);
+      window.removeEventListener("qd:submit-start", handleSubmitStart);
+      window.removeEventListener("qd:submit-complete", handleSubmitComplete);
       observer.disconnect();
       if (timeoutId) clearTimeout(timeoutId);
     };

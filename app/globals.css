@@ -2662,3 +2662,17 @@ html { scroll-behavior: auto; }
 }
 
 .queue-service-name { display:block; margin-top:.25rem; font-size:1.25rem; font-weight:800; line-height:1.2; color:var(--text); }
+
+
+/* Queue action feedback */
+.live-row-actions button:disabled,
+.live-qr-actions button:disabled,
+.qd-modal-actions button:disabled {
+  cursor: wait;
+  opacity: .68;
+}
+
+.responsive-branch-select select:disabled {
+  cursor: wait;
+  opacity: .72;
+}

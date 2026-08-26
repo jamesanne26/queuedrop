@@ -7,10 +7,22 @@ import { createClient } from "@/lib/supabase/server";
 export type AssistedJoinState = {
   ok: boolean;
   message: string;
+  requestId: string | null;
 };
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Queue action failed.";
+  if (error instanceof Error) return error.message;
+
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  return "Queue action failed.";
 }
 
 
@@ -156,19 +168,20 @@ export async function staffAssistedJoinAction(
   const phone = String(formData.get("phone") ?? "").trim();
 
   if (!branchId || !serviceId) {
-    return { ok: false, message: "Branch and service are required." };
+    return { ok: false, message: "Branch and service are required.", requestId: null };
   }
 
   if (name.length < 1 || name.length > 100 || /[<>{}\[\]]/.test(name)) {
-    return { ok: false, message: "Enter a valid customer name." };
+    return { ok: false, message: "Enter a valid customer name.", requestId: null };
   }
   if (!phone) {
-    return { ok: false, message: "Mobile number is required." };
+    return { ok: false, message: "Mobile number is required.", requestId: null };
   }
   if (!/^[0-9]{1,20}$/.test(phone)) {
     return {
       ok: false,
       message: "Mobile number must contain numbers only.",
+      requestId: null,
     };
   }
 
@@ -176,7 +189,7 @@ export async function staffAssistedJoinAction(
   const { data: userData } = await supabase.auth.getUser();
 
   if (!userData.user) {
-    return { ok: false, message: "Your staff session has expired." };
+    return { ok: false, message: "Your staff session has expired.", requestId: null };
   }
 
   const { data, error } = await supabase.rpc("staff_assisted_join_queue", {
@@ -190,6 +203,7 @@ export async function staffAssistedJoinAction(
     return {
       ok: false,
       message: error.message || "Unable to add the customer to the queue.",
+      requestId: null,
     };
   }
 
@@ -199,6 +213,7 @@ export async function staffAssistedJoinAction(
 
   return {
     ok: true,
+    requestId: crypto.randomUUID(),
     message: result?.display_number
       ? `${result.display_number} added to the queue.`
       : "Customer added to the queue.",

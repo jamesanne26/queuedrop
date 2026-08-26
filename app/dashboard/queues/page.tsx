@@ -83,12 +83,13 @@ export default async function QueuesPage({ searchParams }: Props) {
     slug: string;
     status: string;
     address: string | null;
+    timezone: string;
   }[] = [];
 
   if (businessWide || (allowedBranchIds?.length ?? 0) > 0) {
     let query = supabase
       .from("branches")
-      .select("id, name, slug, status, address")
+      .select("id, name, slug, status, address, timezone")
       .eq("business_id", membership.business_id)
       .order("created_at", { ascending: true });
 
@@ -114,32 +115,54 @@ export default async function QueuesPage({ searchParams }: Props) {
     redirect("/dashboard");
   }
 
-  const [servicesResult, ticketsResult, queueConfigResult] = await Promise.all([
-    supabase
-      .from("services")
-      .select("id, name, queue_prefix, is_active")
-      .eq("branch_id", selectedBranchId)
-      .eq("is_active", true)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("tickets")
-      .select(
-        "id, display_number, status, joined_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)",
-      )
-      .eq("branch_id", selectedBranchId)
-      .in("status", ["waiting", "called", "serving"])
-      .order("joined_at", { ascending: true })
-      .limit(250),
-    supabase
-      .from("queue_configurations")
-      .select(
-        "staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
-      )
-      .eq("branch_id", selectedBranchId)
-      .maybeSingle(),
-  ]);
+  const [servicesResult, queueSessionResult, queueConfigResult] =
+    await Promise.all([
+      supabase
+        .from("services")
+        .select("id, name, queue_prefix, is_active")
+        .eq("branch_id", selectedBranchId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("queue_sessions")
+        .select("id, session_date, status")
+        .eq("branch_id", selectedBranchId)
+        .eq("status", "open")
+        .eq(
+          "session_date",
+          new Intl.DateTimeFormat("en-CA", {
+            timeZone: selectedBranch.timezone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(new Date()),
+        )
+        .maybeSingle(),
+      supabase
+        .from("queue_configurations")
+        .select(
+          "staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+        )
+        .eq("branch_id", selectedBranchId)
+        .maybeSingle(),
+    ]);
 
   const services = servicesResult.data ?? [];
+  const queueSessionId = queueSessionResult.data?.id ?? null;
+
+  const ticketsResult = queueSessionId
+    ? await supabase
+        .from("tickets")
+        .select(
+          "id, display_number, status, joined_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)",
+        )
+        .eq("branch_id", selectedBranchId)
+        .eq("queue_session_id", queueSessionId)
+        .in("status", ["waiting", "called", "serving"])
+        .order("joined_at", { ascending: true })
+        .limit(250)
+    : { data: [], error: null };
+
   const tickets = (ticketsResult.data ?? []) as QueueTicket[];
   const queueConfig = queueConfigResult.data;
 

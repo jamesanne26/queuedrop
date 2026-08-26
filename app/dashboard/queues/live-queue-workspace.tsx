@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import type { ReactNode } from "react";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { useRouter } from "next/navigation";
@@ -38,6 +40,29 @@ type ServiceDropdownProps = {
   compact?: boolean;
   onChange: (serviceId: string) => void;
 };
+
+function QueueSubmitButton({
+  children,
+  pendingLabel,
+  className,
+}: {
+  children: ReactNode;
+  pendingLabel: string;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className={className}
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+    >
+      {pending ? pendingLabel : children}
+    </button>
+  );
+}
 
 function ServiceDropdown({
   services,
@@ -176,6 +201,7 @@ type ModalName =
 const initialAssistState: AssistedJoinState = {
   ok: false,
   message: "",
+  requestId: null,
 };
 
 export function LiveQueueWorkspace({
@@ -245,13 +271,18 @@ export function LiveQueueWorkspace({
   useEffect(() => {
     if (!assistState.ok) return;
 
-    const frame = requestAnimationFrame(() => {
-      setModal(null);
+    // Close the assisted-join modal immediately after the server action
+    // succeeds. Do not wait for router.refresh(), otherwise the modal can
+    // remain visible for an extra render while the refreshed queue loads.
+    window.dispatchEvent(new Event("qd:submit-complete"));
+    setModal(null);
+
+    // Refresh the queue data in a transition so the successful close remains
+    // responsive while the updated ticket list is fetched.
+    startTransition(() => {
       router.refresh();
     });
-
-    return () => cancelAnimationFrame(frame);
-  }, [assistState.ok, router]);
+  }, [assistState.requestId, router]);
 
   const serviceIdsKey = services.map((service) => service.id).join("|");
 
@@ -285,6 +316,7 @@ export function LiveQueueWorkspace({
     if (!errorMessage && !successMessage) return;
 
     const frame = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("qd:submit-complete"));
       if (errorMessage) {
         setResultMessage({ type: "error", message: errorMessage });
         setModal("result");
@@ -528,38 +560,47 @@ export function LiveQueueWorkspace({
                     <td>
                       <div className="live-row-actions">
                         {ticket.status === "called" ? (
-                          <form action={updateTicketAction}>
+                          <form action={updateTicketAction} data-no-global-loading="true">
                             <input type="hidden" name="branch_id" value={selectedBranchId} />
                             <input type="hidden" name="service_id" value={serviceId} />
                             <input type="hidden" name="ticket_id" value={ticket.id} />
                             <input type="hidden" name="action" value="serve" />
-                            <button className="button button-primary button-small" type="submit">
+                            <QueueSubmitButton
+                              className="button button-primary button-small"
+                              pendingLabel="Serving..."
+                            >
                               Serve
-                            </button>
+                            </QueueSubmitButton>
                           </form>
                         ) : null}
 
                         {ticket.status === "serving" ? (
-                          <form action={updateTicketAction}>
+                          <form action={updateTicketAction} data-no-global-loading="true">
                             <input type="hidden" name="branch_id" value={selectedBranchId} />
                             <input type="hidden" name="service_id" value={serviceId} />
                             <input type="hidden" name="ticket_id" value={ticket.id} />
                             <input type="hidden" name="action" value="complete" />
-                            <button className="button button-primary button-small" type="submit">
+                            <QueueSubmitButton
+                              className="button button-primary button-small"
+                              pendingLabel="Completing..."
+                            >
                               Complete
-                            </button>
+                            </QueueSubmitButton>
                           </form>
                         ) : null}
 
                         {ticket.status === "waiting" || ticket.status === "called" ? (
-                          <form action={updateTicketAction}>
+                          <form action={updateTicketAction} data-no-global-loading="true">
                             <input type="hidden" name="branch_id" value={selectedBranchId} />
                             <input type="hidden" name="service_id" value={serviceId} />
                             <input type="hidden" name="ticket_id" value={ticket.id} />
                             <input type="hidden" name="action" value="no_show" />
-                            <button className="button button-secondary button-small" type="submit">
+                            <QueueSubmitButton
+                              className="button button-secondary button-small"
+                              pendingLabel="Saving..."
+                            >
                               No-show
-                            </button>
+                            </QueueSubmitButton>
                           </form>
                         ) : null}
                       </div>
@@ -619,12 +660,15 @@ export function LiveQueueWorkspace({
                   Fill up for customer
                 </button>
 
-                <form action={callNextAction}>
+                <form action={callNextAction} data-no-global-loading="true">
                   <input type="hidden" name="branch_id" value={selectedBranchId} />
                   <input type="hidden" name="service_id" value={selectedService.id} />
-                  <button className="button button-primary" type="submit">
+                  <QueueSubmitButton
+                    className="button button-primary"
+                    pendingLabel="Calling..."
+                  >
                     Call next
-                  </button>
+                  </QueueSubmitButton>
                 </form>
               </div>
             </div>
@@ -652,7 +696,7 @@ export function LiveQueueWorkspace({
               </div>
             </div>
 
-            <form action={assistAction} className="form-stack">
+            <form action={assistAction} className="form-stack" data-no-global-loading="true">
               <input type="hidden" name="branch_id" value={selectedBranchId} />
               <input type="hidden" name="service_id" value={selectedService.id} />
 
@@ -792,7 +836,7 @@ export function LiveQueueWorkspace({
               </div>
             </div>
 
-            <form action={updateCustomerDetailsAction} className="form-stack">
+            <form action={updateCustomerDetailsAction} className="form-stack" data-no-global-loading="true">
               <input type="hidden" name="branch_id" value={selectedBranchId} />
               <input type="hidden" name="service_id" value={serviceId} />
               <input type="hidden" name="ticket_id" value={activeTicket.id} />
@@ -838,9 +882,12 @@ export function LiveQueueWorkspace({
                 >
                   Cancel
                 </button>
-                <button className="button button-primary" type="submit">
+                <QueueSubmitButton
+                  className="button button-primary"
+                  pendingLabel="Saving..."
+                >
                   Save
-                </button>
+                </QueueSubmitButton>
               </div>
             </form>
           </section>
