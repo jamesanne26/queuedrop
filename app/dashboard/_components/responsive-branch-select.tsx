@@ -15,6 +15,8 @@ type Props = {
   includeAll?: boolean;
   allLabel?: string;
   queryKey?: string;
+  onNavigate?: (branchId: string) => void;
+  isNavigating?: boolean;
 };
 
 export function ResponsiveBranchSelect({
@@ -23,10 +25,13 @@ export function ResponsiveBranchSelect({
   includeAll = false,
   allLabel = "All branches",
   queryKey = "branch",
+  onNavigate,
+  isNavigating = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
+  const navigating = isPending || isNavigating;
 
   useEffect(() => {
     for (const branch of branches) {
@@ -42,6 +47,11 @@ export function ResponsiveBranchSelect({
   function navigate(branchId: string) {
     const params = new URLSearchParams();
     params.set(queryKey, branchId);
+    if (onNavigate) {
+      onNavigate(branchId);
+      return;
+    }
+
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
@@ -53,7 +63,7 @@ export function ResponsiveBranchSelect({
       <select
         value={selectedBranchId}
         onChange={(event) => navigate(event.target.value)}
-        disabled={isPending}
+        disabled={navigating}
         aria-label="Select branch"
       >
         {includeAll ? <option value="all">{allLabel}</option> : null}
@@ -64,6 +74,7 @@ export function ResponsiveBranchSelect({
           </option>
         ))}
       </select>
+      {navigating ? <small className="responsive-branch-select-status">Please wait...</small> : null}
     </label>
   );
 }
