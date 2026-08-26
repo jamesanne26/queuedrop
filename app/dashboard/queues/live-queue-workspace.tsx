@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import type { ReactNode } from "react";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
@@ -219,6 +219,7 @@ export function LiveQueueWorkspace({
   errorMessage,
 }: Props) {
   const router = useRouter();
+  const [isBranchSwitching, startBranchTransition] = useTransition();
   const defaultServiceId =
     initialServiceId && services.some((service) => service.id === initialServiceId)
       ? initialServiceId
@@ -338,6 +339,16 @@ export function LiveQueueWorkspace({
     setModal(null);
   }
 
+  function navigateBranch(branchId: string) {
+    if (!branchId || branchId === selectedBranchId || isBranchSwitching) return;
+
+    startBranchTransition(() => {
+      router.replace(`/dashboard/queues?branch=${encodeURIComponent(branchId)}`, {
+        scroll: false,
+      });
+    });
+  }
+
   function selectService(nextServiceId: string) {
     setServiceId(nextServiceId);
     setQueueServiceFilter(nextServiceId || "all");
@@ -386,6 +397,14 @@ export function LiveQueueWorkspace({
 
   return (
     <main className="live-queue-shell live-queue-shell-refined">
+      {isBranchSwitching ? (
+        <div className="qd-loading-backdrop qd-branch-switch-backdrop" role="status" aria-live="polite" aria-label="Loading branch queue">
+          <section className="qd-branch-switch-modal">
+            <span className="qd-branch-switch-spinner" aria-hidden="true" />
+            <strong>Please wait</strong>
+          </section>
+        </div>
+      ) : null}
       <header className="live-queue-banner">
         <div className="live-banner-branches">
           {branches.length > 1 ? (
@@ -396,12 +415,19 @@ export function LiveQueueWorkspace({
                   name: branch.name,
                 }))}
                 selectedBranchId={selectedBranchId}
+                onNavigate={navigateBranch}
+                isNavigating={isBranchSwitching}
               />
               <div className="live-banner-branch-links-desktop">
                 {branches.map((branch) => (
                   <Link
                     key={branch.id}
                     href={`/dashboard/queues?branch=${branch.id}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      navigateBranch(branch.id);
+                    }}
+                    aria-disabled={isBranchSwitching || branch.id === selectedBranchId}
                     className={
                       branch.id === selectedBranchId
                         ? "live-banner-branch live-banner-branch-active"

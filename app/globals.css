@@ -2676,3 +2676,40 @@ html { scroll-behavior: auto; }
   cursor: wait;
   opacity: .72;
 }
+
+
+/* Queue branch switching feedback */
+.qd-branch-switch-backdrop {
+  z-index: 4000;
+}
+
+.qd-branch-switch-modal {
+  width: min(360px, calc(100vw - 2rem));
+  display: grid;
+  justify-items: center;
+  gap: .7rem;
+  padding: 2rem 1.75rem;
+  border: 1px solid #bfe5cf;
+  border-radius: 22px;
+  background: rgba(248, 255, 251, .98);
+  box-shadow: 0 24px 80px rgba(20, 83, 56, .22);
+  color: #123c2a;
+  text-align: center;
+}
+
+.qd-branch-switch-modal strong {
+  font-size: 1.05rem;
+}
+
+.qd-branch-switch-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #ccefdc;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: qd-branch-switch-spin .8s linear infinite;
+}
+
+@keyframes qd-branch-switch-spin {
+  to { transform: rotate(360deg); }
+}
