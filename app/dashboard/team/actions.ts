@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,8 +16,33 @@ function text(formData: FormData, key: string) {
 function validateMobile(raw: string) {
   const phone = raw.trim();
   if (!phone) return null;
-  if (!/^[0-9]{1,20}$/.test(phone)) return null;
+  if (!/^[0-9]+$/.test(phone)) return null;
   return phone;
+}
+
+function phoneLoginEmail(phone: string) {
+  const digest = createHash("sha256").update(phone).digest("hex");
+  return `phone-${digest}@auth.queuedrop.invalid`;
+}
+
+function isPhoneLoginEmail(email: string) {
+  return email.startsWith("phone-") && email.endsWith("@auth.queuedrop.invalid");
+}
+
+function displayEmail(email: string | null | undefined) {
+  const value = String(email ?? "").trim().toLowerCase();
+  return isPhoneLoginEmail(value) ? null : value || null;
+}
+
+function validateManagerPassword(password: string) {
+  return (
+    password.length >= 10 &&
+    password.length <= 72 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
 }
 
 function selectedBranches(formData: FormData) {
@@ -155,9 +181,13 @@ export async function createTeamMember(formData: FormData) {
     fail("Full name must be between 2 and 100 characters.", viewBranch);
   }
 
+  if (role === "manager" && !email) {
+    fail("Manager accounts require an email address.", viewBranch);
+  }
+
   if (
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-    email.length > 254
+    email &&
+    (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
   ) {
     fail("Enter a valid email address.", viewBranch);
   }
@@ -166,9 +196,21 @@ export async function createTeamMember(formData: FormData) {
     fail("Mobile number must contain numbers only.", viewBranch);
   }
 
-  if (password.length < 10 || password.length > 72) {
+  if (role === "staff" && !email && !phone) {
+    fail("Staff accounts require either an email address or mobile number.", viewBranch);
+  }
+
+  if (role === "staff") {
+    if (password.length < 6 || password.length > 72) {
+      fail(
+        "Staff temporary passwords must be between 6 and 72 characters.",
+        viewBranch,
+      );
+    }
+  } else if (!validateManagerPassword(password)) {
     fail(
-      "Temporary password must be between 10 and 72 characters.",
+      "Manager temporary passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
+      viewBranch,
     );
   }
 
@@ -192,14 +234,34 @@ export async function createTeamMember(formData: FormData) {
 
   const admin = createAdminClient();
 
+  if (phone) {
+    const { data: existingPhone } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("phone", phone)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPhone) {
+      fail("An account with this mobile number already exists.", viewBranch);
+    }
+  }
+
+  // Supabase Auth requires phone identifiers to be E.164. QueueDrop stores
+  // the business's mobile value independently and uses a private synthetic
+  // Auth email for staff who choose mobile-only login, so local formats such
+  // as 09171234567 are accepted without forcing E.164 formatting.
+  const authEmail = email || (phone ? phoneLoginEmail(phone) : "");
+
   const { data: created, error: createError } =
     await admin.auth.admin.createUser({
-      email,
-      password,
+      email: authEmail,
       email_confirm: true,
+      password,
       user_metadata: {
         full_name: fullName,
         phone: phone || null,
+        login_method: email ? "email" : "phone",
       },
     });
 
@@ -234,6 +296,22 @@ export async function createTeamMember(formData: FormData) {
     );
   }
 
+  // Supabase requires a real Auth identifier. Phone-only staff use a private
+  // synthetic Auth email, but QueueDrop must never expose that internal value
+  // as the team member's actual email. Keep only the real email in profiles.
+  const { error: profileEmailError } = await admin
+    .from("profiles")
+    .update({ email: email || null })
+    .eq("id", created.user.id);
+
+  if (profileEmailError) {
+    await supabase.rpc("delete_team_member", {
+      target_user_id: created.user.id,
+    });
+    await admin.auth.admin.deleteUser(created.user.id);
+    fail(profileEmailError.message || "Unable to save the team member profile.", viewBranch);
+  }
+
   revalidatePath("/dashboard/team");
 
   redirect(
@@ -245,23 +323,76 @@ export async function createTeamMember(formData: FormData) {
   );
 }
 
-export async function updateTeamMember(formData: FormData) {
+export async function updateTeamMemberDetails(formData: FormData) {
   const viewBranch = text(formData, "view_branch");
   const userId = text(formData, "user_id");
+  const fullName = text(formData, "full_name");
+  const email = text(formData, "email").toLowerCase();
+  const rawPhone = text(formData, "phone");
+  const phone = validateMobile(rawPhone);
   const role = text(formData, "role");
   const active = text(formData, "is_active") === "true";
   const branchIds = selectedBranches(formData);
+  const newPassword = text(formData, "new_password");
 
-  if (!userId) {
-    fail("Missing team member.", viewBranch);
+  if (!userId) fail("Missing team member.", viewBranch);
+
+  if (fullName.length < 2 || fullName.length > 100) {
+    fail("Full name must be between 2 and 100 characters.", viewBranch);
+  }
+
+  if (role === "manager" && !email) {
+    fail("Manager accounts require an email address.", viewBranch);
+  }
+
+  if (
+    email &&
+    (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+  ) {
+    fail("Enter a valid email address.", viewBranch);
+  }
+
+  if (rawPhone && !phone) {
+    fail("Mobile number must contain numbers only.", viewBranch);
+  }
+
+  if (!newPassword) {
+    fail("Password is required when updating a team member.", viewBranch);
+  }
+
+  if (role === "staff" && (newPassword.length < 6 || newPassword.length > 72)) {
+      fail("Staff passwords must be between 6 and 72 characters.", viewBranch);
+  }
+  if (role === "manager" && !validateManagerPassword(newPassword)) {
+      fail(
+        "Manager passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
+        viewBranch,
+      );
   }
 
   const {
     supabase,
+    user,
     membership,
     role: actorRole,
     managerBranchIds,
   } = await getTeamContext();
+
+  const { data: targetMembership, error: targetMembershipError } =
+    await supabase
+      .from("business_users")
+      .select("id, user_id, role, is_active")
+      .eq("business_id", membership.business_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+  if (targetMembershipError || !targetMembership) {
+    fail("Team member was not found.", viewBranch);
+  }
+
+  if (targetMembership.user_id === user.id) {
+    fail("You cannot change your own team access from this screen.", viewBranch);
+  }
 
   validateRequestedRole(actorRole, role);
 
@@ -274,30 +405,170 @@ export async function updateTeamMember(formData: FormData) {
     branchIds,
   );
 
-  const { error } = await supabase.rpc("manage_team_member", {
-    target_user_id: userId,
-    target_role: role,
-    target_branch_ids: branchIds,
-    target_active: active,
-  });
+  if (actorRole === "manager" && targetMembership.role !== "staff") {
+    fail("Managers can manage staff accounts only.", viewBranch);
+  }
 
-  if (error) {
-    fail(error.message || "Unable to update team member.");
+  const admin = createAdminClient();
+  const [targetAssignmentsResult, authLookup, profileLookup] = await Promise.all([
+    supabase
+      .from("branch_users")
+      .select("branch_id")
+      .eq("user_id", userId),
+    admin.auth.admin.getUserById(userId),
+    admin
+      .from("profiles")
+      .select("full_name, phone, email")
+      .eq("id", userId)
+      .maybeSingle(),
+  ]);
+
+  if (actorRole === "manager") {
+    const managerBranches = new Set(managerBranchIds);
+    const targetInManagerBranch = (targetAssignmentsResult.data ?? []).some((row) =>
+      managerBranches.has(row.branch_id),
+    );
+    if (!targetInManagerBranch) {
+      fail("This staff member is outside your assigned branches.", viewBranch);
+    }
+  }
+
+  const { data: authResult, error: authLookupError } = authLookup;
+  if (authLookupError || !authResult.user) {
+    fail("Unable to find the team member login account.", viewBranch);
+  }
+
+  const previousAuthEmail = authResult.user.email ?? "";
+  const previousAuthPhone = authResult.user.phone ?? "";
+  const previousMetadata = authResult.user.user_metadata ?? {};
+  const previousProfile = profileLookup.data;
+  const previousBranchIds = (targetAssignmentsResult.data ?? []).map(
+    (row) => row.branch_id,
+  );
+
+  const previousIsSyntheticPhoneEmail = isPhoneLoginEmail(previousAuthEmail);
+  const previousProfileEmail = displayEmail(previousProfile?.email);
+  // For staff, blank means remove that optional contact method. For managers,
+  // email has already been validated as required. Never persist QueueDrop's
+  // private synthetic phone-login email as a visible profile email.
+  const effectiveEmail = email || (role === "manager" ? previousProfileEmail ?? previousAuthEmail : "");
+  const effectivePhone = phone || "";
+
+  if (role === "staff" && !effectiveEmail && !effectivePhone) {
+    fail("Staff accounts require either an email address or mobile number.", viewBranch);
+  }
+
+  if (phone && phone !== previousProfile?.phone) {
+    const { data: duplicatePhone } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("phone", phone)
+      .neq("id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (duplicatePhone) {
+      fail("An account with this mobile number already exists.", viewBranch);
+    }
+  }
+
+  const restoreDatabaseState = async () => {
+    if (previousProfile) {
+      await admin
+        .from("profiles")
+        .update(previousProfile)
+        .eq("id", userId);
+    }
+
+    await supabase.rpc("manage_team_member", {
+      target_user_id: userId,
+      target_role: targetMembership.role,
+      target_branch_ids: previousBranchIds,
+      target_active: targetMembership.is_active,
+    });
+  };
+
+  // Keep the database-side updates together. Auth is deliberately updated
+  // after these succeed because passwords cannot be read back for rollback.
+  const [profileUpdate, membershipUpdate] = await Promise.all([
+    admin
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        phone: phone || null,
+        email: effectiveEmail || null,
+      })
+      .eq("id", userId),
+    supabase.rpc("manage_team_member", {
+      target_user_id: userId,
+      target_role: role,
+      target_branch_ids: branchIds,
+      target_active: active,
+    }),
+  ]);
+
+  if (profileUpdate.error || membershipUpdate.error) {
+    await restoreDatabaseState();
+    const message =
+      profileUpdate.error?.message ||
+      membershipUpdate.error?.message ||
+      "Unable to update team member details.";
+    if (message.toLowerCase().includes("already")) {
+      fail("An account with this email or mobile number already exists.", viewBranch);
+    }
+    fail(message, viewBranch);
+  }
+
+  const authEmail = effectiveEmail || (effectivePhone ? phoneLoginEmail(effectivePhone) : "");
+
+  const authUpdatePayload = {
+    email: authEmail,
+    email_confirm: true,
+    ...(newPassword ? { password: newPassword } : {}),
+    user_metadata: {
+      ...previousMetadata,
+      full_name: fullName,
+      phone: effectivePhone || null,
+      login_method: effectiveEmail ? "email" : "phone",
+    },
+  };
+
+  const { error: authUpdateError } = await admin.auth.admin.updateUserById(
+    userId,
+    authUpdatePayload,
+  );
+
+  if (authUpdateError) {
+    await restoreDatabaseState();
+    const message = authUpdateError.message || "Unable to update login account.";
+    if (message.toLowerCase().includes("already")) {
+      fail("An account with this email or mobile number already exists.", viewBranch);
+    }
+    fail(message, viewBranch);
   }
 
   revalidatePath("/dashboard/team");
-
   redirect(
-    teamUrl(viewBranch, "message", "Team member access updated."),
+    teamUrl(
+      viewBranch,
+      "message",
+      "Team member details updated successfully.",
+    ),
   );
 }
 
 export async function deleteTeamMember(formData: FormData) {
   const viewBranch = text(formData, "view_branch");
   const userId = text(formData, "user_id");
+  const expectedName = text(formData, "expected_name");
+  const confirmationName = text(formData, "confirmation_name");
 
   if (!userId) {
     fail("Missing team member.", viewBranch);
+  }
+
+  if (!expectedName || confirmationName !== expectedName) {
+    fail("The team member name confirmation did not match.", viewBranch);
   }
 
   const { supabase } = await getTeamContext();

@@ -87,7 +87,7 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
         </div>
         <Link href="/dashboard" className="brand-mark brand-light sidebar-desktop-brand">QueueDrop</Link>
         <nav>{nav}</nav>
-        <form action={signOut} className="sidebar-footer">
+        <form action={signOut} className="sidebar-footer" data-no-global-loading="true">
           <button className="button button-ghost-light" type="submit">Sign out</button>
         </form>
       </aside>

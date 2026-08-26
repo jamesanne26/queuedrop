@@ -1,20 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
-import {
-  createTeamMember,
-  deleteTeamMember,
-  updateTeamMember,
-} from "./actions";
-import { DeleteMemberButton } from "./delete-member-button";
-import {
-  BranchAssignmentFields,
-  ManagerStaffCreateFields,
-} from "./team-forms";
+import { createTeamMember } from "./actions";
+import { TeamCreateFields } from "./team-forms";
+import { TeamMemberEditModal } from "./team-member-edit-modal";
 
 type Props = {
   searchParams: Promise<{
@@ -51,6 +43,15 @@ type BranchUser = {
   user_id: string;
   branch_id: string;
 };
+
+function visibleEmail(email: string | null) {
+  if (!email) return null;
+  const normalized = email.toLowerCase();
+  if (normalized.startsWith("phone-") && normalized.endsWith("@auth.queuedrop.invalid")) {
+    return null;
+  }
+  return email;
+}
 
 export default async function TeamPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -284,8 +285,7 @@ export default async function TeamPage({ searchParams }: Props) {
             <div className="team-list">
               {displayedMembers.map((member) => {
                 const profile = profileById.get(member.user_id);
-                const assignedIds =
-                  branchesByUser.get(member.user_id) ?? [];
+                const assignedIds = branchesByUser.get(member.user_id) ?? [];
                 const assignedNames = assignedIds
                   .map((id) => branchById.get(id)?.name)
                   .filter(Boolean);
@@ -297,14 +297,20 @@ export default async function TeamPage({ searchParams }: Props) {
                 return (
                   <article className="team-card" key={member.id}>
                     <div className="team-card-header">
-                      <div>
-                        <strong>
-                          {profile?.full_name ?? "Team member"}
-                        </strong>
-                        <span>
-                          {profile?.email ?? "No email"}
-                          {profile?.phone ? ` Â· ${profile.phone}` : ""}
-                        </span>
+                      <div className="team-identity">
+                        <div
+                          className={`team-avatar team-avatar-${member.role}`}
+                          aria-hidden="true"
+                        >
+                          {(profile?.full_name ?? "T").slice(0, 1).toUpperCase()}
+                        </div>
+                        <div className="team-identity-copy">
+                          <strong>{profile?.full_name ?? "Team member"}</strong>
+                          <span>
+                            {profile?.email ?? "No email"}
+                            {profile?.phone ? ` · ${profile.phone}` : ""}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="team-chip-row">
@@ -324,139 +330,37 @@ export default async function TeamPage({ searchParams }: Props) {
                     {protectedRole || !editable ? (
                       <div className="team-owner-note">
                         {member.role === "owner"
-                          ? "Business owner Â· protected"
+                          ? "Business owner · protected"
                           : member.role === "admin"
-                            ? "Business admin Â· protected"
+                            ? "Business admin · protected"
                             : "You cannot manage this account"}
                       </div>
                     ) : (
-                      <>
-                        <form
-                          action={updateTeamMember}
-                          className="team-edit-form"
-                        >
-                          <input
-                            type="hidden"
-                            name="user_id"
-                            value={member.user_id}
-                          />
-                          <input
-                            type="hidden"
-                            name="view_branch"
-                            value={selectedBranchId}
-                          />
-
-                          {isManager ? (
-                            <>
-                              <input
-                                type="hidden"
-                                name="role"
-                                value="staff"
-                              />
-                              <div className="form-split">
-                                <label>
-                                  Role
-                                  <input value="Staff" disabled />
-                                </label>
-
-                                <label>
-                                  Access
-                                  <select
-                                    name="is_active"
-                                    defaultValue={
-                                      member.is_active ? "true" : "false"
-                                    }
-                                  >
-                                    <option value="true">Active</option>
-                                    <option value="false">Inactive</option>
-                                  </select>
-                                </label>
-                              </div>
-
-                              <label>
-                                Assigned branch
-                                <select
-                                  name="branch_ids"
-                                  defaultValue={assignedIds[0] ?? ""}
-                                  required
-                                >
-                                  <option value="" disabled>
-                                    Select one branch
-                                  </option>
-                                  {activeBranches.map((branch) => (
-                                    <option
-                                      key={branch.id}
-                                      value={branch.id}
-                                    >
-                                      {branch.name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <small>
-                                  Staff can belong to one branch only.
-                                </small>
-                              </label>
-                            </>
-                          ) : (
-                            <>
-                              <BranchAssignmentFields
-                                branches={activeBranches}
-                                initialRole={
-                                  member.role === "manager"
-                                    ? "manager"
-                                    : "staff"
-                                }
-                                initialBranchIds={assignedIds}
-                              />
-
-                              <label>
-                                Access
-                                <select
-                                  name="is_active"
-                                  defaultValue={
-                                    member.is_active ? "true" : "false"
-                                  }
-                                >
-                                  <option value="true">Active</option>
-                                  <option value="false">Inactive</option>
-                                </select>
-                              </label>
-                            </>
-                          )}
-
-                          <div className="team-form-footer">
-                            <span>
-                              {assignedNames.length
-                                ? assignedNames.join(", ")
-                                : "No branch assigned"}
-                            </span>
-                            <button
-                              className="button button-secondary button-small"
-                              type="submit"
-                            >
-                              Save changes
-                            </button>
-                          </div>
-                        </form>
-
-                        <form action={deleteTeamMember}>
-                          <input
-                            type="hidden"
-                            name="user_id"
-                            value={member.user_id}
-                          />
-                          <input
-                            type="hidden"
-                            name="view_branch"
-                            value={selectedBranchId}
-                          />
-                          <DeleteMemberButton
-                            memberName={
-                              profile?.full_name ?? "this team member"
-                            }
-                          />
-                        </form>
-                      </>
+                      <div className="team-card-summary">
+                        <div>
+                          <span className="field-label">Assigned branches</span>
+                          <span className="team-assigned-summary">
+                            {assignedNames.length
+                              ? assignedNames.join(", ")
+                              : "No branch assigned"}
+                          </span>
+                        </div>
+                        <TeamMemberEditModal
+                          userId={member.user_id}
+                          memberName={profile?.full_name ?? "Team member"}
+                          email={visibleEmail(profile?.email ?? null) ?? ""}
+                          phone={profile?.phone ?? ""}
+                          role={member.role as "manager" | "staff"}
+                          isActive={member.is_active}
+                          assignedBranchIds={assignedIds}
+                          branches={activeBranches.map((branch) => ({
+                            id: branch.id,
+                            name: branch.name,
+                          }))}
+                          managerMode={isManager}
+                          viewBranch={selectedBranchId}
+                        />
+                      </div>
                     )}
                   </article>
                 );
@@ -498,63 +402,7 @@ export default async function TeamPage({ searchParams }: Props) {
                 value={selectedBranchId}
               />
 
-              <label>
-                Full name
-                <input
-                  name="full_name"
-                  required
-                  minLength={2}
-                  maxLength={100}
-                 
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <label>
-                Email
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  maxLength={254}
-                  placeholder="maria@example.com"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                  spellCheck={false}
-                />
-              </label>
-
-              <label>
-                Mobile <em>optional</em>
-                <DigitsOnlyInput
-                  name="phone"
-                  maxLength={20}
-                  placeholder="09171234567"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <label>
-                Temporary password
-                <input
-                  name="temporary_password"
-                  type="password"
-                  required
-                  minLength={10}
-                  maxLength={72}
-                  placeholder="At least 10 characters"
-                  autoComplete="new-password"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <ManagerStaffCreateFields
+              <TeamCreateFields
                 branches={activeBranches}
                 managerMode={isManager}
               />

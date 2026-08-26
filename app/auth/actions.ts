@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function value(formData: FormData, key: string) {
@@ -8,12 +9,36 @@ function value(formData: FormData, key: string) {
 }
 
 export async function signIn(formData: FormData) {
-  const email = value(formData, "login_email").toLowerCase();
+  const identifier = value(formData, "login_email");
   const password = value(formData, "password");
   const next = value(formData, "next") || "/dashboard";
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  let loginEmail = identifier.toLowerCase();
+
+  if (!identifier.includes("@")) {
+    const admin = createAdminClient();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("phone", identifier)
+      .limit(1)
+      .maybeSingle();
+
+    if (!profile) {
+      redirect(`/auth/login?error=${encodeURIComponent("Invalid login credentials.")}&next=${encodeURIComponent(next)}`);
+    }
+
+    // QueueDrop phone-only accounts use a deterministic private Auth email.
+    const crypto = await import("node:crypto");
+    const digest = crypto.createHash("sha256").update(identifier).digest("hex");
+    loginEmail = `phone-${digest}@auth.queuedrop.invalid`;
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: loginEmail,
+    password,
+  });
 
   if (error) {
     redirect(`/auth/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);

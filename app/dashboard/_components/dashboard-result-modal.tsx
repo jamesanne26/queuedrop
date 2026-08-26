@@ -19,7 +19,17 @@ export function DashboardResultModal({ success, error }: Props) {
   useEffect(() => {
     document.body.dataset.qdModalOpen = open ? "true" : "false";
     if (open) {
+      // The global loader can mount after this effect during a server-action
+      // navigation, so dispatch once more on the next task as a reliable
+      // hand-off to the root loading controller.
       window.dispatchEvent(new Event("qd:result-modal-open"));
+      const timer = window.setTimeout(() => {
+        window.dispatchEvent(new Event("qd:result-modal-open"));
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+        delete document.body.dataset.qdModalOpen;
+      };
     }
     return () => {
       delete document.body.dataset.qdModalOpen;

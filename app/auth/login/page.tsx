@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signIn } from "../actions";
 import { PasswordInput } from "../_components/password-input";
+import { AuthSubmitButton } from "../_components/auth-submit-button";
 
 type Props = {
   searchParams: Promise<{ error?: string; message?: string; next?: string }>;
@@ -22,17 +23,17 @@ export default async function LoginPage({ searchParams }: Props) {
         {params.error ? <div className="notice notice-error">{params.error}</div> : null}
         {params.message ? <div className="notice notice-success">{params.message}</div> : null}
 
-        <form action={signIn} className="form-stack">
+        <form action={signIn} className="form-stack" data-no-global-loading="true">
           <input type="hidden" name="next" value={params.next ?? "/dashboard"} />
           <label>
-            Email
-            <input name="login_email" type="email" autoComplete="off" required placeholder="you@business.com" data-lpignore="true" data-1p-ignore="true" spellCheck={false} />
+            Email or mobile
+            <input name="login_email" type="text" autoComplete="off" required placeholder="you@business.com or 09171234567" data-lpignore="true" data-1p-ignore="true" spellCheck={false} />
           </label>
           <label>
             Password
             <PasswordInput />
           </label>
-          <button className="button button-primary" type="submit">Sign in</button>
+          <AuthSubmitButton pendingLabel="Signing in...">Sign in</AuthSubmitButton>
         </form>
 
         <p className="auth-footer">New to QueueDrop? <Link href="/auth/signup">Create an account</Link></p>

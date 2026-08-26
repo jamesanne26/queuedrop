@@ -1,31 +1,73 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+
+type Listener = () => void;
+
+let loading = false;
+const listeners = new Set<Listener>();
+let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+function emit() {
+  for (const listener of listeners) listener();
+}
+
+function setGlobalLoading(next: boolean) {
+  if (loading === next) return;
+  loading = next;
+  emit();
+}
+
+function startTimeout() {
+  if (timeoutId) clearTimeout(timeoutId);
+  timeoutId = setTimeout(() => {
+    timeoutId = undefined;
+    setGlobalLoading(false);
+  }, 12000);
+}
+
+function subscribe(listener: Listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot() {
+  return loading;
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 export function GlobalSubmitLoading() {
-  const [loading, setLoading] = useState(false);
+  const isLoading = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
     const handleSubmit = (event: Event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
       if (form.dataset.noGlobalLoading === "true") return;
 
-      setLoading(true);
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => setLoading(false), 12000);
+      setGlobalLoading(true);
+      startTimeout();
     };
 
-    const handlePageShow = () => setLoading(false);
-    const handleResultModalOpen = () => setLoading(false);
-    const handleSubmitStart = () => setLoading(true);
-    const handleSubmitComplete = () => setLoading(false);
+    const handlePageShow = () => setGlobalLoading(false);
+    const handleResultModalOpen = () => setGlobalLoading(false);
+    const handleSubmitStart = () => {
+      setGlobalLoading(true);
+      startTimeout();
+    };
+    const handleSubmitComplete = () => setGlobalLoading(false);
 
     const observer = new MutationObserver(() => {
-      if (document.body.dataset.qdModalOpen === "true") setLoading(false);
+      if (document.body.dataset.qdModalOpen === "true") {
+        setGlobalLoading(false);
+      }
     });
 
     document.addEventListener("submit", handleSubmit, true);
@@ -33,7 +75,10 @@ export function GlobalSubmitLoading() {
     window.addEventListener("qd:result-modal-open", handleResultModalOpen);
     window.addEventListener("qd:submit-start", handleSubmitStart);
     window.addEventListener("qd:submit-complete", handleSubmitComplete);
-    observer.observe(document.body, { attributes: true, attributeFilter: ["data-qd-modal-open"] });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-qd-modal-open"],
+    });
 
     return () => {
       document.removeEventListener("submit", handleSubmit, true);
@@ -46,10 +91,15 @@ export function GlobalSubmitLoading() {
     };
   }, []);
 
-  if (!loading) return null;
+  if (!isLoading) return null;
 
   return (
-    <div className="qd-loading-backdrop" role="status" aria-live="polite" aria-label="Loading">
+    <div
+      className="qd-loading-backdrop"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
       <section className="qd-loading-modal">
         <div className="qd-loading-spinner" aria-hidden="true" />
         <strong>Please wait</strong>
