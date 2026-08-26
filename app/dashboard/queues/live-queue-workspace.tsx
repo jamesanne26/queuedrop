@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
@@ -276,7 +276,7 @@ export function LiveQueueWorkspace({
     // succeeds. Do not wait for router.refresh(), otherwise the modal can
     // remain visible for an extra render while the refreshed queue loads.
     window.dispatchEvent(new Event("qd:submit-complete"));
-    setModal(null);
+    queueMicrotask(() => setModal(null));
 
     // Refresh the queue data in a transition so the successful close remains
     // responsive while the updated ticket list is fetched.
@@ -297,7 +297,7 @@ export function LiveQueueWorkspace({
 
       setServiceId(nextServiceId);
       setQueueServiceFilter(nextServiceId || "all");
-      setModal(null);
+      queueMicrotask(() => setModal(null));
       setActiveTicketId(null);
     });
 
@@ -336,7 +336,7 @@ export function LiveQueueWorkspace({
   }
 
   function closeModal() {
-    setModal(null);
+    queueMicrotask(() => setModal(null));
   }
 
   function navigateBranch(branchId: string) {
@@ -369,7 +369,7 @@ export function LiveQueueWorkspace({
 
   function confirmToggleNames() {
     setShowNames((current) => !current);
-    setModal(null);
+    queueMicrotask(() => setModal(null));
   }
 
   async function openServiceHistory() {
@@ -560,7 +560,7 @@ export function LiveQueueWorkspace({
                       <strong>{ticket.service_name}</strong>
                     </td>
                     <td>
-                      <strong>{ticket.position ?? "—"}</strong>
+                      <strong>{ticket.position ?? "â€”"}</strong>
                     </td>
                     <td>
                       <button
@@ -786,8 +786,8 @@ export function LiveQueueWorkspace({
                 <p className="eyebrow">Customer view</p>
                 <h2 id="customer-title">{activeTicket.display_number}</h2>
                 <span>
-                  {activeTicket.service_name} · Position{" "}
-                  {activeTicket.position ?? "—"}
+                  {activeTicket.service_name} Â· Position{" "}
+                  {activeTicket.position ?? "â€”"}
                 </span>
               </div>
               <span
@@ -948,11 +948,11 @@ export function LiveQueueWorkspace({
                         {item.field_name === "mobile" ? "Mobile" : "Name"}
                       </strong>
                       <span>
-                        {item.old_value || "—"} → {item.new_value || "—"}
+                        {item.old_value || "â€”"} â†’ {item.new_value || "â€”"}
                       </span>
                     </div>
                     <small>
-                      {item.changed_by_type} ·{" "}
+                      {item.changed_by_type} Â·{" "}
                       {new Date(item.created_at).toLocaleString()}
                     </small>
                   </article>
@@ -1121,7 +1121,7 @@ export function LiveQueueWorkspace({
                   : "qd-confirm-icon"
               }
             >
-              {resultMessage.type === "error" ? "!" : "✓"}
+              {resultMessage.type === "error" ? "!" : "âœ“"}
             </div>
 
             <div className="qd-confirm-copy">
@@ -1138,7 +1138,7 @@ export function LiveQueueWorkspace({
                 className="button button-primary"
                 type="button"
                 onClick={() => {
-                  setModal(null);
+                  queueMicrotask(() => setModal(null));
                   setResultMessage(null);
                   router.replace(
                     `/dashboard/queues?branch=${selectedBranchId}${
@@ -1158,3 +1158,5 @@ export function LiveQueueWorkspace({
     </main>
   );
 }
+
+
