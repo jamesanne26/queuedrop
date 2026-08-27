@@ -126,9 +126,10 @@ export function TeamCreateFields({
       </label>
 
       <label>
-        Mobile <em>optional</em>
+        Mobile <em>required</em>
         <DigitsOnlyInput
           name="phone"
+          required
           placeholder="09171234567"
           autoComplete="off"
           data-lpignore="true"
@@ -181,13 +182,15 @@ export function TeamCreateFields({
       )}
 
       {isStaff ? (
-        <small className="team-login-identifier-note">Staff accounts must have at least one login method: email or mobile number.</small>
-      ) : null}
+        <small className="team-login-identifier-note">Mobile number is required for staff. Email is optional.</small>
+      ) : (
+        <small className="team-login-identifier-note">All manager fields are required.</small>
+      )}
 
       <PasswordField
-        minLength={managerMode ? 4 : passwordMin}
-        managerPassword={!managerMode && !isStaff}
-        placeholder={managerMode || isStaff ? "At least 6 characters" : "10+ characters"}
+        minLength={passwordMin}
+        managerPassword={!isStaff}
+        placeholder={isStaff ? "At least 6 characters" : "10+ characters"}
       />
     </>
   );

@@ -125,3 +125,10 @@ This package includes the latest live-queue UX fixes:
 - Global `Please wait` loading is explicitly cleared when a server-action result completes, preventing the loading overlay from remaining after a successful assisted queue add.
 - Branch selector navigation now shows the global loading state during branch transitions and clears it when the transition completes.
 - Queue loading controls use the existing transition/prefetch architecture rather than adding another page-level loading mechanism.
+
+## 2026-08-27 Team access refinement
+- Staff creation/edit now requires mobile; email stays optional.
+- Manager creation/edit requires email and mobile; existing branch/password rules remain enforced.
+- Edit password is now optional: blank keeps the existing password; entering a value resets it.
+- Existing passwords are never retrieved or pre-populated because Supabase Auth stores password hashes, not readable plaintext.
+- Team branch filtering is now client-side after the initial page load, avoiding a server round trip on every branch selection.

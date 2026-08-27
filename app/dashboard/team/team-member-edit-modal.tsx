@@ -36,7 +36,7 @@ function PasswordField({
 
   return (
     <label className="team-field">
-      Password <em>required</em>
+      New password <em>optional</em>
       <div className="password-input-wrap">
         <input
           name={name}
@@ -54,7 +54,6 @@ function PasswordField({
               : "Use at least 6 characters."
           }
           placeholder={placeholder}
-          required
           autoComplete="new-password"
           data-lpignore="true"
           data-1p-ignore="true"
@@ -88,9 +87,10 @@ function PasswordField({
         </button>
       </div>
       <small>
+        Current passwords cannot be retrieved. Leave this blank to keep the existing password, or enter a new one to change it.
         {managerPassword
-          ? "Manager passwords: 10+ characters, with uppercase, lowercase, number, and symbol."
-          : "Staff passwords require at least 6 characters."}
+          ? " Manager passwords require 10+ characters with uppercase, lowercase, number, and symbol."
+          : " Staff passwords require at least 6 characters."}
       </small>
       {managerPassword ? (
         <a className="team-forgot-password" href="/auth/forgot-password">
@@ -244,8 +244,8 @@ export function TeamMemberEditModal({
               </label>
 
               <label className="team-field">
-                Mobile <em>optional</em>
-                <DigitsOnlyInput name="phone" defaultValue={phone} placeholder="09171234567" />
+                Mobile <em>required</em>
+                <DigitsOnlyInput name="phone" defaultValue={phone} placeholder="09171234567" required />
               </label>
 
               <label className="team-field">
@@ -299,7 +299,7 @@ export function TeamMemberEditModal({
                 name="new_password"
                 minLength={role === "staff" ? 6 : 10}
                 managerPassword={role === "manager"}
-                placeholder={role === "staff" ? "Enter new password (6+ characters)" : "Enter new password (10+ characters)"}
+                placeholder={role === "staff" ? "Leave blank to keep password" : "Leave blank to keep password"}
               />
 
               <div className="team-modal-actions">

@@ -185,6 +185,15 @@ export async function createTeamMember(formData: FormData) {
     fail("Manager accounts require an email address.", viewBranch);
   }
 
+  if (!phone) {
+    fail(
+      role === "manager"
+        ? "Manager accounts require a mobile number."
+        : "Staff accounts require a mobile number.",
+      viewBranch,
+    );
+  }
+
   if (
     email &&
     (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
@@ -194,10 +203,6 @@ export async function createTeamMember(formData: FormData) {
 
   if (rawPhone && !phone) {
     fail("Mobile number must contain numbers only.", viewBranch);
-  }
-
-  if (role === "staff" && !email && !phone) {
-    fail("Staff accounts require either an email address or mobile number.", viewBranch);
   }
 
   if (role === "staff") {
@@ -345,6 +350,15 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail("Manager accounts require an email address.", viewBranch);
   }
 
+  if (!phone) {
+    fail(
+      role === "manager"
+        ? "Manager accounts require a mobile number."
+        : "Staff accounts require a mobile number.",
+      viewBranch,
+    );
+  }
+
   if (
     email &&
     (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
@@ -356,18 +370,19 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail("Mobile number must contain numbers only.", viewBranch);
   }
 
-  if (!newPassword) {
-    fail("Password is required when updating a team member.", viewBranch);
+  if (
+    newPassword &&
+    role === "staff" &&
+    (newPassword.length < 6 || newPassword.length > 72)
+  ) {
+    fail("Staff passwords must be between 6 and 72 characters.", viewBranch);
   }
 
-  if (role === "staff" && (newPassword.length < 6 || newPassword.length > 72)) {
-      fail("Staff passwords must be between 6 and 72 characters.", viewBranch);
-  }
-  if (role === "manager" && !validateManagerPassword(newPassword)) {
-      fail(
-        "Manager passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
-        viewBranch,
-      );
+  if (newPassword && role === "manager" && !validateManagerPassword(newPassword)) {
+    fail(
+      "Manager passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
+      viewBranch,
+    );
   }
 
   const {
@@ -439,24 +454,18 @@ export async function updateTeamMemberDetails(formData: FormData) {
   }
 
   const previousAuthEmail = authResult.user.email ?? "";
-  const previousAuthPhone = authResult.user.phone ?? "";
   const previousMetadata = authResult.user.user_metadata ?? {};
   const previousProfile = profileLookup.data;
   const previousBranchIds = (targetAssignmentsResult.data ?? []).map(
     (row) => row.branch_id,
   );
 
-  const previousIsSyntheticPhoneEmail = isPhoneLoginEmail(previousAuthEmail);
   const previousProfileEmail = displayEmail(previousProfile?.email);
   // For staff, blank means remove that optional contact method. For managers,
   // email has already been validated as required. Never persist QueueDrop's
   // private synthetic phone-login email as a visible profile email.
   const effectiveEmail = email || (role === "manager" ? previousProfileEmail ?? previousAuthEmail : "");
   const effectivePhone = phone || "";
-
-  if (role === "staff" && !effectiveEmail && !effectivePhone) {
-    fail("Staff accounts require either an email address or mobile number.", viewBranch);
-  }
 
   if (phone && phone !== previousProfile?.phone) {
     const { data: duplicatePhone } = await admin

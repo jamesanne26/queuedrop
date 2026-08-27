@@ -2906,3 +2906,10 @@ html { scroll-behavior: auto; }
   color: var(--muted);
   line-height: 1.45;
 }
+
+/* Team branch tabs are client-side buttons for instant filtering. */
+.team-branch-tabs-card .service-branch-tab[type="button"] {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
