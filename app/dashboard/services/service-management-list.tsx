@@ -68,7 +68,7 @@ export function ServiceManagementList({
                   </div>
 
                   <span>
-                    {branch?.name ?? "Unknown branch"} · Prefix{" "}
+                    {branch?.name ?? "Unknown branch"} - Prefix{" "}
                     {service.queue_prefix || "branch default"} ·{" "}
                     {service.estimated_minutes
                       ? `${service.estimated_minutes} min`

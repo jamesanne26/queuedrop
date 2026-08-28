@@ -13,6 +13,7 @@ export default function Home() {
         <nav className="topbar">
           <Link href="/" className="brand-mark">QueueDrop</Link>
           <div className="topbar-actions">
+            <Link href="/pricing" className="button button-secondary">Pricing</Link>
             <Link href="/auth/login" className="button button-secondary">Sign in</Link>
             <Link href="/auth/signup" className="button button-primary">Get started</Link>
           </div>
@@ -26,7 +27,7 @@ export default function Home() {
               QueueDrop is a web-based queue management platform for salons, clinics, repair shops, service centers, and multi-branch businesses.
             </p>
             <div className="hero-actions">
-              <Link href="/auth/signup" className="button button-primary button-large">Start with QueueDrop</Link>
+              <Link href="/pricing" className="button button-primary button-large">View plans & subscribe</Link>
               <a href="#how-it-works" className="button button-secondary button-large">See how it works</a>
             </div>
           </div>
@@ -81,7 +82,7 @@ export default function Home() {
 
       <footer className="footer">
         <div><strong>QueueDrop</strong><p>Modern queue management for service businesses.</p></div>
-        <span>Development foundation · 2026</span>
+        <span>Development foundation - 2026</span>
       </footer>
     </main>
   );

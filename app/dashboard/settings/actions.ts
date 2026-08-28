@@ -25,16 +25,13 @@ function fail(branchId: string, message: string): never {
 
 export async function updateQueueSettings(formData: FormData) {
   const branchId = field(formData, "branch_id");
-  const ticketPrefix = field(formData, "ticket_prefix").toUpperCase();
   const startingNumber = Number(field(formData, "starting_number"));
   const noShowMinutes = Number(field(formData, "no_show_minutes"));
   const timezone = field(formData, "timezone");
+  const customerRefreshSeconds = Number(field(formData, "customer_refresh_seconds") || 8);
 
   if (!branchId) fail(branchId, "Select a branch.");
 
-  if (!/^[A-Z0-9]{1,6}$/.test(ticketPrefix)) {
-    fail(branchId, "Queue prefix must be 1 to 6 letters or numbers.");
-  }
 
   if (
     !Number.isInteger(startingNumber) ||
@@ -50,6 +47,10 @@ export async function updateQueueSettings(formData: FormData) {
     noShowMinutes > 1440
   ) {
     fail(branchId, "No-show minutes must be between 0 and 1440.");
+  }
+
+  if (!Number.isInteger(customerRefreshSeconds) || customerRefreshSeconds < 3 || customerRefreshSeconds > 300) {
+    fail(branchId, "Customer refresh interval must be between 3 and 300 seconds.");
   }
 
   if (!(TIMEZONES as readonly string[]).includes(timezone)) {
@@ -114,6 +115,21 @@ export async function updateQueueSettings(formData: FormData) {
     redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
+  // Queue prefixes are managed at the service level. Settings no longer
+  // exposes the branch fallback prefix, so preserve the current database
+  // value instead of overwriting it during an unrelated settings save.
+  const { data: currentConfig, error: currentConfigError } = await supabase
+    .from("queue_configurations")
+    .select("ticket_prefix")
+    .eq("branch_id", branchId)
+    .maybeSingle();
+
+  if (currentConfigError) {
+    fail(branchId, currentConfigError.message);
+  }
+
+  const ticketPrefix = currentConfig?.ticket_prefix || "Q";
+
   const { error } = await supabase.rpc("save_branch_queue_settings", {
     target_branch_id: branchId,
     target_ticket_prefix: ticketPrefix,
@@ -157,6 +173,12 @@ export async function updateQueueSettings(formData: FormData) {
   if (error) {
     fail(branchId, error.message);
   }
+
+  const { error: refreshError } = await supabase.rpc("set_customer_refresh_seconds", {
+    target_branch_id: branchId,
+    target_seconds: customerRefreshSeconds,
+  });
+  if (refreshError) fail(branchId, refreshError.message);
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/branches");

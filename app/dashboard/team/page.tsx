@@ -28,7 +28,7 @@ export default async function TeamPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, businesses(name)")
+    .select("business_id, role, can_manage_team, businesses(name)")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .limit(1)
@@ -38,6 +38,7 @@ export default async function TeamPage({ searchParams }: Props) {
 
   const actorRole = membership.role as Role;
   if (!["owner", "admin", "manager"].includes(actorRole)) redirect("/dashboard");
+  if (actorRole === "manager" && !membership.can_manage_team) redirect("/dashboard");
 
   const business = Array.isArray(membership.businesses)
     ? membership.businesses[0]

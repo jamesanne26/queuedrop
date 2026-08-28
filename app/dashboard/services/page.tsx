@@ -14,10 +14,10 @@ export default async function ServicesPage({ searchParams }: Props) {
   const user = userData.user;
   if (!user) redirect("/auth/login?next=%2Fdashboard%2Fservices");
 
-  const { data: membership } = await supabase.from("business_users").select("business_id, role, businesses(name)").eq("user_id", user.id).limit(1).maybeSingle();
+  const { data: membership } = await supabase.from("business_users").select("business_id, role, can_manage_services, businesses(name)").eq("user_id", user.id).limit(1).maybeSingle();
   if (!membership) redirect("/onboarding");
   const role = membership.role as Role;
-  const canManage = role === "owner" || role === "admin";
+  const canManage = role === "owner" || role === "admin" || (role === "manager" && Boolean(membership.can_manage_services));
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
   let allowedBranchIds: string[] | null = null;

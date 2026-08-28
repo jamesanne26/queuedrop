@@ -99,7 +99,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
             <span>Branch</span>
             <select value={selectedBranchId} onChange={(e) => selectBranch(e.target.value)} aria-label="Select branch">
               <option value="all">View all services</option>
-              {branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name} — {countByBranch.get(branch.id) ?? 0} services</option>)}
+              {branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name} - {countByBranch.get(branch.id) ?? 0} services</option>)}
             </select>
           </label>
         </div>
@@ -124,7 +124,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
               return <article className="service-row" key={service.id}>
                 <div className="service-main">
                   <div className="service-title-row"><strong>{service.name}</strong><span className={service.is_active ? "status-chip" : "status-chip status-chip-off"}>{service.is_active ? "active" : "inactive"}</span></div>
-                  <span>{branch?.name ?? "Unknown branch"} · Prefix {service.queue_prefix || "branch default"} · {service.estimated_minutes ? `${service.estimated_minutes} min` : "No ETA set"}</span>
+                  <span>{branch?.name ?? "Unknown branch"} - Prefix {service.queue_prefix || "branch default"} - {service.estimated_minutes ? `${service.estimated_minutes} min` : "No ETA set"}</span>
                   {service.description ? <p>{service.description}</p> : null}
                 </div>
                 {canManage ? <div className="service-action-row">

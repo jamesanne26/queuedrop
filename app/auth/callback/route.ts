@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveAuthenticatedLanding } from "@/lib/auth/landing";
 
 function safeNext(value: string | null) {
   return value && value.startsWith("/") && !value.startsWith("//")
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(new URL(next, requestUrl.origin));
+      const { data } = await supabase.auth.getUser();
+      const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
+      return NextResponse.redirect(new URL(destination, requestUrl.origin));
     }
   } else if (tokenHash && type) {
     const otpTypes = [
@@ -36,7 +39,9 @@ export async function GET(request: Request) {
         type: type as (typeof otpTypes)[number],
       });
       if (!error) {
-        return NextResponse.redirect(new URL(next, requestUrl.origin));
+        const { data } = await supabase.auth.getUser();
+        const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
+        return NextResponse.redirect(new URL(destination, requestUrl.origin));
       }
     }
   }

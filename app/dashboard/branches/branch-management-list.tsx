@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteBranch, updateBranch } from "./actions";
+import { deleteBranch, updateBranch, updateBranchStatus } from "./actions";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type BranchRow = {
@@ -16,11 +16,12 @@ type BranchRow = {
 type Props = {
   branches: BranchRow[];
   canManage: boolean;
+  canSetStatus: boolean;
 };
 
 type Modal = null | { kind: "edit"; branch: BranchRow } | { kind: "delete"; branch: BranchRow };
 
-export function BranchManagementList({ branches, canManage }: Props) {
+export function BranchManagementList({ branches, canManage, canSetStatus }: Props) {
   const [modal, setModal] = useState<Modal>(null);
 
   useEffect(() => {
@@ -52,6 +53,14 @@ export function BranchManagementList({ branches, canManage }: Props) {
                   <button className="button button-secondary button-small" type="button" onClick={() => setModal({ kind: "edit", branch })}>Edit</button>
                   <button className="button button-danger-outline button-small" type="button" onClick={() => setModal({ kind: "delete", branch })}>Delete</button>
                 </div>
+              ) : canSetStatus ? (
+                <form action={updateBranchStatus} className="branch-status-form">
+                  <input type="hidden" name="branch_id" value={branch.id} />
+                  <input type="hidden" name="status" value={branch.status === "active" ? "inactive" : "active"} />
+                  <button className="button button-secondary button-small" type="submit">
+                    Set {branch.status === "active" ? "inactive" : "active"}
+                  </button>
+                </form>
               ) : null}
             </div>
           </article>

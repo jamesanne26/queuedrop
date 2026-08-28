@@ -120,3 +120,26 @@ export async function deleteBranch(formData: FormData) {
   revalidatePath("/dashboard/branches");
   redirect("/dashboard/branches?message=Branch%20deleted%20successfully.");
 }
+
+
+export async function updateBranchStatus(formData: FormData) {
+  const branchId = value(formData, "branch_id");
+  const status = value(formData, "status");
+
+  if (!branchId) fail("Missing branch.");
+  if (!["active", "inactive"].includes(status)) fail("Invalid branch status.");
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fbranches");
+
+  const { error } = await supabase.rpc("set_assigned_branch_status", {
+    target_branch_id: branchId,
+    target_status: status,
+  });
+
+  if (error) fail(error.message || "Unable to update branch status.");
+
+  revalidatePath("/dashboard/branches");
+  redirect("/dashboard/branches?message=Branch%20status%20updated.");
+}

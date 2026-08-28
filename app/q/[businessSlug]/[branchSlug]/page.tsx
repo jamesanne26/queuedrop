@@ -78,7 +78,7 @@ export default async function PublicQueuePage({ params, searchParams }: Props) {
                     <strong>{service.name}</strong>
                     <small>
                       {service.queue_prefix}
-                      {service.estimated_minutes ? ` · about ${service.estimated_minutes} min` : ""}
+                      {service.estimated_minutes ? ` - about ${service.estimated_minutes} min` : ""}
                     </small>
                     {service.description ? <em>{service.description}</em> : null}
                   </span>

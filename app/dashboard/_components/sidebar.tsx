@@ -5,14 +5,16 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
 
-type NavKey = "overview" | "branches" | "services" | "queues" | "team" | "settings";
+type NavKey = "overview" | "branches" | "services" | "queues" | "team" | "reports" | "settings";
 
 type Props = {
   active?: NavKey;
   role?: "owner" | "admin" | "manager" | "staff" | null;
+  canViewSettings?: boolean;
+  canViewReports?: boolean;
 };
 
-export function DashboardSidebar({ active, role = "owner" }: Props) {
+export function DashboardSidebar({ active, role = "owner", canViewSettings, canViewReports }: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -25,7 +27,9 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
         ? "queues"
         : pathname.startsWith("/dashboard/team")
           ? "team"
-          : pathname.startsWith("/dashboard/settings")
+          : pathname.startsWith("/dashboard/reports")
+            ? "reports"
+            : pathname.startsWith("/dashboard/settings")
             ? "settings"
             : "overview";
   const currentActive = active ?? routeActive;
@@ -37,6 +41,7 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
       "/dashboard/services",
       "/dashboard/queues",
       "/dashboard/team",
+      "/dashboard/reports",
       "/dashboard/settings",
     ];
 
@@ -56,7 +61,9 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
   }, [router]);
 
   const canManageTeam = role === "owner" || role === "admin" || role === "manager";
-  const canViewSettings = role === "owner" || role === "admin" || role === "manager";
+  const settingsVisible = canViewSettings ?? (role === "owner" || role === "admin" || role === "manager");
+  const reportsVisible = canViewReports ?? (role === "owner" || role === "admin");
+  const canOpenClientPage = role === "owner" || role === "admin";
 
   const nav = (
     <>
@@ -65,7 +72,8 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
       <Link className={`nav-item ${currentActive === "services" ? "nav-item-active" : ""}`} href="/dashboard/services" onClick={() => setOpen(false)}>Services</Link>
       <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queues</Link>
       {canManageTeam ? <Link className={`nav-item ${currentActive === "team" ? "nav-item-active" : ""}`} href="/dashboard/team" onClick={() => setOpen(false)}>Team</Link> : null}
-      {canViewSettings ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
+      {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History & Reports</Link> : null}
+      {settingsVisible ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
     </>
   );
 
@@ -87,9 +95,14 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
         </div>
         <Link href="/dashboard" className="brand-mark brand-light sidebar-desktop-brand">QueueDrop</Link>
         <nav>{nav}</nav>
-        <form action={signOut} className="sidebar-footer" data-no-global-loading="true">
-          <button className="button button-ghost-light" type="submit">Sign out</button>
-        </form>
+        <div className="sidebar-footer">
+          {canOpenClientPage ? (
+            <Link className="button button-ghost-light sidebar-client-button" href="/client" onClick={() => setOpen(false)}>Client Page</Link>
+          ) : null}
+          <form action={signOut} data-no-global-loading="true">
+            <button className="button button-ghost-light" type="submit">Sign out</button>
+          </form>
+        </div>
       </aside>
     </>
   );

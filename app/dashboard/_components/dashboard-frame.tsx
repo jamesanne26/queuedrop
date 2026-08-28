@@ -7,10 +7,12 @@ type Role = "owner" | "admin" | "manager" | "staff";
 
 type Props = {
   role: Role | null;
+  canViewSettings: boolean;
+  canViewReports: boolean;
   children: React.ReactNode;
 };
 
-export function DashboardFrame({ role, children }: Props) {
+export function DashboardFrame({ role, canViewSettings, canViewReports, children }: Props) {
   const pathname = usePathname();
   const liveQueue = pathname === "/dashboard/queues";
 
@@ -18,7 +20,7 @@ export function DashboardFrame({ role, children }: Props) {
 
   return (
     <main className="dashboard-shell">
-      <DashboardSidebar role={role} />
+      <DashboardSidebar role={role} canViewSettings={canViewSettings} canViewReports={canViewReports} />
       <div className="dashboard-route-content">{children}</div>
     </main>
   );

@@ -70,7 +70,7 @@ export function ResponsiveBranchSelect({
         {branches.map((branch) => (
           <option value={branch.id} key={branch.id}>
             {branch.name}
-            {branch.meta ? ` — ${branch.meta}` : ""}
+            {branch.meta ? ` - ${branch.meta}` : ""}
           </option>
         ))}
       </select>

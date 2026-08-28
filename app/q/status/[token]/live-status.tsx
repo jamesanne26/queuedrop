@@ -3,44 +3,30 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export function LiveStatus() {
+export function LiveStatus({ refreshSeconds = 8 }: { refreshSeconds?: number }) {
   const router = useRouter();
-  const [seconds, setSeconds] = useState(8);
+  const interval = Math.max(3, Math.min(300, Number(refreshSeconds) || 8));
+  const [seconds, setSeconds] = useState(interval);
 
   useEffect(() => {
-    let remaining = 8;
-
+    let remaining = interval;
+    setSeconds(interval);
     const timer = window.setInterval(() => {
       remaining -= 1;
-
       if (remaining <= 0) {
         router.refresh();
-        remaining = 8;
+        remaining = interval;
       }
-
       setSeconds(remaining);
     }, 1000);
-
     return () => window.clearInterval(timer);
-  }, [router]);
-
-  function refreshNow() {
-    router.refresh();
-    setSeconds(8);
-  }
+  }, [router, interval]);
 
   return (
     <div className="ticket-live-row">
-      <span>
-        <span className="status-dot" />
-        Live status
-      </span>
-      <button
-        type="button"
-        className="text-link ticket-refresh"
-        onClick={refreshNow}
-      >
-        Refresh · {seconds}s
+      <span><span className="status-dot" />Live queue</span>
+      <button type="button" className="text-link ticket-refresh" onClick={() => { router.refresh(); setSeconds(interval); }}>
+        Refresh in {seconds}s
       </button>
     </div>
   );

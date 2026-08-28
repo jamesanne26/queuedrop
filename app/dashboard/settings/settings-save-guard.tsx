@@ -21,7 +21,6 @@ type Rule = {
 };
 
 const LABELS: Record<string, string> = {
-  ticket_prefix: "Default queue prefix",
   starting_number: "Starting number",
   no_show_minutes: "No-show grace period",
   timezone: "Branch timezone",
@@ -118,7 +117,7 @@ function rulesFrom(snapshot: Map<string, string>) {
 }
 
 function ruleText(rule: Rule) {
-  return `Position ${rule.position || "—"} · SMS ${rule.sms} · Browser ${rule.browser}`;
+  return `Position ${rule.position || "-"} - SMS ${rule.sms} - Browser ${rule.browser}`;
 }
 
 function isPositionRuleField(name: string) {
@@ -217,8 +216,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
       next.push({
         field: name,
         label: prettyField(name),
-        before: before || "—",
-        after: after || "—",
+        before: before || "-",
+        after: after || "-",
         kind: "normal",
       });
     }

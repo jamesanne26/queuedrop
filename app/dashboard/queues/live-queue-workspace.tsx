@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
@@ -170,6 +170,16 @@ type Ticket = {
   customer_phone: string;
 };
 
+
+function ordinalPosition(position: number | null) {
+  if (!position || position < 1) return "-";
+  const mod100 = position % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${position}th`;
+  if (position % 10 === 1) return `${position}st`;
+  if (position % 10 === 2) return `${position}nd`;
+  if (position % 10 === 3) return `${position}rd`;
+  return `${position}th`;
+}
 
 
 type Props = {
@@ -547,7 +557,7 @@ export function LiveQueueWorkspace({
               <tbody>
                 {filteredTickets.map((ticket) => (
                   <tr key={ticket.id}>
-                    <td>
+                    <td data-label="Queue">
                       <button
                         type="button"
                         className="queue-code-button"
@@ -556,13 +566,13 @@ export function LiveQueueWorkspace({
                         {ticket.display_number}
                       </button>
                     </td>
-                    <td>
+                    <td data-label="Service">
                       <strong>{ticket.service_name}</strong>
                     </td>
-                    <td>
-                      <strong>{ticket.position ?? "â€”"}</strong>
+                    <td data-label="Position">
+                      <strong>{ticket.position ?? "-"}</strong>
                     </td>
-                    <td>
+                    <td data-label="Customer">
                       <button
                         type="button"
                         className={
@@ -576,14 +586,14 @@ export function LiveQueueWorkspace({
                         {showNames ? ticket.customer_name : "Hidden"}
                       </button>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <span
                         className={`ticket-status-chip ticket-status-${ticket.status}`}
                       >
                         {ticket.status}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="live-row-actions">
                         {ticket.status === "called" ? (
                           <form action={updateTicketAction} data-no-global-loading="true">
@@ -775,73 +785,31 @@ export function LiveQueueWorkspace({
 
       {modal === "customer" && activeTicket ? (
         <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal qd-modal-customer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="customer-title"
-          >
-            <div className="qd-modal-header">
-              <div>
-                <p className="eyebrow">Customer view</p>
-                <h2 id="customer-title">{activeTicket.display_number}</h2>
-                <span>
-                  {activeTicket.service_name} Â· Position{" "}
-                  {activeTicket.position ?? "â€”"}
-                </span>
+          <section className="qd-modal qd-modal-customer qd-staff-customer-preview" role="dialog" aria-modal="true" aria-labelledby="customer-title">
+            <div className="customer-ticket-browserbar"><span>● ● ●</span><span>Customer view</span></div>
+            <div className="customer-position-block">
+              <div className="customer-ticket-topline">
+                <p className="eyebrow">{activeTicket.service_name}</p>
+                <span className={`ticket-status-chip ticket-status-${activeTicket.status}`}>{activeTicket.status}</span>
               </div>
-              <span
-                className={`ticket-status-chip ticket-status-${activeTicket.status}`}
-              >
-                {activeTicket.status}
-              </span>
+              <div className="position-number customer-position-number">{ordinalPosition(activeTicket.position)}</div>
+              <h2 id="customer-title">position in queue</h2>
+              <div className="demo-person customer-ticket-person">
+                <div><strong>{activeTicket.customer_name}</strong><span>Queue {activeTicket.display_number}</span></div>
+                <span className="live-badge">Live</span>
+              </div>
             </div>
 
             <dl className="qd-customer-details">
-              <div>
-                <dt>Name</dt>
-                <dd>{activeTicket.customer_name}</dd>
-              </div>
-              <div>
-                <dt>Mobile</dt>
-                <dd>{activeTicket.customer_phone}</dd>
-              </div>
-              <div>
-                <dt>Branch</dt>
-                <dd>{selectedBranch.name}</dd>
-              </div>
-              <div>
-                <dt>Service</dt>
-                <dd>{activeTicket.service_name}</dd>
-              </div>
+              <div><dt>Mobile</dt><dd>{activeTicket.customer_phone}</dd></div>
+              <div><dt>Branch</dt><dd>{selectedBranch.name}</dd></div>
+              <div><dt>Service</dt><dd>{activeTicket.service_name}</dd></div>
             </dl>
 
             <div className="qd-modal-actions qd-modal-actions-wrap">
-              {(canEditName || canEditMobile) ? (
-                <button
-                  className="button button-primary"
-                  type="button"
-                  onClick={() => setModal("edit")}
-                >
-                  Edit customer
-                </button>
-              ) : null}
-
-              <button
-                className="button button-secondary"
-                type="button"
-                onClick={openTicketHistory}
-              >
-                Change history
-              </button>
-
-              <button
-                className="button button-secondary"
-                type="button"
-                onClick={closeModal}
-              >
-                Cancel
-              </button>
+              {(canEditName || canEditMobile) ? <button className="button button-primary" type="button" onClick={() => setModal("edit")}>Edit customer</button> : null}
+              <button className="button button-secondary" type="button" onClick={openTicketHistory}>Change history</button>
+              <button className="button button-secondary" type="button" onClick={closeModal}>Close</button>
             </div>
           </section>
         </div>
@@ -948,11 +916,11 @@ export function LiveQueueWorkspace({
                         {item.field_name === "mobile" ? "Mobile" : "Name"}
                       </strong>
                       <span>
-                        {item.old_value || "â€”"} â†’ {item.new_value || "â€”"}
+                        {item.old_value || "-"} {"->"} {item.new_value || "-"}
                       </span>
                     </div>
                     <small>
-                      {item.changed_by_type} Â·{" "}
+                      {item.changed_by_type} - {" "}
                       {new Date(item.created_at).toLocaleString()}
                     </small>
                   </article>
@@ -1121,7 +1089,7 @@ export function LiveQueueWorkspace({
                   : "qd-confirm-icon"
               }
             >
-              {resultMessage.type === "error" ? "!" : "âœ“"}
+              {resultMessage.type === "error" ? "!" : "OK"}
             </div>
 
             <div className="qd-confirm-copy">

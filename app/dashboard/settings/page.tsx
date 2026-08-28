@@ -4,7 +4,7 @@ import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-resu
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
 import { updateQueueSettings } from "./actions";
-import { DAYS, TIMEZONES } from "./constants";
+import { DAYS } from "./constants";
 import { PositionRules } from "./position-rules";
 import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { SettingsSaveGuard } from "./settings-save-guard";
@@ -29,9 +29,9 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, businesses(name)")
+    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_manage_operating_hours, can_manage_kiosk_display, businesses(name)")
     .eq("user_id", user.id)
-    .in("role", ["owner", "admin", "manager"])
+    .eq("is_active", true)
     .limit(1)
     .maybeSingle();
 
@@ -39,6 +39,19 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const role = membership.role as Role;
   const businessWide = role === "owner" || role === "admin";
+  const canViewQueueInformationEditing =
+    businessWide || Boolean(membership.can_view_queue_information_editing);
+  const canViewPositionNotifications =
+    businessWide || Boolean(membership.can_view_position_notifications);
+  const canManageOperatingHours = businessWide || (role === "manager" && Boolean(membership.can_manage_operating_hours));
+
+  if (
+    !canViewQueueInformationEditing &&
+    !canViewPositionNotifications &&
+    !canManageOperatingHours
+  ) {
+    redirect("/dashboard");
+  }
   const business = Array.isArray(membership.businesses)
     ? membership.businesses[0]
     : membership.businesses;
@@ -86,7 +99,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         supabase
           .from("queue_configurations")
           .select(
-            "ticket_prefix, starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
           )
           .eq("branch_id", selectedBranchId)
           .maybeSingle(),
@@ -133,9 +146,9 @@ export default async function SettingsPage({ searchParams }: Props) {
             <h1>{business?.name ?? "QueueDrop"}</h1>
             <p className="muted page-lead">
               Each branch keeps its own queue rules.{" "}
-              {role === "manager"
-                ? "You can configure only branches assigned to you."
-                : "Owner/Admin can configure all business branches."}
+              {businessWide
+                ? "Owner/Admin can configure all business branches."
+                : "You can configure only the settings and branches assigned to your account."}
             </p>
           </div>
 
@@ -150,21 +163,7 @@ export default async function SettingsPage({ searchParams }: Props) {
           >
             <input type="hidden" name="branch_id" value={selectedBranchId} />
 
-            <div
-              className="dashboard-section"
-              style={{
-                position: "sticky",
-                top: 12,
-                zIndex: 20,
-                gridColumn: "1 / -1",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-                padding: "12px 16px",
-                flexWrap: "wrap",
-              }}
-            >
+            <div className="dashboard-section settings-branch-toolbar">
               <ResponsiveBranchSelect
                 branches={(branches ?? []).map((branch) => ({
                   id: branch.id,
@@ -221,7 +220,6 @@ export default async function SettingsPage({ searchParams }: Props) {
                           fontWeight: 700,
                         }}
                       >
-                        <span aria-hidden="true">âŒ–</span>
                         <span>{branch.name}</span>
                       </div>
 
@@ -236,7 +234,6 @@ export default async function SettingsPage({ searchParams }: Props) {
                           lineHeight: 1.35,
                         }}
                       >
-                        <span aria-hidden="true">â—‡</span>
                         <span>{branch.address || "No branch address added"}</span>
                       </div>
                     </Link>
@@ -252,112 +249,35 @@ export default async function SettingsPage({ searchParams }: Props) {
                     padding: "10px 4px",
                   }}
                 >
-                  View branches â†’
+                  View branches
                 </Link>
               </div>
 
               <SettingsSaveGuard branchName={selectedBranch.name} />
             </div>
 
+            {/* Queue rules are intentionally hidden from the Settings UI for now.
+                Keep their current values in the form so unrelated saves do not reset them. */}
+            <input type="hidden" name="starting_number" value={config?.starting_number ?? 1} />
+            <input type="hidden" name="no_show_minutes" value={config?.no_show_minutes ?? 5} />
+            <input type="hidden" name="timezone" value={selectedBranch.timezone ?? "Asia/Manila"} />
+            {config?.is_active ?? true ? <input type="hidden" name="is_active" value="on" /> : null}
+            {config?.allow_qr_join ?? true ? <input type="hidden" name="allow_qr_join" value="on" /> : null}
+            {config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null}
+
             <section className="dashboard-section dashboard-section-stack settings-card">
               <div>
-                <p className="eyebrow">Queue rules</p>
-                <h2>Numbering & availability</h2>
+                <p className="eyebrow">Customer live view</p>
+                <h2>Automatic refresh</h2>
+                <p className="muted">Choose how often the customer queue page refreshes. Recommended: 8 seconds.</p>
               </div>
-
-              <div className="form-split settings-fields">
-                <label>
-                  Default queue prefix
-                  <input
-                    name="ticket_prefix"
-                    required
-                    maxLength={6}
-                    defaultValue={config?.ticket_prefix ?? "Q"}
-                  />
-                </label>
-
-                <label>
-                  Starting number
-                  <input
-                    name="starting_number"
-                    type="number"
-                    min={1}
-                    max={999999}
-                    required
-                    defaultValue={config?.starting_number ?? 1}
-                  />
-                </label>
-              </div>
-
-              <label>
-                No-show grace period (minutes)
-                <input
-                  name="no_show_minutes"
-                  type="number"
-                  min={0}
-                  max={1440}
-                  required
-                  defaultValue={config?.no_show_minutes ?? 5}
-                />
+              <label className="settings-number-field">
+                Refresh every (seconds)
+                <input name="customer_refresh_seconds" type="number" min={3} max={300} step={1} defaultValue={config?.customer_refresh_seconds ?? 8} />
               </label>
-
-              <label>
-                Branch timezone
-                <select
-                  name="timezone"
-                  defaultValue={selectedBranch.timezone ?? "Asia/Manila"}
-                >
-                  {TIMEZONES.map((timezone) => (
-                    <option value={timezone} key={timezone}>
-                      {timezone}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="settings-toggles">
-                <label>
-                  <input
-                    type="checkbox"
-                    name="is_active"
-                    defaultChecked={config?.is_active ?? true}
-                  />
-                  <span>
-                    <strong>Queue active</strong>
-                    <small>Allow this branch queue to operate.</small>
-                  </span>
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    name="allow_qr_join"
-                    defaultChecked={config?.allow_qr_join ?? true}
-                  />
-                  <span>
-                    <strong>Public / QR joining</strong>
-                    <small>
-                      Customers may join from the public queue link.
-                    </small>
-                  </span>
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    name="show_branch_contact"
-                    defaultChecked={config?.show_branch_contact ?? true}
-                  />
-                  <span>
-                    <strong>Show branch contact</strong>
-                    <small>
-                      Display branch phone on customer queue pages.
-                    </small>
-                  </span>
-                </label>
-              </div>
             </section>
 
+            {canViewPositionNotifications ? (
             <section className="dashboard-section dashboard-section-stack settings-card">
               <div>
                 <p className="eyebrow">Position notifications</p>
@@ -378,6 +298,20 @@ export default async function SettingsPage({ searchParams }: Props) {
               />
             </section>
 
+            ) : (
+              <>
+                <input type="hidden" name="position_rule_count" value={(notificationRules ?? []).length} />
+                {(notificationRules ?? []).map((rule, index) => (
+                  <span key={`hidden-position-rule-${rule.position}`} style={{ display: "none" }}>
+                    <input type="hidden" name={`position_rule_${index}_position`} value={rule.position} />
+                    {rule.send_sms_once ? <input type="hidden" name={`position_rule_${index}_sms`} value="on" /> : null}
+                    {rule.browser_notification ? <input type="hidden" name={`position_rule_${index}_browser`} value="on" /> : null}
+                  </span>
+                ))}
+              </>
+            )}
+
+            {canViewQueueInformationEditing ? (
             <section className="dashboard-section dashboard-section-stack settings-card">
               <div>
                 <p className="eyebrow">Queue information editing</p>
@@ -430,7 +364,7 @@ export default async function SettingsPage({ searchParams }: Props) {
                 </div>
 
                 <div className="permission-card">
-                  <strong>Branch Manager</strong>
+                  <strong>Manager</strong>
                   <label>
                     <input
                       type="checkbox"
@@ -451,6 +385,18 @@ export default async function SettingsPage({ searchParams }: Props) {
               </div>
             </section>
 
+            ) : (
+              <>
+                {config?.customer_can_edit_name ? <input type="hidden" name="customer_can_edit_name" value="on" /> : null}
+                {config?.customer_can_edit_mobile ? <input type="hidden" name="customer_can_edit_mobile" value="on" /> : null}
+                {config?.staff_can_edit_name ? <input type="hidden" name="staff_can_edit_name" value="on" /> : null}
+                {config?.staff_can_edit_mobile ? <input type="hidden" name="staff_can_edit_mobile" value="on" /> : null}
+                {config?.manager_can_edit_name ? <input type="hidden" name="manager_can_edit_name" value="on" /> : null}
+                {config?.manager_can_edit_mobile ? <input type="hidden" name="manager_can_edit_mobile" value="on" /> : null}
+              </>
+            )}
+
+            {canManageOperatingHours ? (
             <section className="dashboard-section dashboard-section-stack settings-card">
               <div>
                 <p className="eyebrow">Operating rules</p>
@@ -500,6 +446,21 @@ export default async function SettingsPage({ searchParams }: Props) {
               </div>
 
             </section>
+            ) : (
+              <div style={{ display: "none" }}>
+                {DAYS.map((day) => {
+                  const row = hoursByDay.get(day.value);
+                  const isOpen = row?.is_open ?? true;
+                  return (
+                    <span key={`hidden-hours-${day.value}`}>
+                      {isOpen ? <input type="hidden" name={`day_${day.value}_open`} value="on" /> : null}
+                      <input type="hidden" name={`day_${day.value}_open_time`} value={(row?.open_time ?? "09:00").slice(0, 5)} />
+                      <input type="hidden" name={`day_${day.value}_close_time`} value={(row?.close_time ?? "18:00").slice(0, 5)} />
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </form>
         ) : (
           <section className="mini-empty">

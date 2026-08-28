@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function field(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -67,5 +68,33 @@ export async function createBusinessWorkspace(formData: FormData) {
     fail(error.message || "Unable to create your QueueDrop workspace.");
   }
 
-  redirect("/dashboard?message=Workspace%20created%20successfully.");
+  // Every self-service signup starts on the configurable Starter trial so plan
+  // limits apply immediately instead of leaving new workspaces unmetered.
+  const { data: businessId } = await supabase.rpc("get_current_admin_business_id");
+  if (businessId) {
+    const admin = createAdminClient();
+    const { data: starter } = await admin
+      .from("plans")
+      .select("id,price_monthly,currency,trial_days")
+      .eq("name", "Starter")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (starter) {
+      const startedAt = new Date();
+      const expiresAt = new Date(startedAt);
+      expiresAt.setDate(expiresAt.getDate() + Number(starter.trial_days ?? 14));
+      await admin.from("business_subscriptions").upsert({
+        business_id: businessId,
+        plan_id: starter.id,
+        status: "trialing",
+        started_at: startedAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        billing_price_monthly: starter.price_monthly,
+        billing_currency: starter.currency,
+        updated_at: startedAt.toISOString(),
+      }, { onConflict: "business_id" });
+    }
+  }
+
+  redirect("/dashboard?message=Workspace%20created%20successfully.%20Your%20Starter%20trial%20is%20active.");
 }

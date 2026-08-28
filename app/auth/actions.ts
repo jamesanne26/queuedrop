@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { resolveAuthenticatedLanding } from "@/lib/auth/landing";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -44,7 +45,11 @@ export async function signIn(formData: FormData) {
     redirect(`/auth/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
   }
 
-  redirect(next.startsWith("/") ? next : "/dashboard");
+  const { data: signedIn } = await supabase.auth.getUser();
+  if (signedIn.user) {
+    redirect(await resolveAuthenticatedLanding(supabase, signedIn.user, next));
+  }
+  redirect("/dashboard");
 }
 
 export async function signUp(formData: FormData) {

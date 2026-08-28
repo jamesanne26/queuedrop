@@ -85,7 +85,7 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
             <option value="all">View all team</option>
             {branches.map((branch) => (
               <option value={branch.id} key={branch.id}>
-                {branch.name} — {memberCountByBranch.get(branch.id) ?? 0} people
+                {branch.name} - {memberCountByBranch.get(branch.id) ?? 0} people
               </option>
             ))}
           </select>
@@ -142,7 +142,7 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
                         <strong>{profile?.full_name ?? "Team member"}</strong>
                         <span>
                           {visibleEmail(profile?.email ?? null) ?? "No email"}
-                          {profile?.phone ? ` · ${profile.phone}` : ""}
+                          {profile?.phone ? ` - ${profile.phone}` : ""}
                         </span>
                       </div>
                     </div>
@@ -157,9 +157,9 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
                   {protectedRole || !editable ? (
                     <div className="team-owner-note">
                       {member.role === "owner"
-                        ? "Business owner · protected"
+                        ? "Business owner - protected"
                         : member.role === "admin"
-                          ? "Business admin · protected"
+                          ? "Business admin - protected"
                           : "You cannot manage this account"}
                     </div>
                   ) : (
@@ -205,7 +205,7 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
             </p>
           </div>
 
-          <form action={createTeamMember} className="form-stack management-form" autoComplete="off" data-lpignore="true" data-1p-ignore="true">
+          <form action={createTeamMember} className="form-stack management-form" autoComplete="off" data-no-global-loading="true" data-lpignore="true" data-1p-ignore="true">
             <input type="hidden" name="view_branch" value={selectedBranchId} />
             <TeamCreateFields branches={activeBranches} managerMode={isManager} />
             <button className="button button-primary" type="submit">Create team member</button>

@@ -81,7 +81,7 @@ async function getTeamContext() {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, is_active")
+    .select("business_id, role, is_active, can_manage_team")
     .eq("user_id", userData.user.id)
     .eq("is_active", true)
     .in("role", ["owner", "admin", "manager"])
@@ -93,6 +93,9 @@ async function getTeamContext() {
   }
 
   const role = membership.role as Role;
+  if (role === "manager" && !membership.can_manage_team) {
+    fail("You do not have permission to manage this team.");
+  }
 
   const { data: managerAssignments } =
     role === "manager"

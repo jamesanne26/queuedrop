@@ -132,3 +132,67 @@ This package includes the latest live-queue UX fixes:
 - Edit password is now optional: blank keeps the existing password; entering a value resets it.
 - Existing passwords are never retrieved or pre-populated because Supabase Auth stores password hashes, not readable plaintext.
 - Team branch filtering is now client-side after the initial page load, avoiding a server round trip on every branch selection.
+
+## 2026-08-28 - Settings repair
+
+- Restored the missing `save_branch_queue_settings` and `can_manage_branch_settings` RPCs through a new repair migration for TEST schema drift.
+- Removed the branch queue prefix control from Settings; service-level prefixes remain unchanged, while the existing branch fallback prefix is preserved during saves.
+- Cleaned corrupted branch selector text and simplified the Settings wording.
+- Hardened the Settings layout for mobile screens, including the branch selector, save action, cards, and position-rule controls.
+
+## 2026-08-28 - Client Page and configuration access
+
+- Added a separate `/client` administration workspace for Owner/Admin, opened from a new **Client Page** button above Sign out.
+- Added `/client/configurations` with per-Branch-Manager access controls for **Queue information editing**, **Position notifications**, and **Allow branch active / inactive**.
+- Added audited database permissions for those client-level controls.
+- Branch Managers with branch-status permission can activate/deactivate only their assigned branches without receiving full branch-edit/delete access.
+- Settings now hides Queue information editing and Position notifications from managers unless Client Configurations enables them.
+- Removed the **Queue rules** section from the Settings UI for now while preserving its existing stored values during unrelated saves.
+- Added responsive Client Page and Configurations layouts for desktop, tablet, and mobile.
+
+## 2026-08-28 - Client Configurations user management
+- Client Configurations now lists every business user with name, email, role, and the three configuration permissions.
+- Added a settings icon per user that opens a responsive user-settings modal.
+- Modal includes validated profile details, employee role, account status, branch assignment, optional password reset, and manager-only configuration permissions.
+- Save validates name, email, mobile, role, branch assignment, password rules, duplicate mobile, and business ownership of branches.
+- Delete requires exact full-name confirmation, blocks self-deletion, and protects Owner/Admin accounts.
+- Staff must have exactly one branch; Branch Managers must have at least one branch.
+- Owner/Admin configuration permissions remain always enabled and protected.
+
+## 2026-08-28 — Mobile stabilization + History & Reports
+
+- Restored mobile Sign in action on the public home page.
+- Made branch/settings/team dialogs mobile-safe with viewport-fit scrolling and sticky actions.
+- Reworked mobile live queue rows into responsive cards instead of a horizontally oversized table.
+- Removed mojibake/encoding artifacts in queue UI text.
+- Prevented the global submit loader from interfering with mobile team-member creation.
+- Hardened manager team actions to require `can_manage_team` server-side.
+- Added History & Reports to dashboard navigation before Settings.
+- Added role-aware report visibility/export permissions (Owner/Admin business-wide; Manager configurable and branch-scoped; Staff default denied).
+- Added report filters for date range, branch, service, status, and report type.
+- Added detailed history, queue summary, and service performance report modes.
+- Added TXT, CSV, PDF, DOCX, and XLSX downloads without new runtime packages.
+- Restored `20260828103000_role_permission_matrix.sql` to source history for environment consistency.
+
+## 2026-08-28 Mobile hardening v4.0
+- Contained dashboard/mobile header and sidebar to viewport; prevents page-wide horizontal panning.
+- Hardened Live Queue mobile layout: single-column panels, responsive QR, stacked actions, card queue rows, no horizontal table canvas.
+- Hardened Settings mobile cards/permissions/hours to one-column viewport-safe controls.
+- Replaced vulnerable decorative Unicode separators on queue/team mobile surfaces with ASCII-safe separators to avoid mojibake artifacts.
+- Kept visible role wording as `Manager` (database enum remains `manager`).
+- Added `20260828120000_save_branch_queue_settings_compat.sql`, a backwards-compatible RPC overload for old Settings deployments that omit `target_ticket_prefix`.
+
+## 2026-08-28 — Customer Portal + System Owner + Configurable SaaS Pricing
+
+- Added screenshot-style customer queue position experience, private queue list, configurable auto-refresh, customer self-edit controls, and 6-character leave-queue confirmation.
+- Added staff customer-position popup from queue number/customer name.
+- Added one-login role routing: System Owner -> `/system`, Staff -> `/dashboard/queues`, Business Owner/Admin/Manager -> `/dashboard`.
+- Added System Owner console for client/subscription/payment visibility.
+- Added `/system/plans` for editable prices, branch limits, active queues, service limits, trial days, visibility, and subscription availability.
+- Added per-client subscription overrides for custom price/limits with expiry/reason.
+- Added grandfathered monthly billing price. Plan edits affect new subscribers by default; System Owner can explicitly apply a price to existing active subscribers.
+- Added public `/pricing` and client `/client/subscription` plan/billing experience.
+- Added PayMongo checkout/webhook integration hooks (TEST keys/webhook registration still required externally).
+- Added Starter trial assignment for newly created self-service workspaces.
+- Added database enforcement for subscribed/trialing branch and service/active-queue limits.
+- Added system audit log table for plan and client override changes.

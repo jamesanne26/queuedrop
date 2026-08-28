@@ -19,7 +19,7 @@ export default async function BranchesPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, businesses(name)")
+    .select("business_id, role, can_set_branch_status, businesses(name)")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -28,6 +28,7 @@ export default async function BranchesPage({ searchParams }: Props) {
 
   const role = membership.role as Role;
   const canManage = role === "owner" || role === "admin";
+  const canSetStatus = canManage || Boolean(membership.can_set_branch_status);
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
   let allowedBranchIds: string[] | null = null;
@@ -92,6 +93,7 @@ export default async function BranchesPage({ searchParams }: Props) {
             </div>
             <BranchManagementList
               canManage={canManage}
+              canSetStatus={canSetStatus}
               branches={branches.map((branch) => {
                 const config = configByBranch.get(branch.id);
                 return {
@@ -100,7 +102,7 @@ export default async function BranchesPage({ searchParams }: Props) {
                   status: branch.status,
                   address: branch.address,
                   phone: branch.phone,
-                  queueSummary: `Queue: ${config?.ticket_prefix ?? "Q"} · starts at ${config?.starting_number ?? 1} · no-show ${config?.no_show_minutes ?? 5} min`,
+                  queueSummary: `Queue: ${config?.ticket_prefix ?? "Q"} - starts at ${config?.starting_number ?? 1} - no-show ${config?.no_show_minutes ?? 5} min`,
                 };
               })}
             />

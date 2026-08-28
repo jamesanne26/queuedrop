@@ -21,3 +21,17 @@ export async function updateCustomerTicket(formData: FormData) {
   revalidatePath(`/q/status/${token}`);
   redirect(`/q/status/${encodeURIComponent(token)}?message=${encodeURIComponent("Queue details updated.")}`);
 }
+
+export async function leaveQueue(formData: FormData) {
+  const token = String(formData.get("token") ?? "").trim();
+  const exitCode = String(formData.get("exit_code") ?? "").trim().toUpperCase();
+  if (!token) redirect("/");
+  if (!/^[A-Z0-9]{6}$/.test(exitCode)) {
+    redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent("Enter the 6-character exit code.")}`);
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("leave_public_queue", { target_session_token: token, target_exit_code: exitCode });
+  if (error) redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent(error.message)}`);
+  revalidatePath(`/q/status/${token}`);
+  redirect(`/q/status/${encodeURIComponent(token)}?message=${encodeURIComponent("You left the queue.")}`);
+}
