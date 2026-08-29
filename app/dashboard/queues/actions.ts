@@ -64,7 +64,34 @@ export async function callNextAction(formData: FormData) {
 
   revalidatePath("/dashboard/queues");
   redirect(
-    queueRedirectUrl(branchId, serviceId, "success", "Next customer called"),
+    queueRedirectUrl(branchId, serviceId, "success", "Next customer moved to serving"),
+  );
+}
+
+export async function returnLastCustomerAction(formData: FormData) {
+  const branchId = String(formData.get("branch_id") ?? "");
+  const serviceId = String(formData.get("service_id") ?? "");
+
+  if (!branchId || !serviceId) {
+    redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
+  }
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
+
+  const { error } = await supabase.rpc("staff_return_last_to_queue", {
+    target_branch_id: branchId,
+    target_service_id: serviceId,
+  });
+
+  if (error) {
+    redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
+  }
+
+  revalidatePath("/dashboard/queues");
+  redirect(
+    queueRedirectUrl(branchId, serviceId, "success", "Last serving customer returned to queue"),
   );
 }
 

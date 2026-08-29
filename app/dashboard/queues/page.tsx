@@ -25,9 +25,16 @@ type QueueTicket = {
   ticket_number: number;
   customer_name_override: string | null;
   customer_phone_override: string | null;
+  called_at: string | null;
+  serving_at: string | null;
+  updated_at: string;
   customers:
     | { name: string | null; phone: string | null }
     | { name: string | null; phone: string | null }[]
+    | null;
+  customer_sessions:
+    | { session_token: string }
+    | { session_token: string }[]
     | null;
   services:
     | { id: string; name: string }
@@ -154,7 +161,7 @@ export default async function QueuesPage({ searchParams }: Props) {
     ? await supabase
         .from("tickets")
         .select(
-          "id, display_number, status, joined_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), services(id, name)",
+          "id, display_number, status, joined_at, called_at, serving_at, updated_at, service_id, ticket_number, customer_name_override, customer_phone_override, customers(name, phone), customer_sessions(session_token), services(id, name)",
         )
         .eq("branch_id", selectedBranchId)
         .eq("queue_session_id", queueSessionId)
@@ -217,27 +224,14 @@ export default async function QueuesPage({ searchParams }: Props) {
     }),
   );
 
-  const orderedTickets = [...tickets].sort((a, b) => {
-    const priority = (status: QueueTicket["status"]) => {
-      if (status === "serving") return 0;
-      if (status === "called") return 1;
-      return 2;
-    };
-
-    const aPriority = priority(a.status);
-    const bPriority = priority(b.status);
-
-    if (aPriority !== bPriority) return aPriority - bPriority;
-
-    return (
-      new Date(a.joined_at).getTime() -
-      new Date(b.joined_at).getTime()
-    );
-  });
+  const orderedTickets = [...tickets].sort((a, b) =>
+    new Date(a.joined_at).getTime() - new Date(b.joined_at).getTime(),
+  );
 
   const clientTickets = orderedTickets.map((ticket) => {
     const customer = relationOne(ticket.customers);
     const service = relationOne(ticket.services);
+    const customerSession = relationOne(ticket.customer_sessions);
 
     return {
       id: ticket.id,
@@ -250,6 +244,11 @@ export default async function QueuesPage({ searchParams }: Props) {
         ticket.customer_name_override ?? customer?.name ?? "Customer",
       customer_phone:
         ticket.customer_phone_override ?? customer?.phone ?? "—",
+      joined_at: ticket.joined_at,
+      called_at: ticket.called_at,
+      serving_at: ticket.serving_at,
+      updated_at: ticket.updated_at,
+      session_token: customerSession?.session_token ?? null,
     };
   });
 
