@@ -63,25 +63,60 @@ export default async function ReportsPage({ searchParams }: Props) {
   const completed = tickets.filter((t) => t.status === "completed").length;
   const cancelled = tickets.filter((t) => t.status === "cancelled").length;
   const noShow = tickets.filter((t) => t.status === "no_show").length;
+  const active = tickets.filter((t) => ["waiting", "called", "serving"].includes(t.status)).length;
+  const completionRate = tickets.length ? Math.round((completed / tickets.length) * 100) : 0;
+  const waitSamples = tickets
+    .filter((t) => t.called_at)
+    .map((t) => Math.max(0, new Date(t.called_at!).getTime() - new Date(t.joined_at).getTime()));
+  const avgWaitMinutes = waitSamples.length ? Math.round(waitSamples.reduce((sum, value) => sum + value, 0) / waitSamples.length / 60000) : 0;
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
+  const businessName = business?.name ?? "QueueDrop";
+  const selectedBranchName = branch === "all" ? "All branches" : branches.find((item) => item.id === branch)?.name ?? "Selected branch";
+  const selectedServiceName = service === "all" ? "All services" : services.find((item) => item.id === service)?.name ?? "Selected service";
+  const periodLabel = `${new Date(`${from}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} – ${new Date(`${to}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
 
   const exportBase = new URLSearchParams({ from, to, branch, service, status, report });
   return <section className="dashboard-content reports-page">
-    <header className="dashboard-header"><div><p className="eyebrow">History & reports</p><h1>{business?.name ?? "QueueDrop"}</h1><p className="muted page-lead">Review queue history, filter operational data, and export a report for the selected period.</p></div><span className="env-badge">TEST</span></header>
+    <header className="reports-hero">
+      <div className="reports-hero-copy">
+        <p className="eyebrow">{businessName}</p>
+        <h1>Reports</h1>
+        <p className="muted page-lead">A clear view of queue activity, customer flow, and service performance across your business.</p>
+        <div className="reports-context-row"><span>{periodLabel}</span><span>{selectedBranchName}</span><span>{selectedServiceName}</span></div>
+      </div>
+      <span className="env-badge">TEST</span>
+    </header>
 
     <form className="dashboard-section reports-filter-card" method="get">
-      <label>From<input type="date" name="from" defaultValue={from} /></label>
-      <label>To<input type="date" name="to" defaultValue={to} /></label>
-      <label>Branch<select name="branch" defaultValue={branch}><option value="all">All branches</option>{branches.map((b)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-      <label>Service<select name="service" defaultValue={service}><option value="all">All services</option>{services.map((s)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-      <label>Report<select name="report" defaultValue={report}><option value="history">Detailed queue history</option><option value="summary">Queue summary</option><option value="service">Service performance</option></select></label><label>Status<select name="status" defaultValue={status}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="called">Called</option><option value="serving">Serving</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option></select></label>
-      <button className="button button-primary" type="submit">Apply filters</button>
+      <div className="reports-card-heading"><div><p className="eyebrow">Report filters</p><h2>Refine your data</h2></div><p className="muted">Choose a period and narrow the report by branch, service, type, or status.</p></div>
+      <div className="reports-filter-grid">
+        <label>From<input type="date" name="from" defaultValue={from} /></label>
+        <label>To<input type="date" name="to" defaultValue={to} /></label>
+        <label>Branch<select name="branch" defaultValue={branch}><option value="all">All branches</option>{branches.map((b)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <label>Service<select name="service" defaultValue={service}><option value="all">All services</option>{services.map((s)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <label>Report type<select name="report" defaultValue={report}><option value="history">Detailed queue history</option><option value="summary">Queue summary</option><option value="service">Service performance</option></select></label>
+        <label>Status<select name="status" defaultValue={status}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="called">Called</option><option value="serving">Serving</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option></select></label>
+        <button className="button button-primary reports-apply-button" type="submit">Apply filters</button>
+      </div>
     </form>
 
-    <div className="reports-stat-grid"><article><span>Total tickets</span><strong>{tickets.length}</strong></article><article><span>Completed</span><strong>{completed}</strong></article><article><span>Cancelled</span><strong>{cancelled}</strong></article><article><span>No show</span><strong>{noShow}</strong></article></div>
+    <div className="reports-stat-grid">
+      <article><span>Total customers</span><strong>{tickets.length}</strong><small>In selected period</small></article>
+      <article><span>Completed</span><strong>{completed}</strong><small>{completionRate}% completion rate</small></article>
+      <article><span>Average wait</span><strong>{avgWaitMinutes}<em> min</em></strong><small>Based on called customers</small></article>
+      <article><span>Active queue</span><strong>{active}</strong><small>Waiting, called, or serving</small></article>
+      <article><span>Cancelled</span><strong>{cancelled}</strong><small>Cancelled tickets</small></article>
+      <article><span>No show</span><strong>{noShow}</strong><small>Customers marked no show</small></article>
+    </div>
 
-    <section className="dashboard-section reports-export-card"><div><p className="eyebrow">Generate report</p><h2>Operational queue report</h2><p className="muted">Exports the exact date, branch, service and status filters above. Includes ticket number, customer, contact, branch, service, status and queue timestamps.</p></div>{canExport ? <div className="reports-export-actions">{["txt","csv","pdf","docx","xlsx"].map((format)=><a key={format} className="button button-secondary" href={`/api/reports/export?${exportBase.toString()}&format=${format}`}>{format.toUpperCase()}</a>)}</div> : <p className="muted">Your account can view reports but export access is disabled.</p>}</section>
+    <section className="dashboard-section reports-export-card">
+      <div><p className="eyebrow">Export report</p><h2>{businessName} operational report</h2><p className="muted">Download the exact filtered view above with customer, branch, service, status, and queue timestamps.</p></div>
+      {canExport ? <div className="reports-export-actions">{["txt","csv","pdf","docx","xlsx"].map((format)=><a key={format} className="button button-secondary" href={`/api/reports/export?${exportBase.toString()}&format=${format}`}>{format.toUpperCase()}</a>)}</div> : <p className="muted">Your account can view reports but export access is disabled.</p>}
+    </section>
 
-    <section className="dashboard-section reports-history-card"><div className="reports-history-heading"><div><p className="eyebrow">Queue history</p><h2>{tickets.length} record{tickets.length===1?"":"s"}</h2></div><span className="muted">Showing up to 500 records</span></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Joined</th><th>Queue</th><th>Customer</th><th>Branch</th><th>Service</th><th>Status</th><th>Called</th><th>Serving</th><th>Finished</th></tr></thead><tbody>{tickets.map((t:any)=>{const c=Array.isArray(t.customers)?t.customers[0]:t.customers; const b=Array.isArray(t.branches)?t.branches[0]:t.branches; const s=Array.isArray(t.services)?t.services[0]:t.services; const finished=t.completed_at||t.cancelled_at; return <tr key={t.id}><td>{new Date(t.joined_at).toLocaleString()}</td><td><strong>{t.display_number}</strong></td><td>{t.customer_name_override||c?.name||"—"}<small>{t.customer_phone_override||c?.phone||""}</small></td><td>{b?.name||"—"}</td><td>{s?.name||"—"}</td><td><span className="status-chip">{t.status}</span></td><td>{t.called_at?new Date(t.called_at).toLocaleTimeString():"—"}</td><td>{t.serving_at?new Date(t.serving_at).toLocaleTimeString():"—"}</td><td>{finished?new Date(finished).toLocaleTimeString():"—"}</td></tr>})}</tbody></table></div></section>
+    <section className="dashboard-section reports-history-card">
+      <div className="reports-history-heading"><div><p className="eyebrow">Queue history</p><h2>Customer activity</h2><p className="muted">{tickets.length} record{tickets.length===1?"":"s"} for {periodLabel}</p></div><span className="reports-record-limit">Showing up to 500 records</span></div>
+      <div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Joined</th><th>Queue</th><th>Customer</th><th>Branch</th><th>Service</th><th>Status</th><th>Called</th><th>Serving</th><th>Finished</th></tr></thead><tbody>{tickets.length ? tickets.map((t:any)=>{const c=Array.isArray(t.customers)?t.customers[0]:t.customers; const b=Array.isArray(t.branches)?t.branches[0]:t.branches; const s=Array.isArray(t.services)?t.services[0]:t.services; const finished=t.completed_at||t.cancelled_at; return <tr key={t.id}><td>{new Date(t.joined_at).toLocaleString()}</td><td><strong className="reports-queue-code">{t.display_number}</strong></td><td><strong>{t.customer_name_override||c?.name||"—"}</strong><small>{t.customer_phone_override||c?.phone||""}</small></td><td>{b?.name||"—"}</td><td>{s?.name||"—"}</td><td><span className={`status-chip reports-status-${t.status}`}>{t.status.replace("_", " ")}</span></td><td>{t.called_at?new Date(t.called_at).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }):"—"}</td><td>{t.serving_at?new Date(t.serving_at).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }):"—"}</td><td>{finished?new Date(finished).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }):"—"}</td></tr>}) : <tr><td colSpan={9} className="reports-empty-state"><strong>No queue records found</strong><span>Try changing the date range or filters above.</span></td></tr>}</tbody></table></div>
+    </section>
   </section>;
 }
