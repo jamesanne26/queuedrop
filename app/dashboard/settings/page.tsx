@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
@@ -20,6 +21,39 @@ type Props = {
 
 type Role = "owner" | "admin" | "manager" | "staff";
 
+function SettingsTileIcon({ name }: { name: "business" | "branches" | "services" | "team" | "queue" | "customer" | "notifications" | "security" | "reports" | "billing" }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const paths = {
+    business: <><path {...common} d="M4 9h16M6 9V5h12v4M7 13h3v6H7zM14 13h3v6h-3z"/><path {...common} d="M4 19h16"/></>,
+    branches: <><path {...common} d="M4 10 12 4l8 6"/><path {...common} d="M6 9v10h12V9M9 19v-5h6v5"/></>,
+    services: <><path {...common} d="m6 4 12 16M18 4 6 20"/><circle {...common} cx="7" cy="6" r="2"/><circle {...common} cx="17" cy="6" r="2"/></>,
+    team: <><circle {...common} cx="9" cy="8" r="3"/><path {...common} d="M4 19v-1a5 5 0 0 1 10 0v1M16 8a2.5 2.5 0 1 1 0 5M17 14a4 4 0 0 1 3 4"/></>,
+    queue: <><circle {...common} cx="12" cy="12" r="8"/><path {...common} d="M12 8v4l3 2"/></>,
+    customer: <><circle {...common} cx="12" cy="8" r="3"/><path {...common} d="M5 20a7 7 0 0 1 14 0"/></>,
+    notifications: <><path {...common} d="M6 9a6 6 0 0 1 12 0v4l2 3H4l2-3z"/><path {...common} d="M10 19h4"/></>,
+    security: <><rect {...common} x="5" y="10" width="14" height="10" rx="2"/><path {...common} d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></>,
+    reports: <><path {...common} d="M5 20V10h4v10M10 20V4h4v16M15 20v-7h4v7"/></>,
+    billing: <><rect {...common} x="3" y="6" width="18" height="12" rx="2"/><path {...common} d="M3 10h18M7 15h4"/></>,
+  };
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">{paths[name]}</svg>;
+}
+
+function SettingsOverviewCard({ icon, title, description, children, href }: { icon: Parameters<typeof SettingsTileIcon>[0]["name"]; title: string; description: string; children: ReactNode; href?: string }) {
+  const heading = (
+    <div className="settings-overview-heading">
+      <span className="settings-overview-icon"><SettingsTileIcon name={icon} /></span>
+      <span className="settings-overview-heading-copy"><strong>{title}</strong><small>{description}</small></span>
+      {href ? <span className="settings-overview-arrow" aria-hidden="true">›</span> : null}
+    </div>
+  );
+  return <article className="settings-overview-card">{href ? <Link href={href} className="settings-overview-main-link">{heading}</Link> : heading}<div className="settings-overview-rows">{children}</div></article>;
+}
+
+function SettingsOverviewRow({ href, children, muted }: { href?: string; children: ReactNode; muted?: boolean }) {
+  if (href) return <Link href={href} className="settings-overview-row"><span>{children}</span><span aria-hidden="true">›</span></Link>;
+  return <div className={muted ? "settings-overview-row settings-overview-row-muted" : "settings-overview-row"}><span>{children}</span>{muted ? <small>Available in this workspace</small> : null}</div>;
+}
+
 export default async function SettingsPage({ searchParams }: Props) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -29,7 +63,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_manage_operating_hours, can_manage_kiosk_display, businesses(name)")
+    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_view_reports, can_export_reports, can_view_audit_logs, businesses(name)")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .limit(1)
@@ -43,7 +77,11 @@ export default async function SettingsPage({ searchParams }: Props) {
     businessWide || Boolean(membership.can_view_queue_information_editing);
   const canViewPositionNotifications =
     businessWide || Boolean(membership.can_view_position_notifications);
-  const canManageOperatingHours = businessWide || (role === "manager" && Boolean(membership.can_manage_operating_hours));
+  const canManageOperatingHours = businessWide || Boolean(membership.can_manage_operating_hours);
+  const canManageBranches = businessWide || Boolean(membership.can_set_branch_status) || canManageOperatingHours || Boolean(membership.can_manage_kiosk_display);
+  const canManageServices = businessWide || Boolean(membership.can_manage_services);
+  const canManageTeam = businessWide || Boolean(membership.can_manage_team);
+  const canViewReports = businessWide || Boolean(membership.can_view_reports) || Boolean(membership.can_export_reports);
 
   if (
     !canViewQueueInformationEditing &&
@@ -140,20 +178,84 @@ export default async function SettingsPage({ searchParams }: Props) {
       <PreserveDashboardScroll />
       <DashboardResultModal success={params.message} error={params.error} />
       <section className="dashboard-content">
-        <header className="dashboard-header">
+        <header className="dashboard-header settings-page-header">
           <div>
-            <p className="eyebrow">Queue configuration</p>
-            <h1>{business?.name ?? "QueueDrop"}</h1>
+            <p className="eyebrow">Workspace</p>
+            <h1>Settings</h1>
             <p className="muted page-lead">
-              Each branch keeps its own queue rules.{" "}
-              {businessWide
-                ? "Owner/Admin can configure all business branches."
-                : "You can configure only the settings and branches assigned to your account."}
+              Configure {business?.name ?? "your business"} from one place. Choose a section below, then manage branch-specific queue rules further down the page.
             </p>
           </div>
-
           <span className="env-badge">TEST</span>
         </header>
+
+        <section className="settings-overview" aria-label="Settings overview">
+          <div className="settings-overview-grid">
+            {businessWide ? <SettingsOverviewCard icon="business" title="Business" description="Profile, contact details, and business information.">
+              <SettingsOverviewRow>Business information</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/branches">Business locations</SettingsOverviewRow>
+              <SettingsOverviewRow>Contact details</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
+
+            {canManageBranches ? <SettingsOverviewCard icon="branches" title="Branches" description="Manage branches and their operating setup." href="/dashboard/branches">
+              <SettingsOverviewRow href="/dashboard/branches">Branch list & status</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/branches">Operating hours</SettingsOverviewRow>
+              {canManageTeam ? <SettingsOverviewRow href="/dashboard/team">Branch access</SettingsOverviewRow> : <SettingsOverviewRow>Branch access</SettingsOverviewRow>}
+            </SettingsOverviewCard> : null}
+
+            {canManageServices ? <SettingsOverviewCard icon="services" title="Services" description="Manage offered services and queue behavior." href="/dashboard/services">
+              <SettingsOverviewRow href="/dashboard/services">Service list</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/services">Queue prefix & duration</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/services">Service availability</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
+
+            {canManageTeam ? <SettingsOverviewCard icon="team" title="Team & Roles" description="Employees, role names, permissions, and access." href="/dashboard/team?tab=roles">
+              <SettingsOverviewRow href="/dashboard/team?tab=employees">Employees</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/team?tab=roles">Roles & branch scope</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/team?tab=permissions">Permissions</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
+
+            <SettingsOverviewCard icon="queue" title="Queue Configuration" description="Configure how each branch queue works." href="#queue-configuration">
+              <SettingsOverviewRow href="#queue-configuration">Branch queue settings</SettingsOverviewRow>
+              <SettingsOverviewRow href="#customer-experience">Customer refresh</SettingsOverviewRow>
+              <SettingsOverviewRow href="#notifications">Position notifications</SettingsOverviewRow>
+            </SettingsOverviewCard>
+
+            <SettingsOverviewCard icon="customer" title="Customer Experience" description="Control customer-facing queue behavior." href="#customer-experience">
+              <SettingsOverviewRow href="#customer-experience">Queue status refresh</SettingsOverviewRow>
+              <SettingsOverviewRow href="#customer-editing">Customer editing</SettingsOverviewRow>
+              {canManageBranches ? <SettingsOverviewRow href="/dashboard/branches">Branch contact visibility</SettingsOverviewRow> : <SettingsOverviewRow>Branch contact visibility</SettingsOverviewRow>}
+            </SettingsOverviewCard>
+
+            <SettingsOverviewCard icon="notifications" title="Notifications" description="Choose when queue-position alerts are sent." href="#notifications">
+              <SettingsOverviewRow href="#notifications">Position triggers</SettingsOverviewRow>
+              <SettingsOverviewRow href="#notifications">SMS notification rules</SettingsOverviewRow>
+              <SettingsOverviewRow href="#notifications">Browser notifications</SettingsOverviewRow>
+            </SettingsOverviewCard>
+
+            {canManageTeam ? <SettingsOverviewCard icon="security" title="Security & Access" description="Control employee access and sensitive data." href="/dashboard/team?tab=permissions">
+              <SettingsOverviewRow href="/dashboard/team?tab=permissions">Role permissions</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/team?tab=employees">Employee branch access</SettingsOverviewRow>
+              {businessWide ? <SettingsOverviewRow href="/client/configurations">Configuration access</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
+            </SettingsOverviewCard> : null}
+
+            {canViewReports ? <SettingsOverviewCard icon="reports" title="Reports" description="Report access, exports, and operational visibility." href="/dashboard/reports">
+              <SettingsOverviewRow href="/dashboard/reports">Report dashboard</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/reports">Export reports</SettingsOverviewRow>
+              {canManageTeam ? <SettingsOverviewRow href="/dashboard/team?tab=roles">Report permissions by role</SettingsOverviewRow> : <SettingsOverviewRow>Report permissions</SettingsOverviewRow>}
+            </SettingsOverviewCard> : null}
+
+            {businessWide ? <SettingsOverviewCard icon="billing" title="Billing & Subscription" description="Plan, limits, checkout, and billing history." href="/client/subscription">
+              <SettingsOverviewRow href="/client/subscription">Current plan</SettingsOverviewRow>
+              <SettingsOverviewRow href="/client/subscription">Usage & limits</SettingsOverviewRow>
+              <SettingsOverviewRow href="/client/subscription">Billing history</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
+          </div>
+        </section>
+
+        <div className="settings-section-divider" id="queue-configuration">
+          <div><p className="eyebrow">Branch settings</p><h2>Queue Configuration</h2><p className="muted">Select a branch and update its customer-facing queue behavior.</p></div>
+        </div>
 
         {selectedBranchId && selectedBranch ? (
           <form
@@ -265,9 +367,9 @@ export default async function SettingsPage({ searchParams }: Props) {
             {config?.allow_qr_join ?? true ? <input type="hidden" name="allow_qr_join" value="on" /> : null}
             {config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null}
 
-            <section className="dashboard-section dashboard-section-stack settings-card">
+            <section id="customer-experience" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
-                <p className="eyebrow">Customer live view</p>
+                <p className="eyebrow">Customer experience</p>
                 <h2>Automatic refresh</h2>
                 <p className="muted">Choose how often the customer queue page refreshes. Recommended: 8 seconds.</p>
               </div>
@@ -278,9 +380,9 @@ export default async function SettingsPage({ searchParams }: Props) {
             </section>
 
             {canViewPositionNotifications ? (
-            <section className="dashboard-section dashboard-section-stack settings-card">
+            <section id="notifications" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
-                <p className="eyebrow">Position notifications</p>
+                <p className="eyebrow">Notifications</p>
                 <h2>Notify customers by queue position</h2>
                 <p className="muted">
                   Example: send one SMS and/or browser notification when a
@@ -312,7 +414,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             )}
 
             {canViewQueueInformationEditing ? (
-            <section className="dashboard-section dashboard-section-stack settings-card">
+            <section id="customer-editing" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
                 <p className="eyebrow">Queue information editing</p>
                 <h2>Who may update name & mobile</h2>

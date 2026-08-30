@@ -3893,3 +3893,1159 @@ html, body { max-width: 100%; }
     font-size: .74rem;
   }
 }
+
+
+/* Settings hub redesign - 2026-08-30 */
+.settings-hub-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.settings-hub-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px 16px;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid #dce9e3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(25, 74, 53, 0.045);
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.settings-hub-link:hover {
+  border-color: #9fcdb8;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(25, 74, 53, 0.075);
+}
+
+.settings-hub-link-active {
+  border-color: #159263;
+  background: linear-gradient(180deg, #f0fbf6 0%, #ffffff 100%);
+  box-shadow: 0 0 0 2px rgba(21, 146, 99, .07);
+}
+
+.settings-hub-link-disabled {
+  opacity: .64;
+  cursor: default;
+}
+
+.settings-hub-link-disabled:hover {
+  transform: none;
+  border-color: #dce9e3;
+  box-shadow: 0 8px 24px rgba(25, 74, 53, 0.045);
+}
+
+.settings-hub-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  color: #08754d;
+  background: #e8f7f0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.settings-hub-link span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-hub-link strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.settings-hub-link small {
+  color: #6a7c74;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-feature-card {
+  scroll-margin-top: 24px;
+}
+
+@media (max-width: 1050px) {
+  .settings-hub-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 680px) {
+  .settings-hub-nav { grid-template-columns: 1fr; gap: 9px; }
+  .settings-hub-link { padding: 13px 14px; border-radius: 14px; }
+}
+
+/* Settings / Team roles redesign */
+.role-permission-modal { width: min(900px, calc(100vw - 32px)); }
+.role-permission-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.role-permission-group { border: 1px solid #dce9e3; border-radius: 16px; padding: 14px; background: #fbfdfc; }
+.role-permission-group legend { padding: 0 6px; font-weight: 800; color: #153b2d; }
+.role-permission-group label { display: flex; align-items: center; gap: 9px; padding: 8px 4px; font-size: 14px; }
+.role-permission-group input { width: 16px; height: 16px; accent-color: #159263; }
+.role-access-note { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 13px; background: #eef8f3; color: #285344; font-size: 13px; }
+.team-card-summary { grid-template-columns: minmax(0, 1fr) auto auto; }
+.settings-hub-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.settings-hub-link { min-height: 92px; align-items: flex-start; background: #fff; box-shadow: 0 8px 24px rgba(16, 56, 41, .04); }
+.settings-hub-link-active { border-color: #159263; box-shadow: inset 0 0 0 1px #159263, 0 8px 24px rgba(16, 56, 41, .06); }
+@media (max-width: 900px) { .role-permission-groups { grid-template-columns: 1fr; } .team-card-summary { grid-template-columns: 1fr; } .settings-hub-nav { grid-template-columns: 1fr; } }
+
+/* Settings visual completion - mockup-aligned 2026-08-30 */
+.settings-page-header { margin-bottom: 18px; }
+.settings-overview { margin-bottom: 22px; }
+.settings-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.settings-overview-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dbe7e1;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 18px rgba(18, 63, 45, .035);
+}
+.settings-overview-main-link { display: block; color: inherit; text-decoration: none; }
+.settings-overview-heading {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px 16px 13px;
+}
+.settings-overview-main-link:hover .settings-overview-heading { background: #fbfefc; }
+.settings-overview-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #0a8759;
+  background: #e7f6ee;
+}
+.settings-overview-icon svg { width: 23px; height: 23px; }
+.settings-overview-heading-copy { display: grid; gap: 4px; min-width: 0; }
+.settings-overview-heading-copy strong { color: #17241f; font-size: 15px; line-height: 1.2; }
+.settings-overview-heading-copy small { color: #6b7973; font-size: 12px; line-height: 1.45; }
+.settings-overview-arrow { color: #22332c; font-size: 25px; line-height: 1; transform: translateY(5px); }
+.settings-overview-rows { padding: 0 12px 11px; }
+.settings-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 35px;
+  padding: 8px 5px;
+  color: #29352f;
+  text-decoration: none;
+  border-top: 1px solid #eef3f0;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
+.settings-overview-row > span:last-child { color: #718079; font-size: 18px; font-weight: 500; }
+.settings-overview-row-muted { color: #53635c; }
+.settings-overview-row-muted small { color: #87938e; font-size: 10.5px; font-weight: 600; }
+.settings-section-divider {
+  scroll-margin-top: 20px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 12px;
+  padding: 4px 2px;
+}
+.settings-section-divider h2 { margin: 2px 0 4px; font-size: clamp(20px, 2vw, 25px); }
+.settings-section-divider p { margin: 0; }
+.settings-branch-toolbar {
+  border-color: #d8e7df !important;
+  box-shadow: 0 5px 20px rgba(16, 56, 41, .035);
+}
+.settings-feature-card {
+  border-color: #dbe7e1 !important;
+  box-shadow: 0 5px 20px rgba(16, 56, 41, .035);
+}
+
+/* Team & Roles visual completion */
+.team-page-header { margin-bottom: 18px; }
+.team-branch-tabs-card { border-color: #dbe7e1; box-shadow: 0 5px 20px rgba(16, 56, 41, .035); }
+.team-card {
+  border-color: #dbe7e1 !important;
+  box-shadow: 0 4px 16px rgba(16, 56, 41, .03);
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.team-card:hover { border-color: #b7d9c9 !important; box-shadow: 0 8px 24px rgba(16, 56, 41, .06); transform: translateY(-1px); }
+.team-chip-row .status-chip:first-child {
+  color: #08754d;
+  border-color: #c8e8d8;
+  background: #eef9f3;
+  text-transform: none;
+}
+.role-permission-modal { border-radius: 20px; }
+.role-permission-group { background: #fff; }
+.role-permission-group label {
+  min-height: 38px;
+  padding: 8px 7px;
+  border-radius: 9px;
+  transition: background .14s ease;
+}
+.role-permission-group label:hover { background: #f2f9f5; }
+.role-access-note { border: 1px solid #d7ebe1; }
+
+@media (min-width: 1320px) {
+  .settings-overview-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .settings-overview-card:nth-child(9), .settings-overview-card:nth-child(10) { grid-column: span 2; }
+}
+@media (max-width: 1050px) {
+  .settings-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .settings-overview-grid { grid-template-columns: 1fr; gap: 10px; }
+  .settings-overview-heading { padding: 14px 14px 11px; }
+  .settings-overview-rows { padding: 0 10px 9px; }
+  .settings-overview-card { border-radius: 14px; }
+  .settings-section-divider { margin-top: 2px; }
+}
+
+/* QueueDrop role-based access control */
+.settings-detail-page { max-width: 1500px; }
+.team-roles-page { gap: 18px; }
+.settings-detail-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  background: #fff;
+  border-radius: 14px 14px 0 0;
+}
+.settings-detail-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 14px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.settings-detail-tab:hover { color: #0b7a45; }
+.settings-detail-tab-active { color: #087443; border-bottom-color: #0d9157; }
+
+.roles-admin-shell,
+.permissions-catalog-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .03);
+}
+.roles-admin-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #eaecf0;
+}
+.roles-admin-toolbar h2 { margin: 2px 0 4px; font-size: 18px; }
+.roles-admin-toolbar p { margin: 0; max-width: 760px; }
+.roles-admin-grid { display: grid; grid-template-columns: minmax(220px, 260px) 1fr; min-height: 620px; }
+.roles-list-panel { border-right: 1px solid #eaecf0; background: #fcfcfd; }
+.roles-list-heading { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; font-size: 12px; color: #667085; }
+.roles-list-heading span { min-width: 24px; padding: 2px 7px; text-align: center; border-radius: 999px; background: #eef8f2; color: #087443; }
+.roles-list { display: flex; flex-direction: column; gap: 3px; padding: 0 8px 12px; }
+.role-list-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #101828;
+  text-align: left;
+  cursor: pointer;
+}
+.role-list-item:hover { background: #f6fef9; }
+.role-list-item-active { border-color: #95d5b2; background: #effaf4; }
+.role-list-avatar {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: 12px;
+  color: #11643d;
+  background: #dff5e8;
+}
+.role-list-avatar-admin { color: #175cd3; background: #dbeafe; }
+.role-list-avatar-manager { color: #6941c6; background: #ede9fe; }
+.role-list-avatar-staff { color: #b54708; background: #ffead5; }
+.role-list-copy { min-width: 0; display: grid; gap: 2px; }
+.role-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.role-list-copy small { color: #98a2b3; font-size: 10px; }
+.role-details-panel { min-width: 0; padding: 20px; }
+.role-details-form { display: grid; gap: 20px; }
+.role-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.role-details-heading h3 { margin: 2px 0 0; font-size: 17px; }
+.role-basic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.role-basic-grid label { display: grid; gap: 7px; color: #344054; font-size: 12px; font-weight: 700; }
+.role-basic-grid input,
+.role-basic-grid select,
+.team-role-assignment-form select {
+  min-height: 40px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #101828;
+  font: inherit;
+  font-weight: 500;
+}
+.role-basic-grid input:disabled,
+.role-basic-grid select:disabled { background: #f9fafb; color: #667085; }
+.role-description-field { grid-column: span 1; }
+.role-permissions-header { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid #eaecf0; }
+.role-permissions-header > div { display: grid; gap: 2px; }
+.role-permissions-header small { color: #98a2b3; font-size: 11px; }
+.role-select-all { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; }
+.role-permission-sections { display: grid; gap: 16px; }
+.role-permission-section { margin: 0; padding: 0; border: 0; }
+.role-permission-section legend { width: 100%; margin-bottom: 9px; padding-bottom: 7px; border-bottom: 1px solid #f0f1f3; color: #475467; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.role-permission-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 24px; }
+.role-permission-check-grid label { display: flex; align-items: center; gap: 8px; min-height: 28px; color: #344054; font-size: 12px; cursor: pointer; }
+.role-permission-check-grid input,
+.role-select-all input { width: 15px; height: 15px; accent-color: #0b8a52; }
+.role-editor-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 12px; border-top: 1px solid #eaecf0; }
+.role-protected-note,
+.role-access-note { display: grid; gap: 2px; padding: 11px 12px; border: 1px solid #d1fadf; border-radius: 8px; background: #f6fef9; color: #05603a; font-size: 11px; }
+.role-protected-note span,
+.role-access-note span { color: #667085; }
+.team-role-assignment-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.team-role-assignment-form select { min-width: 150px; min-height: 34px; padding-block: 5px; font-size: 12px; }
+.permissions-catalog-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; padding: 20px; }
+.permission-catalog-group { border: 1px solid #eaecf0; border-radius: 10px; overflow: hidden; }
+.permission-catalog-group h3 { margin: 0; padding: 11px 13px; background: #f9fafb; border-bottom: 1px solid #eaecf0; font-size: 12px; }
+.permission-catalog-row { display: flex; justify-content: space-between; gap: 16px; padding: 11px 13px; border-bottom: 1px solid #f2f4f7; }
+.permission-catalog-row:last-child { border-bottom: 0; }
+.permission-catalog-row > div { min-width: 0; display: grid; gap: 2px; }
+.permission-catalog-row strong { font-size: 12px; }
+.permission-catalog-row span { color: #667085; font-size: 10px; }
+.permission-catalog-row code { align-self: start; color: #087443; background: #ecfdf3; border-radius: 5px; padding: 2px 5px; font-size: 9px; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .roles-admin-grid { grid-template-columns: 1fr; }
+  .roles-list-panel { border-right: 0; border-bottom: 1px solid #eaecf0; }
+  .roles-list { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .role-basic-grid,
+  .role-permission-check-grid,
+  .permissions-catalog-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .settings-detail-tabs { overflow-x: auto; padding-inline: 4px; }
+  .settings-detail-tab { white-space: nowrap; }
+  .roles-admin-toolbar { align-items: stretch; flex-direction: column; }
+  .roles-admin-toolbar .button { width: 100%; }
+  .roles-list { grid-template-columns: 1fr; }
+  .role-details-panel { padding: 14px; }
+  .team-role-assignment-form { width: 100%; align-items: stretch; }
+  .team-role-assignment-form select { flex: 1 1 100%; }
+}
+
+/* QueueDrop UX fixes - 2026-08-30 */
+.system-plan-form-actions {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  flex-wrap: wrap;
+}
+
+/* Keep service action buttons aligned on desktop, tablet and mobile. */
+.service-action-row > button,
+.service-action-row > form {
+  flex: 1 1 120px;
+}
+.service-action-row > form {
+  display: flex;
+  margin: 0;
+}
+.service-action-row > form > .button,
+.service-action-row > .button {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* All QueueDrop dialog windows remain centered on tablet/mobile. */
+@media (max-width: 1024px) {
+  .qd-modal-backdrop,
+  .client-user-modal-backdrop,
+  .qd-customer-preview-backdrop,
+  .qd-qr-modal-backdrop {
+    display: grid !important;
+    place-items: center !important;
+    align-items: center !important;
+    justify-items: center !important;
+    padding: .75rem !important;
+    overflow-y: auto !important;
+  }
+  .qd-modal {
+    margin: auto !important;
+    max-height: calc(100dvh - 1.5rem) !important;
+  }
+}
+
+/* Mobile queue: service selector always stays before the Current Queue panel. */
+@media (max-width: 900px) {
+  .live-queue-workspace-refined {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "services" "queue" !important;
+  }
+  .live-service-panel-refined {
+    grid-area: services !important;
+    order: -1 !important;
+    position: relative;
+    z-index: 2;
+  }
+  .live-queue-list-panel {
+    grid-area: queue !important;
+    order: 1 !important;
+  }
+}
+
+/* QR maximized view stays exactly centered even when generic mobile modal rules apply. */
+.qd-qr-modal-backdrop {
+  display: grid !important;
+  place-items: center !important;
+}
+.qd-qr-max-modal {
+  margin: auto !important;
+  justify-self: center !important;
+  align-self: center !important;
+  text-align: center;
+}
+.qd-qr-max-modal img {
+  display: block;
+  margin-inline: auto;
+}
+
+@media (max-width: 700px) {
+  .qd-modal-backdrop {
+    align-items: center !important;
+    place-items: center !important;
+  }
+  .service-action-row {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    gap: .45rem;
+  }
+  .service-action-row > button,
+  .service-action-row > form {
+    width: 100%;
+    min-width: 0;
+  }
+  .service-action-row .button {
+    min-width: 0;
+    padding-inline: .45rem;
+    font-size: .78rem;
+  }
+  .system-plan-form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .system-plan-form-actions .button {
+    width: 100%;
+  }
+}
+.system-plan-delete-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 700px) {
+  .system-plan-delete-row .button { width: 100%; }
+}
+
+/* Final responsive polish: Queue, Services, dialogs and aligned actions. */
+@media (max-width: 1024px) {
+  .qd-modal-backdrop,
+  .client-user-modal-backdrop,
+  .qd-customer-preview-backdrop,
+  .qd-qr-modal-backdrop,
+  .qd-modal-nested-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    align-items: center !important;
+    justify-items: center !important;
+    padding: 12px !important;
+    overflow: auto !important;
+  }
+
+  .qd-modal,
+  .qd-confirm-modal,
+  .client-user-settings-modal,
+  .qd-team-edit-modal,
+  .qd-customer-preview-modal {
+    margin: auto !important;
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  .qd-qr-modal-backdrop {
+    width: 100vw !important;
+    height: 100dvh !important;
+  }
+
+  .qd-qr-max-modal {
+    width: min(92vw, 680px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    margin: auto !important;
+    display: grid !important;
+    place-items: center !important;
+    justify-items: center !important;
+    align-content: center !important;
+  }
+
+  .qd-qr-max-modal img {
+    width: min(82vw, 620px) !important;
+    height: auto !important;
+    max-height: calc(100dvh - 130px) !important;
+    margin: 0 auto !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .live-queue-workspace-refined {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "services"
+      "queue" !important;
+  }
+
+  .live-service-panel-refined {
+    grid-area: services !important;
+    order: 0 !important;
+    width: 100% !important;
+  }
+
+  .live-queue-list-panel {
+    grid-area: queue !important;
+    order: 1 !important;
+    width: 100% !important;
+  }
+
+  .live-service-panel-refined .qd-service-dropdown,
+  .live-service-panel-refined .qd-service-dropdown-trigger {
+    width: 100% !important;
+  }
+}
+
+.service-action-row {
+  align-items: stretch !important;
+}
+.service-action-row > button,
+.service-action-row > form,
+.service-action-row > form > button {
+  min-height: 44px !important;
+}
+.service-action-row > form {
+  margin: 0 !important;
+}
+
+@media (max-width: 700px) {
+  .qd-modal-backdrop {
+    align-items: center !important;
+    place-items: center !important;
+  }
+
+  .qd-modal {
+    width: min(100%, 560px) !important;
+    margin: auto !important;
+  }
+
+  .service-action-row {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .service-action-row > button,
+  .service-action-row > form,
+  .service-action-row > form > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+  }
+}
+
+/* 2026-08-30: client-facing Roles/Permissions + mobile queue controls */
+.live-queue-mobile-controls { display: none; }
+
+@media (max-width: 720px) {
+  .live-queue-mobile-controls {
+    display: grid;
+    gap: 10px;
+    margin: 0 12px 12px;
+    padding: 12px;
+    border: 1px solid #dce9e2;
+    border-radius: 14px;
+    background: #fbfefc;
+  }
+
+  .live-queue-mobile-service-filter {
+    display: grid;
+    gap: 6px;
+  }
+
+  .live-queue-mobile-service-filter > span {
+    color: #64756d;
+    font-size: .68rem;
+    font-weight: 850;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+  }
+
+  .live-queue-mobile-service-filter .qd-service-dropdown,
+  .live-queue-mobile-service-filter .qd-service-dropdown-trigger {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .live-queue-mobile-service-filter .qd-service-dropdown-menu {
+    z-index: 120 !important;
+  }
+
+  .live-queue-mobile-primary-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .live-queue-mobile-primary-actions form,
+  .live-mobile-queue-action {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .live-mobile-queue-action {
+    min-height: 46px;
+    padding: 8px 10px;
+    line-height: 1.15;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .live-mobile-action-note {
+    color: #75847d;
+    font-size: .72rem;
+    line-height: 1.35;
+  }
+
+  /* Keep the dedicated QR service selector visible above Current Queue. */
+  .live-service-panel-refined {
+    overflow: visible !important;
+    z-index: 4 !important;
+  }
+
+  .live-service-panel-refined .qd-service-dropdown {
+    position: relative !important;
+    z-index: 10 !important;
+  }
+
+  .live-service-panel-refined .qd-service-dropdown-menu {
+    z-index: 140 !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .live-queue-mobile-primary-actions { grid-template-columns: 1fr; }
+}
+
+/* 2026-08-31 final UI polish: buttons, branch actions, dialogs, and mobile viewport. */
+.button-secondary {
+  background: #fff !important;
+  border-color: #b8cdc2 !important;
+  box-shadow: 0 1px 2px rgba(8, 38, 24, .08), inset 0 0 0 1px rgba(8, 118, 77, .03);
+  color: #102219 !important;
+}
+.button-secondary:hover,
+.button-secondary:focus-visible {
+  border-color: #7eaa96 !important;
+  background: #f8fcfa !important;
+  box-shadow: 0 3px 10px rgba(8, 38, 24, .10);
+}
+
+.live-return-action-button {
+  min-width: 154px !important;
+  max-width: 174px;
+  white-space: normal !important;
+  line-height: 1.08 !important;
+}
+.live-no-actions { color: #a6b2ac; }
+
+.branch-action-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(86px, 1fr));
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+.branch-action-row .button {
+  width: 100% !important;
+  min-width: 86px;
+  min-height: 44px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.branch-meta { align-items: center !important; }
+
+/* Every QueueDrop popup is centered on desktop, tablet and phone. */
+.qd-modal-backdrop,
+.client-user-modal-backdrop,
+.qd-customer-preview-backdrop,
+.qd-qr-modal-backdrop,
+.qd-modal-nested-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  align-items: center !important;
+  justify-items: center !important;
+  padding: clamp(10px, 2vw, 20px) !important;
+  overflow: auto !important;
+}
+.qd-modal,
+.qd-confirm-modal,
+.client-user-settings-modal,
+.qd-team-edit-modal,
+.qd-customer-preview-modal,
+.qd-qr-max-modal {
+  margin: auto !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+@media (max-width: 1024px) {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  .dashboard-content,
+  .live-queue-page-shell,
+  .live-queue-workspace-refined {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .branch-row-manageable,
+  .branch-meta {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .branch-action-row {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .branch-action-row .button {
+    min-width: 0;
+  }
+  .qd-modal,
+  .qd-confirm-modal {
+    width: min(100%, 560px) !important;
+  }
+}
+
+/* 2026-08-31 cross-device action sizing + synchronized queue/service controls */
+/* Queue header actions: same footprint for Call next and Return last. */
+.live-queue-header-actions .live-header-action-button {
+  flex: 0 0 176px !important;
+  width: 176px !important;
+  min-width: 176px !important;
+  max-width: 176px !important;
+  min-height: 50px !important;
+  padding: .55rem .7rem !important;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.08 !important;
+}
+.live-return-action-button {
+  min-width: 176px !important;
+  max-width: 176px !important;
+}
+
+/* Branch actions: compact, equal Edit/Delete buttons on desktop/tablet. */
+.branch-action-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, 96px) !important;
+  gap: 8px !important;
+  width: auto !important;
+  justify-content: end !important;
+  align-items: stretch !important;
+}
+.branch-action-row .button {
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+  min-height: 42px !important;
+  padding-inline: .65rem !important;
+}
+
+/* Service actions: compact, evenly spaced and equal on desktop/tablet. */
+.service-action-row {
+  display: grid !important;
+  grid-template-columns: repeat(3, 104px) !important;
+  gap: 8px !important;
+  width: auto !important;
+  justify-content: end !important;
+  align-items: stretch !important;
+}
+.service-action-row > button,
+.service-action-row > form,
+.service-action-row > form > button {
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  margin: 0 !important;
+  padding: .45rem .55rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+@media (max-width: 900px) {
+  .live-queue-header-actions .live-header-action-button {
+    flex-basis: 164px !important;
+    width: 164px !important;
+    min-width: 164px !important;
+    max-width: 164px !important;
+  }
+  .live-return-action-button {
+    min-width: 164px !important;
+    max-width: 164px !important;
+  }
+}
+
+@media (max-width: 700px) {
+  /* Keep pairs/triples equal without forcing the phone wider than its viewport. */
+  .branch-action-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    justify-content: stretch !important;
+  }
+  .branch-action-row .button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+  .service-action-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    gap: 8px !important;
+    justify-content: stretch !important;
+  }
+  .service-action-row > button,
+  .service-action-row > form,
+  .service-action-row > form > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    padding: .35rem .4rem !important;
+  }
+  .live-queue-mobile-primary-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .live-mobile-queue-action {
+    width: 100% !important;
+    min-height: 48px !important;
+    height: 48px !important;
+    padding: .45rem .55rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    line-height: 1.08 !important;
+  }
+}
+
+
+/* 2026-08-31 queue heading actions + final branch button sizing polish */
+.live-queue-heading-actions {
+  flex-wrap: nowrap !important;
+}
+.live-queue-heading-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+.live-heading-action-button {
+  width: 112px !important;
+  min-width: 112px !important;
+  max-width: 112px !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  padding: .38rem .5rem !important;
+  text-align: center;
+  justify-content: center;
+  line-height: 1.02 !important;
+  white-space: normal !important;
+}
+.live-queue-header-actions-cell {
+  min-width: 96px !important;
+  width: 96px !important;
+}
+.live-queue-table {
+  min-width: 0 !important;
+}
+
+/* Keep Edit/Delete equal and compact at desktop and tablet widths. */
+.branch-action-row {
+  grid-template-columns: repeat(2, 84px) !important;
+  gap: 8px !important;
+}
+.branch-action-row .button {
+  width: 84px !important;
+  min-width: 84px !important;
+  max-width: 84px !important;
+  min-height: 40px !important;
+  height: 40px !important;
+  padding: .4rem .5rem !important;
+}
+
+@media (max-width: 1200px) and (min-width: 701px) {
+  .branch-row-manageable {
+    align-items: flex-start !important;
+  }
+  .branch-meta {
+    display: grid !important;
+    grid-template-columns: auto auto !important;
+    justify-items: end !important;
+    gap: .45rem .6rem !important;
+  }
+  .branch-action-row {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) and (min-width: 721px) {
+  .live-queue-heading-actions {
+    flex-wrap: wrap !important;
+  }
+  .live-queue-heading-primary-actions {
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 720px) {
+  .live-queue-heading-primary-actions {
+    display: none !important;
+  }
+  .live-queue-heading-actions {
+    flex-wrap: wrap !important;
+  }
+  .live-mobile-queue-action {
+    min-height: 58px !important;
+    height: 58px !important;
+    padding: .45rem .65rem !important;
+    font-size: .82rem !important;
+    line-height: 1.02 !important;
+  }
+  .branch-action-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100% !important;
+  }
+  .branch-action-row .button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 40px !important;
+    height: 40px !important;
+  }
+}
+
+/* 2026-08-31: Queue tablet/desktop strict column alignment + horizontal scroll */
+@media (min-width: 721px) {
+  .live-queue-list-panel {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .live-queue-table-wrap,
+  .live-queue-only-scroll {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .live-queue-table {
+    display: table !important;
+    width: 1120px !important;
+    min-width: 1120px !important;
+    max-width: none !important;
+    table-layout: fixed !important;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .live-queue-table thead {
+    display: table-header-group !important;
+  }
+
+  .live-queue-table tbody {
+    display: table-row-group !important;
+  }
+
+  .live-queue-table tr {
+    display: table-row !important;
+  }
+
+  .live-queue-table th,
+  .live-queue-table td {
+    display: table-cell !important;
+    box-sizing: border-box !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .live-queue-table th:nth-child(1),
+  .live-queue-table td:nth-child(1) { width: 120px !important; }
+
+  .live-queue-table th:nth-child(2),
+  .live-queue-table td:nth-child(2) { width: 220px !important; }
+
+  .live-queue-table th:nth-child(3),
+  .live-queue-table td:nth-child(3) { width: 110px !important; text-align: center; }
+
+  .live-queue-table th:nth-child(4),
+  .live-queue-table td:nth-child(4) { width: 190px !important; }
+
+  .live-queue-table th:nth-child(5),
+  .live-queue-table td:nth-child(5) { width: 150px !important; }
+
+  .live-queue-table th:nth-child(6),
+  .live-queue-table td:nth-child(6) { width: 330px !important; }
+
+  .live-queue-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #f7faf8;
+  }
+
+  .live-queue-section-row {
+    display: table-row !important;
+  }
+
+  .live-queue-section-row td {
+    display: table-cell !important;
+    width: auto !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+  }
+
+  .live-row-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    gap: .5rem !important;
+  }
+
+  .live-row-actions form,
+  .live-row-actions .button {
+    width: auto !important;
+    min-width: max-content !important;
+  }
+
+  .live-name-header {
+    flex-wrap: nowrap !important;
+  }
+
+  .live-queue-table .qd-service-dropdown,
+  .live-queue-table .qd-service-dropdown-trigger {
+    width: 190px !important;
+    min-width: 190px !important;
+    max-width: 190px !important;
+  }
+}
+
+/* 2026-08-31 center queue primary actions on tablet/desktop without changing mobile */
+@media (min-width: 721px) {
+  .live-panel-heading {
+    position: relative;
+    min-height: 54px;
+  }
+
+  .live-queue-heading-actions {
+    margin-left: auto;
+    flex-wrap: nowrap !important;
+  }
+
+  .live-queue-heading-primary-actions {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    width: max-content;
+    z-index: 1;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 721px) {
+  .live-queue-heading-primary-actions {
+    left: 40%;
+  }
+  .live-heading-action-button {
+    width: 104px !important;
+    min-width: 104px !important;
+    max-width: 104px !important;
+  }
+  .live-all-services-button {
+    padding-inline: .65rem !important;
+  }
+}

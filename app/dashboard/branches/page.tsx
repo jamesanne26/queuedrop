@@ -19,7 +19,7 @@ export default async function BranchesPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_set_branch_status, businesses(name)")
+    .select("business_id, role, can_set_branch_status, can_manage_operating_hours, can_manage_kiosk_display, businesses(name)")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -27,7 +27,7 @@ export default async function BranchesPage({ searchParams }: Props) {
   if (!membership) redirect("/onboarding");
 
   const role = membership.role as Role;
-  const canManage = role === "owner" || role === "admin";
+  const canManage = role === "owner" || role === "admin" || Boolean(membership.can_set_branch_status || membership.can_manage_operating_hours || membership.can_manage_kiosk_display);
   const canSetStatus = canManage || Boolean(membership.can_set_branch_status);
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 

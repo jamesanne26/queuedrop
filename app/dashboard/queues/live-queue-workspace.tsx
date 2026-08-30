@@ -36,9 +36,12 @@ type Service = {
 
 type ServiceDropdownProps = {
   services: Service[];
+  customerChoiceOption?: { value: string; label: string };
   value: string;
   ariaLabel: string;
   compact?: boolean;
+  includeAll?: boolean;
+  allLabel?: string;
   onChange: (serviceId: string) => void;
 };
 
@@ -72,11 +75,15 @@ function ServiceDropdown({
   value,
   ariaLabel,
   compact = false,
+  includeAll = false,
+  allLabel = "All services",
+  customerChoiceOption,
   onChange,
 }: ServiceDropdownProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = services.find((service) => service.id === value) ?? null;
+  const customerChoiceSelected = customerChoiceOption?.value === value;
 
   useEffect(() => {
     if (!open) return;
@@ -117,7 +124,7 @@ function ServiceDropdown({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{selected?.name ?? ""}</span>
+        <span>{customerChoiceSelected ? customerChoiceOption?.label : selected?.name ?? (includeAll && value === "" ? allLabel : "Select service")}</span>
         <svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="m5 7 5 5 5-5" />
         </svg>
@@ -129,6 +136,34 @@ function ServiceDropdown({
           role="listbox"
           aria-label={ariaLabel}
         >
+          {includeAll ? (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === ""}
+              className={value === "" ? "qd-service-dropdown-option qd-service-dropdown-option-selected" : "qd-service-dropdown-option"}
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              {allLabel}
+            </button>
+          ) : null}
+          {customerChoiceOption ? (
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === customerChoiceOption.value}
+              className={value === customerChoiceOption.value ? "qd-service-dropdown-option qd-service-dropdown-option-selected" : "qd-service-dropdown-option"}
+              onClick={() => {
+                onChange(customerChoiceOption.value);
+                setOpen(false);
+              }}
+            >
+              {customerChoiceOption.label}
+            </button>
+          ) : null}
           {services.length ? (
             services.map((service) => (
               <button
@@ -197,6 +232,7 @@ type Props = {
   selectedBranch: Branch;
   branches: Branch[];
   services: Service[];
+  branchQrDataUrl: string;
   initialServiceId: string | null;
   tickets: Ticket[];
   canEditName: boolean;
@@ -215,6 +251,8 @@ type ModalName =
   | "service-history"
   | "confirm-exit"
   | "confirm-name-visibility"
+  | "confirm-call-next"
+  | "confirm-return-last"
   | "result";
 
 const initialAssistState: AssistedJoinState = {
@@ -230,6 +268,7 @@ export function LiveQueueWorkspace({
   selectedBranch,
   branches,
   services,
+  branchQrDataUrl,
   initialServiceId,
   tickets,
   canEditName,
@@ -245,6 +284,8 @@ export function LiveQueueWorkspace({
       : services[0]?.id ?? "";
 
   const [serviceId, setServiceId] = useState(defaultServiceId);
+  const [qrServiceId, setQrServiceId] = useState<string>("customer-selects-service");
+  const [assistServiceId, setAssistServiceId] = useState("");
   const [modal, setModal] = useState<ModalName>(null);
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [showNames, setShowNames] = useState(false);
@@ -272,6 +313,17 @@ export function LiveQueueWorkspace({
     () => services.find((service) => service.id === serviceId) ?? null,
     [serviceId, services],
   );
+
+  const selectedQrService = useMemo(
+    () => services.find((service) => service.id === qrServiceId) ?? null,
+    [qrServiceId, services],
+  );
+  const selectedQrDataUrl = qrServiceId === "customer-selects-service"
+    ? branchQrDataUrl
+    : selectedQrService?.qrDataUrl ?? branchQrDataUrl;
+  const selectedQrLabel = qrServiceId === "customer-selects-service"
+    ? "Customer selects service"
+    : selectedQrService?.name ?? "Customer selects service";
 
   const activeTicket = useMemo(
     () => tickets.find((ticket) => ticket.id === activeTicketId) ?? null,
@@ -401,11 +453,43 @@ export function LiveQueueWorkspace({
   function selectService(nextServiceId: string) {
     setServiceId(nextServiceId);
     setQueueServiceFilter(nextServiceId || "all");
+    // Keep the queue service selector and the QR/service selector in sync
+    // whenever a specific service is chosen. The special All services flow
+    // continues to use Customer selects service via showAllServices().
+    if (nextServiceId) setQrServiceId(nextServiceId);
+  }
+
+  function selectQrService(nextServiceId: string) {
+    setQrServiceId(nextServiceId);
+    // Selecting a concrete service from the QR panel should also focus the
+    // queue on that same service. Customer selects service intentionally does
+    // not change the queue filter so the existing All services behavior stays
+    // intact.
+    if (nextServiceId !== "customer-selects-service") {
+      setServiceId(nextServiceId);
+      setQueueServiceFilter(nextServiceId);
+    }
   }
 
   function showAllServices() {
-    setServiceId("");
     setQueueServiceFilter("all");
+    // All-services queue view uses the branch QR so the customer chooses a service.
+    setQrServiceId("customer-selects-service");
+  }
+
+  function openAssist() {
+    setAssistServiceId(qrServiceId === "customer-selects-service" ? "" : qrServiceId);
+    setModal("assist");
+  }
+
+  function requestCallNext() {
+    if (!selectedService) return;
+    setModal("confirm-call-next");
+  }
+
+  function requestReturnLast() {
+    if (!selectedService) return;
+    setModal("confirm-return-last");
   }
 
   function requestExit() {
@@ -530,6 +614,14 @@ export function LiveQueueWorkspace({
               <p className="eyebrow">Current queue</p>
             </div>
             <div className="live-queue-heading-actions">
+              <div className="live-queue-heading-primary-actions">
+                <button type="button" className="button button-primary button-small live-heading-action-button" disabled={!selectedService} onClick={requestCallNext}>
+                  Call Next<br />Customer
+                </button>
+                <button type="button" className="button button-secondary button-small live-heading-action-button" disabled={!selectedService} onClick={requestReturnLast}>
+                  Return last<br />customer<br />to queue
+                </button>
+              </div>
               <button
                 type="button"
                 className={
@@ -543,6 +635,30 @@ export function LiveQueueWorkspace({
               </button>
               <span className="status-chip">{filteredTickets.length} Active</span>
             </div>
+          </div>
+
+          <div className="live-queue-mobile-controls" aria-label="Mobile queue controls">
+            <div className="live-queue-mobile-service-filter">
+              <span>Queue service</span>
+              <ServiceDropdown
+                services={services}
+                value={queueServiceFilter === "all" ? "" : queueServiceFilter}
+                ariaLabel="Filter queue by service"
+                includeAll
+                onChange={(nextServiceId) => nextServiceId ? selectService(nextServiceId) : showAllServices()}
+              />
+            </div>
+            <div className="live-queue-mobile-primary-actions">
+              <button type="button" className="button button-primary live-mobile-queue-action" disabled={!selectedService} onClick={requestCallNext}>
+                Call Next<br />Customer
+              </button>
+              <button type="button" className="button button-secondary live-mobile-queue-action" disabled={!selectedService} onClick={requestReturnLast}>
+                Return last<br />customer<br />to queue
+              </button>
+            </div>
+            {queueServiceFilter === "all" && selectedService ? (
+              <small className="live-mobile-action-note">Actions will use {selectedService.name}. Choose another service above the QR panel to change it.</small>
+            ) : null}
           </div>
 
           <div className="live-queue-table-wrap live-queue-only-scroll">
@@ -590,32 +706,7 @@ export function LiveQueueWorkspace({
                     </div>
                   </th>
                   <th>Status</th>
-                  <th className="live-queue-header-actions-cell">
-                    <div className="live-queue-header-actions">
-                      <form action={callNextAction} data-no-global-loading="true">
-                        <input type="hidden" name="branch_id" value={selectedBranchId} />
-                        <input type="hidden" name="service_id" value={selectedService?.id ?? ""} />
-                        <QueueSubmitButton
-                          className="button button-primary button-small live-header-action-button"
-                          pendingLabel="Calling..."
-                          disabled={!selectedService}
-                        >
-                          Call next customer
-                        </QueueSubmitButton>
-                      </form>
-                      <form action={returnLastCustomerAction} data-no-global-loading="true">
-                        <input type="hidden" name="branch_id" value={selectedBranchId} />
-                        <input type="hidden" name="service_id" value={selectedService?.id ?? ""} />
-                        <QueueSubmitButton
-                          className="button button-secondary button-small live-header-action-button"
-                          pendingLabel="Returning..."
-                          disabled={!selectedService}
-                        >
-                          Return last customer to queue
-                        </QueueSubmitButton>
-                      </form>
-                    </div>
-                  </th>
+                  <th className="live-queue-header-actions-cell">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -703,17 +794,7 @@ export function LiveQueueWorkspace({
                       </button>
                     </td>
                     <td data-label="Status"><span className="ticket-status-chip ticket-status-waiting">waiting</span></td>
-                    <td data-label="Actions">
-                      <div className="live-row-actions">
-                        <form action={updateTicketAction} data-no-global-loading="true">
-                          <input type="hidden" name="branch_id" value={selectedBranchId} />
-                          <input type="hidden" name="service_id" value={ticket.service_id} />
-                          <input type="hidden" name="ticket_id" value={ticket.id} />
-                          <input type="hidden" name="action" value="no_show" />
-                          <QueueSubmitButton className="button button-secondary button-small" pendingLabel="Saving...">No-show</QueueSubmitButton>
-                        </form>
-                      </div>
-                    </td>
+                    <td data-label="Actions"><span className="live-no-actions" aria-hidden="true">—</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -745,33 +826,34 @@ export function LiveQueueWorkspace({
 
           <ServiceDropdown
             services={services}
-            value={serviceId}
-            ariaLabel="Select service"
-            onChange={selectService}
+            value={qrServiceId}
+            ariaLabel="Select QR code"
+            customerChoiceOption={{ value: "customer-selects-service", label: "Customer selects service" }}
+            onChange={selectQrService}
           />
 
-          {selectedService ? (
+          {services.length ? (
             <div className="live-qr-card live-qr-card-refined">
               <button
                 type="button"
                 className="live-qr-image-button"
                 onClick={() => setModal("qr")}
-                aria-label={`Maximize QR code for ${selectedService.name}`}
+                aria-label={`Maximize QR code for ${selectedQrLabel}`}
               >
                 <img
-                  src={selectedService.qrDataUrl}
-                  alt={`QR code for ${selectedService.name}`}
+                  src={selectedQrDataUrl}
+                  alt={`QR code for ${selectedQrLabel}`}
                   className="live-qr-image"
                 />
               </button>
 
-              <p>Scan this QR code to join the queue.</p>
+              <p>{qrServiceId === "customer-selects-service" ? "Scan this QR code and let the customer choose a service." : `Scan this QR code to preselect ${selectedQrLabel}.`}</p>
 
               <div className="live-qr-actions live-qr-actions-stacked">
                 <button
                   className="button button-secondary"
                   type="button"
-                  onClick={() => setModal("assist")}
+                  onClick={openAssist}
                 >
                   Fill up for customer
                 </button>
@@ -787,76 +869,46 @@ export function LiveQueueWorkspace({
         </aside>
       </section>
 
-      {modal === "qr" && selectedService ? (
+      {modal === "qr" ? (
         <div className="qd-modal-backdrop qd-qr-modal-backdrop" role="presentation">
-          <section className="qd-qr-max-modal" role="dialog" aria-modal="true" aria-label={`QR code for ${selectedService.name}`}>
-            <img src={selectedService.qrDataUrl} alt={`QR code for ${selectedService.name}`} />
+          <section className="qd-qr-max-modal" role="dialog" aria-modal="true" aria-label={`QR code for ${selectedQrLabel}`}>
+            <img src={selectedQrDataUrl} alt={`QR code for ${selectedQrLabel}`} />
             <button className="button button-secondary qd-qr-cancel" type="button" onClick={closeModal}>Cancel</button>
           </section>
         </div>
       ) : null}
 
-      {modal === "assist" && selectedService ? (
+      {modal === "assist" && services.length ? (
         <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="assist-title"
-          >
+          <section className="qd-modal" role="dialog" aria-modal="true" aria-labelledby="assist-title">
             <div className="qd-modal-header">
               <div>
-
                 <h2 id="assist-title">Fill up customer details</h2>
-                <span className="queue-service-name">{selectedService.name}</span>
+                <span className="queue-service-name">{assistServiceId ? services.find((service) => service.id === assistServiceId)?.name ?? "Select service" : "Customer selects service"}</span>
               </div>
             </div>
 
             <form action={assistAction} className="form-stack" data-no-global-loading="true">
               <input type="hidden" name="branch_id" value={selectedBranchId} />
-              <input type="hidden" name="service_id" value={selectedService.id} />
-
+              <label>
+                Service
+                <select name="service_id" required value={assistServiceId} onChange={(event) => setAssistServiceId(event.target.value)}>
+                  <option value="" disabled>Select service</option>
+                  {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+                </select>
+              </label>
               <label>
                 Customer name
-                <input
-                  name="name"
-                  required
-                  minLength={1}
-                  maxLength={100}
-                  placeholder="Enter your name"
-                />
+                <input name="name" required minLength={1} maxLength={100} placeholder="Enter your name" />
               </label>
-
               <label>
                 Mobile number
-                <DigitsOnlyInput
-                  name="phone"
-                  required
-                  maxLength={20}
-                  autoComplete="tel"
-                  placeholder="09171234567"
-                />
+                <DigitsOnlyInput name="phone" required maxLength={20} autoComplete="tel" placeholder="09171234567" />
               </label>
-
-              {assistState.message && !assistState.ok ? (
-                <div className="notice notice-error">{assistState.message}</div>
-              ) : null}
-
+              {assistState.message && !assistState.ok ? <div className="notice notice-error">{assistState.message}</div> : null}
               <div className="qd-modal-actions">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={closeModal}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="button button-primary"
-                  type="submit"
-                  disabled={assistPending}
-                >
-                  {assistPending ? "Adding..." : "Add to queue"}
-                </button>
+                <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
+                <button className="button button-primary" type="submit" disabled={assistPending || !assistServiceId}>{assistPending ? "Adding..." : "Add to queue"}</button>
               </div>
             </form>
           </section>
@@ -1111,6 +1163,34 @@ export function LiveQueueWorkspace({
               )}
             </div>
 
+          </section>
+        </div>
+      ) : null}
+
+      {modal === "confirm-call-next" && selectedService ? (
+        <div className="qd-modal-backdrop" role="presentation">
+          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-call-next-title">
+            <div className="qd-confirm-icon" aria-hidden="true">?</div>
+            <div className="qd-confirm-copy"><h2 id="confirm-call-next-title">Call next customer?</h2><p>Are you sure you want to call the next waiting customer for <strong>{selectedService.name}</strong>?</p></div>
+            <form action={callNextAction} className="qd-modal-actions" data-no-global-loading="true">
+              <input type="hidden" name="branch_id" value={selectedBranchId} /><input type="hidden" name="service_id" value={selectedService.id} />
+              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
+              <QueueSubmitButton className="button button-primary" pendingLabel="Calling...">Yes, call next</QueueSubmitButton>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
+      {modal === "confirm-return-last" && selectedService ? (
+        <div className="qd-modal-backdrop" role="presentation">
+          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-return-last-title">
+            <div className="qd-confirm-icon" aria-hidden="true">?</div>
+            <div className="qd-confirm-copy"><h2 id="confirm-return-last-title">Return last customer to queue?</h2><p>Are you sure you want to return the last customer for <strong>{selectedService.name}</strong> back to the waiting queue?</p></div>
+            <form action={returnLastCustomerAction} className="qd-modal-actions" data-no-global-loading="true">
+              <input type="hidden" name="branch_id" value={selectedBranchId} /><input type="hidden" name="service_id" value={selectedService.id} />
+              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
+              <QueueSubmitButton className="button button-primary" pendingLabel="Returning...">Yes, return customer</QueueSubmitButton>
+            </form>
           </section>
         </div>
       ) : null}

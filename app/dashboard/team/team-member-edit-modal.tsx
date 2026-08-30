@@ -13,6 +13,9 @@ type Props = {
   email: string;
   phone: string;
   role: Role;
+  businessRoleId: string;
+  businessRoleName: string;
+  branchScope: "own_branch_only" | "selected_branches" | "all_branches";
   isActive: boolean;
   assignedBranchIds: string[];
   branches: Branch[];
@@ -43,16 +46,8 @@ function PasswordField({
           type={showPassword ? "text" : "password"}
           minLength={minLength}
           maxLength={72}
-          pattern={
-            managerPassword
-              ? "(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,72}"
-              : undefined
-          }
-          title={
-            managerPassword
-              ? "Use 10-72 characters with uppercase, lowercase, number, and symbol."
-              : "Use at least 6 characters."
-          }
+          pattern={undefined}
+          title="Use 6-72 characters."
           placeholder={placeholder}
           autoComplete="new-password"
           data-lpignore="true"
@@ -88,9 +83,7 @@ function PasswordField({
       </div>
       <small>
         Current passwords cannot be retrieved. Leave this blank to keep the existing password, or enter a new one to change it.
-        {managerPassword
-          ? " Manager passwords require 10+ characters with uppercase, lowercase, number, and symbol."
-          : " Staff passwords require at least 6 characters."}
+ Passwords require at least 6 characters.
       </small>
       {managerPassword ? (
         <a className="team-forgot-password" href="/auth/forgot-password">
@@ -118,6 +111,9 @@ export function TeamMemberEditModal({
   email,
   phone,
   role: initialRole,
+  businessRoleId,
+  businessRoleName,
+  branchScope,
   isActive: initialActive,
   assignedBranchIds,
   branches,
@@ -228,6 +224,7 @@ export function TeamMemberEditModal({
               <input type="hidden" name="user_id" value={userId} />
               <input type="hidden" name="view_branch" value={viewBranch} />
               <input type="hidden" name="role" value={role} />
+              <input type="hidden" name="business_role_id" value={businessRoleId} />
               <input type="hidden" name="is_active" value={String(active)} />
               {selectedBranches.map((branchId) => (
                 <input key={branchId} type="hidden" name="branch_ids" value={branchId} />
@@ -249,32 +246,22 @@ export function TeamMemberEditModal({
               </label>
 
               <label className="team-field">
-                Role
-                {managerMode ? (
-                  <input value="Staff" disabled />
-                ) : (
-                  <select value={role} onChange={(event) => {
-                    const nextRole = event.target.value as Role;
-                    setRole(nextRole);
-                    if (nextRole === "staff") {
-                      setSelectedBranches((current) => current.length ? [current[0]] : []);
-                    }
-                  }}>
-                    <option value="manager">Manager</option>
-                    <option value="staff">Staff</option>
-                  </select>
-                )}
+                Assigned role
+                <input value={businessRoleName} disabled />
+                <small>Change the employee's role from the Team list. Role permissions are managed in the Roles tab.</small>
               </label>
 
-              {role === "staff" ? (
+              {branchScope === "own_branch_only" ? (
                 <label className="team-field">
                   Branch
                   <select value={selectedBranches[0] ?? ""} onChange={(event) => setSelectedBranches(event.target.value ? [event.target.value] : [])} required>
                     <option value="" disabled>Select one branch</option>
                     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                   </select>
-                  <small>Staff can belong to one branch only.</small>
+                  <small>This declared role can belong to one branch only.</small>
                 </label>
+              ) : branchScope === "all_branches" ? (
+                <div className="role-access-note"><strong>All branches</strong><span>This role automatically has access to every branch. No branch selection is required here.</span></div>
               ) : (
                 <fieldset className="branch-checkboxes team-modal-branches">
                   <legend>Branch <small>select at least one</small></legend>
@@ -297,8 +284,8 @@ export function TeamMemberEditModal({
 
               <PasswordField
                 name="new_password"
-                minLength={role === "staff" ? 6 : 10}
-                managerPassword={role === "manager"}
+                minLength={6}
+                managerPassword={false}
                 placeholder={role === "staff" ? "Leave blank to keep password" : "Leave blank to keep password"}
               />
 

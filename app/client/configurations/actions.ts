@@ -39,15 +39,8 @@ function isPhoneLoginEmail(email: string) {
   return email.startsWith("phone-") && email.endsWith("@auth.queuedrop.invalid");
 }
 
-function validateManagerPassword(password: string) {
-  return (
-    password.length >= 10 &&
-    password.length <= 72 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /[0-9]/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
+function validateEmployeePassword(password: string) {
+  return password.length >= 6 && password.length <= 72;
 }
 
 function branchIds(formData: FormData) {
@@ -154,11 +147,8 @@ export async function updateClientUserSettings(formData: FormData) {
 
   if (newPassword) {
     if (protectedRole) fail("Owner/Admin passwords cannot be changed from this employee settings screen.");
-    if (nextRole === "staff" && (newPassword.length < 6 || newPassword.length > 72)) {
-      fail("Staff passwords must be between 6 and 72 characters.");
-    }
-    if (nextRole === "manager" && !validateManagerPassword(newPassword)) {
-      fail("Manager passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.");
+    if (!validateEmployeePassword(newPassword)) {
+      fail("Passwords must be between 6 and 72 characters.");
     }
   }
 

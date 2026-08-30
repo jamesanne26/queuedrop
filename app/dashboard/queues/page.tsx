@@ -210,6 +210,9 @@ export default async function QueuesPage({ searchParams }: Props) {
     (host.includes("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
 
+  const branchJoinUrl = `${origin}/q/${business.slug}/${selectedBranch.slug}`;
+  const branchQrDataUrl = await getQueueQrDataUrl(branchJoinUrl);
+
   const servicesWithQr = await Promise.all(
     (services ?? []).map(async (service) => {
       const joinUrl = `${origin}/q/${business.slug}/${selectedBranch.slug}?service=${encodeURIComponent(
@@ -271,6 +274,7 @@ export default async function QueuesPage({ searchParams }: Props) {
           address: branch.address,
         }))}
         services={servicesWithQr}
+        branchQrDataUrl={branchQrDataUrl}
         initialServiceId={params.service ?? null}
         tickets={clientTickets}
         canEditName={Boolean(canEditName)}

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { startSubscriptionCheckout } from "./actions";
 
@@ -28,13 +29,16 @@ export default async function SubscriptionPage({ searchParams }: Props) {
   const query = await searchParams;
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect("/auth/login?next=%2Fclient%2Fsubscription");
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id,businesses(name)")
-    .eq("user_id", auth.user!.id)
+    .select("business_id,role,businesses(name)")
+    .eq("user_id", auth.user.id)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
+
+  if (!membership || !["owner", "admin"].includes(membership.role)) redirect("/dashboard");
 
   const plansPromise = supabase
     .from("plans")

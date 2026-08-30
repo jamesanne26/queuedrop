@@ -55,6 +55,10 @@ export async function createService(formData: FormData) {
     fail(error.message || "Unable to create service.", branchId);
   }
 
+  revalidatePath("/dashboard", "layout");
+  revalidatePath("/dashboard/services");
+  revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/settings");
   redirect(servicesUrl(branchId, "message", "Service created successfully."));
 }
 

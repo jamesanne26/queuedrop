@@ -16,6 +16,7 @@ export type ConfigurationUser = {
   email: string;
   phone: string;
   role: Role;
+  roleName: string;
   isActive: boolean;
   branchIds: string[];
   canViewQueueInformationEditing: boolean;
@@ -103,7 +104,7 @@ export function ConfigurationUsers({
                 <tr key={user.userId}>
                   <td data-label="Name">{user.fullName || "Team member"}</td>
                   <td data-label="Email">{user.email || "No email"}</td>
-                  <td data-label="Role" className="client-role-cell">{roleLabel(user.role)}</td>
+                  <td data-label="Role" className="client-role-cell">{user.roleName || roleLabel(user.role)}</td>
                   <td data-label="Queue information editing">{alwaysAllowed || user.canViewQueueInformationEditing ? "Yes" : "No"}</td>
                   <td data-label="Position notifications">{alwaysAllowed || user.canViewPositionNotifications ? "Yes" : "No"}</td>
                   <td data-label="Allow branch active / inactive">{alwaysAllowed || user.canSetBranchStatus ? "Yes" : "No"}</td>
@@ -178,19 +179,10 @@ export function ConfigurationUsers({
                 </label>
 
                 <label className="form-field">
-                  <span>Role</span>
-                  {selected.role === "owner" || selected.role === "admin" ? (
-                    <>
-                      <input type="hidden" name="role" value={selected.role} />
-                      <input value={roleLabel(selected.role)} readOnly disabled />
-                      <small className="muted">Protected role.</small>
-                    </>
-                  ) : (
-                    <select name="role" value={role} onChange={(event) => setRole(event.target.value as Role)}>
-                      <option value="manager">Manager</option>
-                      <option value="staff">Staff</option>
-                    </select>
-                  )}
+                  <span>Declared role</span>
+                  <input type="hidden" name="role" value={selected.role} />
+                  <input value={selected.roleName || roleLabel(selected.role)} readOnly disabled />
+                  <small className="muted">Change role names and role assignments from Dashboard → Team & Roles.</small>
                 </label>
 
                 {selected.role === "owner" || selected.role === "admin" ? (
@@ -212,8 +204,8 @@ export function ConfigurationUsers({
                 {selected.role === "owner" || selected.role === "admin" ? null : (
                   <label className="form-field client-password-field">
                     <span>New password</span>
-                    <input name="new_password" type="password" autoComplete="new-password" />
-                    <small className="muted">Leave blank to keep the current password.</small>
+                    <input name="new_password" type="password" minLength={6} maxLength={72} autoComplete="new-password" placeholder="At least 6 characters" />
+                    <small className="muted">Leave blank to keep the current password. Use 6-72 characters.</small>
                   </label>
                 )}
               </div>

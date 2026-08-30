@@ -29,8 +29,7 @@ export default async function PricingPage() {
           {plan.price_yearly ? <p className="pricing-annual">₱{Number(plan.price_yearly).toLocaleString()}/year</p> : null}
           <p>{plan.description}</p>
           <ul>
-            <li>{plan.max_active_queues_per_branch ? `Up to ${plan.max_active_queues_per_branch} active queues per branch` : "Custom active queue allowance"}</li>
-            <li>{plan.max_services_per_branch ? `Up to ${plan.max_services_per_branch} services per branch` : "Custom/unlimited services"}</li>
+            <li>{plan.max_active_queues_per_branch ? `Up to ${plan.max_active_queues_per_branch} active queues` : "Custom active queue allowance"}</li>
             <li>{plan.trial_days > 0 ? `${plan.trial_days}-day trial` : "No trial"}</li>
             <li>Live queue + customer browser tracking</li>
           </ul>

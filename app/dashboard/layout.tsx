@@ -11,6 +11,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   let role: Role | null = null;
   let canViewSettings = false;
   let canViewReports = false;
+  let canManageTeam = false;
+  let canManageServices = false;
+  let canManageBranches = false;
 
   if (userData.user) {
     const { data: currentRole, error: roleError } = await supabase.rpc(
@@ -33,16 +36,22 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     if (role === "owner" || role === "admin") {
       canViewSettings = true;
       canViewReports = true;
+      canManageTeam = true;
+      canManageServices = true;
+      canManageBranches = true;
     } else if (role === "manager" || role === "staff") {
       const { data: permission } = await supabase
         .from("business_users")
-        .select("can_view_queue_information_editing, can_view_position_notifications, can_manage_operating_hours, can_manage_kiosk_display, can_view_reports")
+        .select("can_view_queue_information_editing, can_view_position_notifications, can_manage_operating_hours, can_manage_kiosk_display, can_view_reports, can_manage_team, can_manage_services, can_set_branch_status")
         .eq("user_id", userData.user.id)
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
 
       canViewReports = Boolean(permission?.can_view_reports);
+      canManageTeam = Boolean(permission?.can_manage_team);
+      canManageServices = Boolean(permission?.can_manage_services);
+      canManageBranches = Boolean(permission?.can_set_branch_status || permission?.can_manage_operating_hours || permission?.can_manage_kiosk_display);
       canViewSettings = Boolean(
         permission?.can_view_queue_information_editing ||
           permission?.can_view_position_notifications ||
@@ -52,5 +61,5 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     }
   }
 
-  return <DashboardFrame role={role} canViewSettings={canViewSettings} canViewReports={canViewReports}>{children}</DashboardFrame>;
+  return <DashboardFrame role={role} canViewSettings={canViewSettings} canViewReports={canViewReports} canManageTeam={canManageTeam} canManageServices={canManageServices} canManageBranches={canManageBranches}>{children}</DashboardFrame>;
 }

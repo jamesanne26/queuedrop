@@ -9,10 +9,13 @@ type Props = {
   role: Role | null;
   canViewSettings: boolean;
   canViewReports: boolean;
+  canManageTeam: boolean;
+  canManageServices: boolean;
+  canManageBranches: boolean;
   children: React.ReactNode;
 };
 
-export function DashboardFrame({ role, canViewSettings, canViewReports, children }: Props) {
+export function DashboardFrame({ role, canViewSettings, canViewReports, canManageTeam, canManageServices, canManageBranches, children }: Props) {
   const pathname = usePathname();
   const liveQueue = pathname === "/dashboard/queues";
 
@@ -20,7 +23,7 @@ export function DashboardFrame({ role, canViewSettings, canViewReports, children
 
   return (
     <main className="dashboard-shell">
-      <DashboardSidebar role={role} canViewSettings={canViewSettings} canViewReports={canViewReports} />
+      <DashboardSidebar role={role} canViewSettings={canViewSettings} canViewReports={canViewReports} canManageTeam={canManageTeam} canManageServices={canManageServices} canManageBranches={canManageBranches} />
       <div className="dashboard-route-content">{children}</div>
     </main>
   );

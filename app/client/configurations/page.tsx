@@ -10,6 +10,7 @@ type Role = "owner" | "admin" | "manager" | "staff";
 type Member = {
   user_id: string;
   role: Role;
+  custom_role_name: string | null;
   is_active: boolean;
   can_view_queue_information_editing: boolean;
   can_view_position_notifications: boolean;
@@ -60,7 +61,7 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
   const [membersResult, branchesResult] = await Promise.all([
     supabase
       .from("business_users")
-      .select("user_id, role, is_active, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_add_customer, can_edit_customer, can_call_customer, can_serve_customer, can_complete_ticket, can_cancel_ticket, can_mark_no_show, can_view_customer_contact, can_view_reports, can_export_reports, can_view_audit_logs")
+      .select("user_id, role, custom_role_name, is_active, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_add_customer, can_edit_customer, can_call_customer, can_serve_customer, can_complete_ticket, can_cancel_ticket, can_mark_no_show, can_view_customer_contact, can_view_reports, can_export_reports, can_view_audit_logs")
       .eq("business_id", membership.business_id)
       .order("created_at", { ascending: true }),
     supabase
@@ -101,6 +102,7 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
       email: profile?.email ?? "",
       phone: profile?.phone ?? "",
       role: member.role,
+      roleName: member.custom_role_name || (member.role === "owner" ? "Owner" : member.role === "admin" ? "Admin" : "Team member"),
       isActive: member.is_active,
       branchIds: branchAssignments.get(member.user_id) ?? [],
       canViewQueueInformationEditing: member.can_view_queue_information_editing,
@@ -143,7 +145,7 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
         <section className="client-config-card">
           <div className="client-config-title">
             <h2>Users and configuration access</h2>
-            <p className="muted">Use the settings button on a user to update account details, role, branch assignment, configuration permissions, or delete eligible users.</p>
+            <p className="muted">Use the settings button to update account details, branch assignment, configuration access, or delete eligible users. Declared employee roles are managed under Team & Roles.</p>
           </div>
           <ConfigurationUsers users={users} branches={branches} />
         </section>

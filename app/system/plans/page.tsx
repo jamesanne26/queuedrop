@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { savePlan } from "./actions";
+import { DeletePlanButton } from "./delete-plan-button";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
 
@@ -37,6 +38,7 @@ export default async function SystemPlansPage({ searchParams }: Props) {
               <strong>{money(plan.price_monthly, plan.currency)}/mo</strong>
             </div>
             <PlanForm plan={plan} />
+            <div className="system-plan-delete-row"><DeletePlanButton planId={plan.id} planName={plan.name} /></div>
           </section>
         ))}
       </div>
@@ -72,7 +74,7 @@ function PlanForm({ plan }: { plan?: Plan }) {
         <label><input type="checkbox" name="accepts_new_subscriptions" defaultChecked={plan?.accepts_new_subscriptions ?? true} /> Accept new subscriptions</label>
         {plan ? <label><input type="checkbox" name="apply_existing_price" /> Apply new monthly price to existing active subscribers</label> : null}
       </div>
-      <div className="system-form-wide"><button className="button button-primary" type="submit">{plan ? "Save plan changes" : "Create plan"}</button></div>
+      <div className="system-form-wide system-plan-form-actions"><button className="button button-primary" type="submit">{plan ? "Save plan changes" : "Create plan"}</button></div>
     </form>
   );
 }

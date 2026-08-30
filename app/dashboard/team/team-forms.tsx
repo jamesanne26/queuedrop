@@ -9,6 +9,7 @@ type Branch = {
 };
 
 type Role = "manager" | "staff";
+type BusinessRole = { id: string; name: string; base_role: "owner" | "admin" | "manager" | "staff"; branch_scope: "own_branch_only" | "selected_branches" | "all_branches"; is_system: boolean; is_protected: boolean };
 
 function PasswordField({
   minLength,
@@ -31,8 +32,8 @@ function PasswordField({
           required
           minLength={minLength}
           maxLength={72}
-          pattern={managerPassword ? "(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,72}" : undefined}
-          title={managerPassword ? "Use 10-72 characters with uppercase, lowercase, number, and symbol." : "Use at least 6 characters."}
+          pattern={undefined}
+          title="Use 6-72 characters."
           placeholder={placeholder}
           autoComplete="new-password"
           data-lpignore="true"
@@ -67,9 +68,7 @@ function PasswordField({
         </button>
       </div>
       <small>
-        {managerPassword
-          ? "Manager passwords: 10+ characters, with uppercase, lowercase, number, and symbol."
-          : "Staff passwords require at least 6 characters."}
+        Passwords require at least 6 characters.
       </small>
     </label>
   );
@@ -78,22 +77,60 @@ function PasswordField({
 export function TeamCreateFields({
   branches,
   managerMode,
+  businessRoles,
+  selectedBranchId,
 }: {
   branches: Branch[];
   managerMode: boolean;
+  businessRoles: BusinessRole[];
+  selectedBranchId: string;
 }) {
-  const [role, setRole] = useState<Role>("staff");
+  const availableRoles = businessRoles.filter((item) => managerMode ? item.base_role === "staff" : ["manager", "staff"].includes(item.base_role));
+  const initialBusinessRole = availableRoles.find((item) => item.base_role === "staff") ?? availableRoles[0];
+  const [businessRoleId, setBusinessRoleId] = useState(initialBusinessRole?.id ?? "");
+  const selectedBusinessRole = availableRoles.find((item) => item.id === businessRoleId) ?? initialBusinessRole;
+  const role = (selectedBusinessRole?.base_role === "manager" ? "manager" : "staff") as Role;
 
   const isStaff = role === "staff";
-  const passwordMin = isStaff ? 6 : 10;
+  const passwordMin = 6;
 
   return (
     <>
-      <input
-        type="hidden"
-        name="role"
-        value={managerMode ? "staff" : role}
-      />
+      <input type="hidden" name="role" value={role} />
+      <input type="hidden" name="business_role_id" value={selectedBusinessRole?.id ?? ""} />
+      <input type="hidden" name="custom_role_name" value={selectedBusinessRole?.name ?? "Staff"} />
+
+      {selectedBusinessRole?.branch_scope === "own_branch_only" ? (
+        <label>
+          Branch
+          <select key={`${businessRoleId}-${selectedBranchId}`} name="branch_ids" defaultValue={branches.length === 1 ? branches[0].id : selectedBranchId !== "all" ? selectedBranchId : ""} required>
+            <option value="" disabled>
+              Select one branch
+            </option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
+          <small>This declared role can belong to one branch only.</small>
+        </label>
+      ) : selectedBusinessRole?.branch_scope === "all_branches" ? (
+        <div className="role-access-note"><strong>All branches</strong><span>This role automatically receives access to every branch in this business.</span></div>
+      ) : (
+        <fieldset className="branch-checkboxes">
+          <legend>
+            Branch <small>select at least one</small>
+          </legend>
+          {branches.map((branch) => (
+            <label key={branch.id}>
+              <input type="checkbox" name="branch_ids" value={branch.id} defaultChecked={branches.length === 1 || branch.id === selectedBranchId} />
+              <span>{branch.name}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+
 
       <label>
         Full name
@@ -138,59 +175,21 @@ export function TeamCreateFields({
       </label>
 
       <label>
-        Role
-        {managerMode ? (
-          <input value="Staff" disabled />
-        ) : (
-          <select
-            value={role}
-            onChange={(event) => setRole(event.target.value as Role)}
-          >
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-          </select>
-        )}
+        Assigned Role
+        <select value={businessRoleId} onChange={(event) => setBusinessRoleId(event.target.value)} required>
+          {availableRoles.map((item) => (
+            <option key={item.id} value={item.id}>{item.name}</option>
+          ))}
+        </select>
+        <small>Roles and their permissions are configured under Team & Roles → Roles.</small>
       </label>
 
-      {isStaff ? (
-        <label>
-          Branch
-          <select name="branch_ids" defaultValue="" required>
-            <option value="" disabled>
-              Select one branch
-            </option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-          <small>Staff can belong to one branch only.</small>
-        </label>
-      ) : (
-        <fieldset className="branch-checkboxes">
-          <legend>
-            Branch <small>select at least one</small>
-          </legend>
-          {branches.map((branch) => (
-            <label key={branch.id}>
-              <input type="checkbox" name="branch_ids" value={branch.id} />
-              <span>{branch.name}</span>
-            </label>
-          ))}
-        </fieldset>
-      )}
-
-      {isStaff ? (
-        <small className="team-login-identifier-note">Mobile number is required for staff. Email is optional.</small>
-      ) : (
-        <small className="team-login-identifier-note">All manager fields are required.</small>
-      )}
+      <small className="team-login-identifier-note">Role access follows the declared role selected above. Passwords use the same 6+ character rule for every team role.</small>
 
       <PasswordField
         minLength={passwordMin}
-        managerPassword={!isStaff}
-        placeholder={isStaff ? "At least 6 characters" : "10+ characters"}
+        managerPassword={false}
+        placeholder="At least 6 characters"
       />
     </>
   );

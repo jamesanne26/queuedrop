@@ -17,7 +17,7 @@ export default async function ServicesPage({ searchParams }: Props) {
   const { data: membership } = await supabase.from("business_users").select("business_id, role, can_manage_services, businesses(name)").eq("user_id", user.id).limit(1).maybeSingle();
   if (!membership) redirect("/onboarding");
   const role = membership.role as Role;
-  const canManage = role === "owner" || role === "admin" || (role === "manager" && Boolean(membership.can_manage_services));
+  const canManage = role === "owner" || role === "admin" || Boolean(membership.can_manage_services);
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
   let allowedBranchIds: string[] | null = null;
@@ -39,7 +39,11 @@ export default async function ServicesPage({ searchParams }: Props) {
     ? await supabase.from("services").select("id, branch_id, name, description, queue_prefix, estimated_minutes, is_active, created_at").in("branch_id", branchIds).order("created_at", { ascending: true })
     : { data: [] };
 
-  const selectedBranchId = params.branch && branches.some((branch) => branch.id === params.branch) ? params.branch : "all";
+  const selectedBranchId = params.branch && branches.some((branch) => branch.id === params.branch)
+    ? params.branch
+    : branches.length === 1
+      ? branches[0].id
+      : "";
 
   return <>
     <PreserveDashboardScroll />

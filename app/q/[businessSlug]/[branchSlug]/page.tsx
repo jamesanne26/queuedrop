@@ -6,7 +6,7 @@ import { joinQueue } from "./actions";
 
 type Props = {
   params: Promise<{ businessSlug: string; branchSlug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; service?: string }>;
 };
 
 type Service = {
@@ -43,6 +43,9 @@ export default async function PublicQueuePage({ params, searchParams }: Props) {
 
   if (error || !data) notFound();
   const queue = data as PublicQueue;
+  const preselectedServiceId = query.service && queue.services.some((service) => service.id === query.service)
+    ? query.service
+    : null;
 
   return (
     <main className="public-queue-shell">
@@ -71,9 +74,9 @@ export default async function PublicQueuePage({ params, searchParams }: Props) {
 
             <fieldset className="service-picker">
               <legend>Select service</legend>
-              {queue.services.map((service, index) => (
+              {queue.services.map((service) => (
                 <label className="service-choice" key={service.id}>
-                  <input type="radio" name="service_id" value={service.id} required defaultChecked={index === 0} />
+                  <input type="radio" name="service_id" value={service.id} required defaultChecked={service.id === preselectedServiceId} />
                   <span className="service-choice-content">
                     <strong>{service.name}</strong>
                     <small>

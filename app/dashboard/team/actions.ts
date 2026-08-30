@@ -34,15 +34,8 @@ function displayEmail(email: string | null | undefined) {
   return isPhoneLoginEmail(value) ? null : value || null;
 }
 
-function validateManagerPassword(password: string) {
-  return (
-    password.length >= 10 &&
-    password.length <= 72 &&
-    /[A-Z]/.test(password) &&
-    /[a-z]/.test(password) &&
-    /[0-9]/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
+function validateTeamPassword(password: string) {
+  return password.length >= 6 && password.length <= 72;
 }
 
 function selectedBranches(formData: FormData) {
@@ -178,10 +171,15 @@ export async function createTeamMember(formData: FormData) {
   const phone = validateMobile(rawPhone);
   const password = text(formData, "temporary_password");
   const role = text(formData, "role");
+  const customRoleName = text(formData, "custom_role_name");
+  const businessRoleId = text(formData, "business_role_id");
   const branchIds = selectedBranches(formData);
 
   if (fullName.length < 2 || fullName.length > 100) {
     fail("Full name must be between 2 and 100 characters.", viewBranch);
+  }
+  if (customRoleName.length < 2 || customRoleName.length > 60) {
+    fail("Employee role name must be between 2 and 60 characters.", viewBranch);
   }
 
   if (role === "manager" && !email) {
@@ -208,18 +206,8 @@ export async function createTeamMember(formData: FormData) {
     fail("Mobile number must contain numbers only.", viewBranch);
   }
 
-  if (role === "staff") {
-    if (password.length < 6 || password.length > 72) {
-      fail(
-        "Staff temporary passwords must be between 6 and 72 characters.",
-        viewBranch,
-      );
-    }
-  } else if (!validateManagerPassword(password)) {
-    fail(
-      "Manager temporary passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
-      viewBranch,
-    );
+  if (!validateTeamPassword(password)) {
+    fail("Temporary passwords must be between 6 and 72 characters.", viewBranch);
   }
 
   const {
@@ -231,14 +219,26 @@ export async function createTeamMember(formData: FormData) {
 
   validateRequestedRole(actorRole, role);
 
-  await validateBranchSelection(
-    supabase,
-    membership.business_id,
-    actorRole,
-    managerBranchIds,
-    role,
-    branchIds,
-  );
+  if (!businessRoleId) {
+    await validateBranchSelection(
+      supabase,
+      membership.business_id,
+      actorRole,
+      managerBranchIds,
+      role,
+      branchIds,
+    );
+  } else {
+    const { data: selectedBusinessRole } = await supabase
+      .from("roles")
+      .select("id, base_role, name")
+      .eq("id", businessRoleId)
+      .eq("business_id", membership.business_id)
+      .maybeSingle();
+    if (!selectedBusinessRole || selectedBusinessRole.base_role !== role || selectedBusinessRole.name !== customRoleName) {
+      fail("The selected employee role is invalid.", viewBranch);
+    }
+  }
 
   const admin = createAdminClient();
 
@@ -285,15 +285,19 @@ export async function createTeamMember(formData: FormData) {
     fail(message);
   }
 
-  const { error: membershipError } = await supabase.rpc(
-    "manage_team_member",
-    {
-      target_user_id: created.user.id,
-      target_role: role,
-      target_branch_ids: branchIds,
-      target_active: true,
-    },
-  );
+  const { error: membershipError } = businessRoleId
+    ? await supabase.rpc("manage_team_member_with_business_role", {
+        target_user_id: created.user.id,
+        target_role_id: businessRoleId,
+        target_branch_ids: branchIds,
+        target_active: true,
+      })
+    : await supabase.rpc("manage_team_member", {
+        target_user_id: created.user.id,
+        target_role: role,
+        target_branch_ids: branchIds,
+        target_active: true,
+      });
 
   if (membershipError) {
     await admin.auth.admin.deleteUser(created.user.id);
@@ -307,17 +311,19 @@ export async function createTeamMember(formData: FormData) {
   // Supabase requires a real Auth identifier. Phone-only staff use a private
   // synthetic Auth email, but QueueDrop must never expose that internal value
   // as the team member's actual email. Keep only the real email in profiles.
-  const { error: profileEmailError } = await admin
-    .from("profiles")
-    .update({ email: email || null })
-    .eq("id", created.user.id);
+  const [{ error: profileEmailError }, { error: customRoleError }] = await Promise.all([
+    admin.from("profiles").update({ email: email || null }).eq("id", created.user.id),
+    businessRoleId
+      ? Promise.resolve({ error: null })
+      : admin.from("business_users").update({ custom_role_name: customRoleName }).eq("business_id", membership.business_id).eq("user_id", created.user.id),
+  ]);
 
-  if (profileEmailError) {
+  if (profileEmailError || customRoleError) {
     await supabase.rpc("delete_team_member", {
       target_user_id: created.user.id,
     });
     await admin.auth.admin.deleteUser(created.user.id);
-    fail(profileEmailError.message || "Unable to save the team member profile.", viewBranch);
+    fail(profileEmailError?.message || customRoleError?.message || "Unable to save the team member profile or role.", viewBranch);
   }
 
   revalidatePath("/dashboard/team");
@@ -339,6 +345,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
   const rawPhone = text(formData, "phone");
   const phone = validateMobile(rawPhone);
   const role = text(formData, "role");
+  const businessRoleId = text(formData, "business_role_id");
   const active = text(formData, "is_active") === "true";
   const branchIds = selectedBranches(formData);
   const newPassword = text(formData, "new_password");
@@ -373,19 +380,8 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail("Mobile number must contain numbers only.", viewBranch);
   }
 
-  if (
-    newPassword &&
-    role === "staff" &&
-    (newPassword.length < 6 || newPassword.length > 72)
-  ) {
-    fail("Staff passwords must be between 6 and 72 characters.", viewBranch);
-  }
-
-  if (newPassword && role === "manager" && !validateManagerPassword(newPassword)) {
-    fail(
-      "Manager passwords must be 10-72 characters and include uppercase, lowercase, number, and symbol.",
-      viewBranch,
-    );
+  if (newPassword && !validateTeamPassword(newPassword)) {
+    fail("Passwords must be between 6 and 72 characters.", viewBranch);
   }
 
   const {
@@ -399,7 +395,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
   const { data: targetMembership, error: targetMembershipError } =
     await supabase
       .from("business_users")
-      .select("id, user_id, role, is_active")
+      .select("id, user_id, role, role_id, is_active")
       .eq("business_id", membership.business_id)
       .eq("user_id", userId)
       .maybeSingle();
@@ -414,14 +410,26 @@ export async function updateTeamMemberDetails(formData: FormData) {
 
   validateRequestedRole(actorRole, role);
 
-  await validateBranchSelection(
-    supabase,
-    membership.business_id,
-    actorRole,
-    managerBranchIds,
-    role,
-    branchIds,
-  );
+  if (businessRoleId) {
+    const { data: selectedBusinessRole } = await supabase
+      .from("roles")
+      .select("id, base_role")
+      .eq("id", businessRoleId)
+      .eq("business_id", membership.business_id)
+      .maybeSingle();
+    if (!selectedBusinessRole || selectedBusinessRole.base_role !== role) {
+      fail("The assigned business role is invalid.", viewBranch);
+    }
+  } else {
+    await validateBranchSelection(
+      supabase,
+      membership.business_id,
+      actorRole,
+      managerBranchIds,
+      role,
+      branchIds,
+    );
+  }
 
   if (actorRole === "manager" && targetMembership.role !== "staff") {
     fail("Managers can manage staff accounts only.", viewBranch);
@@ -492,12 +500,21 @@ export async function updateTeamMemberDetails(formData: FormData) {
         .eq("id", userId);
     }
 
-    await supabase.rpc("manage_team_member", {
-      target_user_id: userId,
-      target_role: targetMembership.role,
-      target_branch_ids: previousBranchIds,
-      target_active: targetMembership.is_active,
-    });
+    if (targetMembership.role_id) {
+      await supabase.rpc("manage_team_member_with_business_role", {
+        target_user_id: userId,
+        target_role_id: targetMembership.role_id,
+        target_branch_ids: previousBranchIds,
+        target_active: targetMembership.is_active,
+      });
+    } else {
+      await supabase.rpc("manage_team_member", {
+        target_user_id: userId,
+        target_role: targetMembership.role,
+        target_branch_ids: previousBranchIds,
+        target_active: targetMembership.is_active,
+      });
+    }
   };
 
   // Keep the database-side updates together. Auth is deliberately updated
@@ -511,12 +528,19 @@ export async function updateTeamMemberDetails(formData: FormData) {
         email: effectiveEmail || null,
       })
       .eq("id", userId),
-    supabase.rpc("manage_team_member", {
-      target_user_id: userId,
-      target_role: role,
-      target_branch_ids: branchIds,
-      target_active: active,
-    }),
+    businessRoleId
+      ? supabase.rpc("manage_team_member_with_business_role", {
+          target_user_id: userId,
+          target_role_id: businessRoleId,
+          target_branch_ids: branchIds,
+          target_active: active,
+        })
+      : supabase.rpc("manage_team_member", {
+          target_user_id: userId,
+          target_role: role,
+          target_branch_ids: branchIds,
+          target_active: active,
+        }),
   ]);
 
   if (profileUpdate.error || membershipUpdate.error) {
@@ -616,4 +640,212 @@ export async function deleteTeamMember(formData: FormData) {
   redirect(
     teamUrl(viewBranch, "message", "Team member deleted."),
   );
+}
+
+export async function updateEmployeeAccess(formData: FormData) {
+  const viewBranch = text(formData, "view_branch");
+  const userId = text(formData, "user_id");
+  const customRoleName = text(formData, "custom_role_name");
+  if (!userId) fail("Missing team member.", viewBranch);
+  if (customRoleName.length < 2 || customRoleName.length > 60) {
+    fail("Role name must be between 2 and 60 characters.", viewBranch);
+  }
+
+  const { supabase, role: actorRole } = await getTeamContext();
+  if (!['owner', 'admin'].includes(actorRole)) {
+    fail("Only the business owner or admin can configure custom roles and permissions.", viewBranch);
+  }
+
+  const checked = (name: string) => text(formData, name) === "on";
+  const { error } = await supabase.rpc("set_employee_access", {
+    target_user_id: userId,
+    target_custom_role_name: customRoleName,
+    target_can_set_branch_status: checked("can_set_branch_status"),
+    target_can_manage_services: checked("can_manage_services"),
+    target_can_manage_operating_hours: checked("can_manage_operating_hours"),
+    target_can_manage_team: checked("can_manage_team"),
+    target_can_manage_kiosk_display: checked("can_manage_kiosk_display"),
+    target_can_add_customer: checked("can_add_customer"),
+    target_can_edit_customer: checked("can_edit_customer"),
+    target_can_call_customer: checked("can_call_customer"),
+    target_can_serve_customer: checked("can_serve_customer"),
+    target_can_complete_ticket: checked("can_complete_ticket"),
+    target_can_cancel_ticket: checked("can_cancel_ticket"),
+    target_can_mark_no_show: checked("can_mark_no_show"),
+    target_can_view_customer_contact: checked("can_view_customer_contact"),
+    target_can_view_reports: checked("can_view_reports"),
+    target_can_export_reports: checked("can_export_reports"),
+    target_can_view_audit_logs: checked("can_view_audit_logs"),
+    target_can_view_queue_information_editing: checked("can_view_queue_information_editing"),
+    target_can_view_position_notifications: checked("can_view_position_notifications"),
+  });
+  if (error) fail(error.message || "Unable to update employee access.", viewBranch);
+  revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/settings");
+  redirect(teamUrl(viewBranch, "message", "Employee role and permissions updated."));
+}
+
+async function getRoleManagementContext() {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fteam%3Ftab%3Droles");
+
+  const { data: membership } = await supabase
+    .from("business_users")
+    .select("business_id, role, can_manage_roles")
+    .eq("user_id", userData.user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) fail("You do not have permission to manage roles.");
+  const actorRole = membership.role as Role;
+  if (!["owner", "admin"].includes(actorRole) && !membership.can_manage_roles) {
+    fail("You do not have permission to manage roles.");
+  }
+
+  return { supabase, membership, actorRole };
+}
+
+function rolesUrl(roleId?: string, key?: "message" | "error", message?: string) {
+  const params = new URLSearchParams({ tab: "roles" });
+  if (roleId) params.set("role", roleId);
+  if (key && message) params.set(key, message);
+  return `/dashboard/team?${params.toString()}`;
+}
+
+export async function createBusinessRole(formData: FormData) {
+  const name = text(formData, "name");
+  const description = text(formData, "description");
+  const branchScope = text(formData, "branch_scope");
+  const baseRole: Role = branchScope === "own_branch_only" ? "staff" : "manager";
+  const requestedPermissions = [...new Set(formData.getAll("permissions").map(String).filter(Boolean))];
+
+  if (name.length < 2 || name.length > 60) redirect(rolesUrl(undefined, "error", "Role name must be between 2 and 60 characters."));
+  if (!["own_branch_only", "selected_branches", "all_branches"].includes(branchScope)) redirect(rolesUrl(undefined, "error", "Choose a valid branch scope."));
+
+  const { membership } = await getRoleManagementContext();
+  const admin = createAdminClient();
+
+  const { data: validPermissions } = await admin
+    .from("permissions")
+    .select("code")
+    .in("code", requestedPermissions.length ? requestedPermissions : ["__none__"]);
+  const validCodes = (validPermissions ?? []).map((row) => row.code);
+
+  const { data: role, error: roleError } = await admin
+    .from("roles")
+    .insert({
+      business_id: membership.business_id,
+      name,
+      description: description || null,
+      base_role: baseRole,
+      branch_scope: branchScope,
+      is_system: false,
+      is_protected: false,
+    })
+    .select("id")
+    .single();
+
+  if (roleError || !role) {
+    const msg = roleError?.message?.toLowerCase().includes("duplicate")
+      ? "A role with this name already exists."
+      : roleError?.message || "Unable to create role.";
+    redirect(rolesUrl(undefined, "error", msg));
+  }
+
+  if (validCodes.length) {
+    const { error: permissionError } = await admin
+      .from("role_permissions")
+      .insert(validCodes.map((permission_code) => ({ role_id: role.id, permission_code })));
+    if (permissionError) {
+      await admin.from("roles").delete().eq("id", role.id);
+      redirect(rolesUrl(undefined, "error", permissionError.message || "Unable to save role permissions."));
+    }
+  }
+
+  revalidatePath("/dashboard/team");
+  redirect(rolesUrl(role.id, "message", "Custom role created successfully."));
+}
+
+export async function updateBusinessRole(formData: FormData) {
+  const roleId = text(formData, "role_id");
+  const name = text(formData, "name");
+  const description = text(formData, "description");
+  const branchScope = text(formData, "branch_scope");
+  const requestedPermissions = [...new Set(formData.getAll("permissions").map(String).filter(Boolean))];
+
+  if (!roleId) redirect(rolesUrl(undefined, "error", "Missing role."));
+  if (name.length < 2 || name.length > 60) redirect(rolesUrl(roleId, "error", "Role name must be between 2 and 60 characters."));
+  if (!["own_branch_only", "selected_branches", "all_branches"].includes(branchScope)) redirect(rolesUrl(roleId, "error", "Choose a valid branch scope."));
+
+  const { supabase, membership } = await getRoleManagementContext();
+  const admin = createAdminClient();
+  const { data: role } = await admin
+    .from("roles")
+    .select("id, business_id, is_protected, base_role")
+    .eq("id", roleId)
+    .eq("business_id", membership.business_id)
+    .maybeSingle();
+
+  if (!role) redirect(rolesUrl(undefined, "error", "Role was not found."));
+  if (role.is_protected) redirect(rolesUrl(roleId, "error", "This system role is protected."));
+
+  const { data: validPermissions } = await admin
+    .from("permissions")
+    .select("code")
+    .in("code", requestedPermissions.length ? requestedPermissions : ["__none__"]);
+  const validCodes = (validPermissions ?? []).map((row) => row.code);
+
+  const nextBaseRole: Role = branchScope === "own_branch_only" ? "staff" : "manager";
+
+  const { error: updateError } = await admin
+    .from("roles")
+    .update({ name, description: description || null, base_role: nextBaseRole, branch_scope: branchScope, updated_at: new Date().toISOString() })
+    .eq("id", roleId)
+    .eq("business_id", membership.business_id);
+  if (updateError) redirect(rolesUrl(roleId, "error", updateError.message || "Unable to update role."));
+
+  await admin.from("role_permissions").delete().eq("role_id", roleId);
+  if (validCodes.length) {
+    const { error: permissionError } = await admin
+      .from("role_permissions")
+      .insert(validCodes.map((permission_code) => ({ role_id: roleId, permission_code })));
+    if (permissionError) redirect(rolesUrl(roleId, "error", permissionError.message || "Unable to update role permissions."));
+  }
+
+  const { data: assignedMembers } = await admin
+    .from("business_users")
+    .select("id")
+    .eq("business_id", membership.business_id)
+    .eq("role_id", roleId);
+
+  for (const member of assignedMembers ?? []) {
+    const { error } = await supabase.rpc("apply_business_role_to_user", {
+      target_business_user_id: member.id,
+      target_role_id: roleId,
+    });
+    if (error) redirect(rolesUrl(roleId, "error", error.message || "Role saved, but employee access could not be synchronized."));
+  }
+
+  revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard");
+  redirect(rolesUrl(roleId, "message", "Role permissions updated successfully."));
+}
+
+export async function assignBusinessRoleToEmployee(formData: FormData) {
+  const businessUserId = text(formData, "business_user_id");
+  const roleId = text(formData, "role_id");
+  const viewBranch = text(formData, "view_branch");
+  if (!businessUserId || !roleId) fail("Missing employee role assignment.", viewBranch);
+
+  const { supabase } = await getTeamContext();
+  const { error } = await supabase.rpc("apply_business_role_to_user", {
+    target_business_user_id: businessUserId,
+    target_role_id: roleId,
+  });
+  if (error) fail(error.message || "Unable to assign role.", viewBranch);
+
+  revalidatePath("/dashboard/team");
+  redirect(teamUrl(viewBranch, "message", "Employee role updated successfully."));
 }

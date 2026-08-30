@@ -33,7 +33,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
     return counts;
   }, [services]);
   const visibleServices = useMemo(
-    () => selectedBranchId === "all" ? services : services.filter((s) => s.branch_id === selectedBranchId),
+    () => selectedBranchId ? services.filter((s) => s.branch_id === selectedBranchId) : [],
     [selectedBranchId, services],
   );
 
@@ -58,7 +58,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
   function selectBranch(branchId: string) {
     setSelectedBranchId(branchId);
     const url = new URL(window.location.href);
-    if (branchId === "all") url.searchParams.delete("branch");
+    if (!branchId) url.searchParams.delete("branch");
     else url.searchParams.set("branch", branchId);
     window.history.replaceState(null, "", `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ""}`);
   }
@@ -89,7 +89,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
     form.requestSubmit();
   }
 
-  const selectedBranch = selectedBranchId === "all" ? null : branchById.get(selectedBranchId);
+  const selectedBranch = selectedBranchId ? branchById.get(selectedBranchId) : null;
 
   return (
     <>
@@ -98,15 +98,12 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
           <label className="responsive-branch-select">
             <span>Branch</span>
             <select value={selectedBranchId} onChange={(e) => selectBranch(e.target.value)} aria-label="Select branch">
-              <option value="all">View all services</option>
+              <option value="" disabled>Select branch</option>
               {branches.map((branch) => <option value={branch.id} key={branch.id}>{branch.name} - {countByBranch.get(branch.id) ?? 0} services</option>)}
             </select>
           </label>
         </div>
         <div className="service-branch-tabs service-branch-tabs-desktop">
-          <button type="button" onClick={() => selectBranch("all")} className={selectedBranchId === "all" ? "service-branch-tab service-branch-tab-active" : "service-branch-tab"}>
-            <strong>View all services</strong><span>{services.length} total</span>
-          </button>
           {branches.map((branch) => (
             <button key={branch.id} type="button" onClick={() => selectBranch(branch.id)} className={selectedBranchId === branch.id ? "service-branch-tab service-branch-tab-active" : "service-branch-tab"}>
               <strong>{branch.name}</strong><span>{countByBranch.get(branch.id) ?? 0} services</span>
@@ -118,7 +115,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
       <div className="management-grid services-management-grid">
         <section className="dashboard-section dashboard-section-stack management-list-card">
           <div className="section-row"><div><p className="eyebrow">Configured services</p><h2>{visibleServices.length} service{visibleServices.length === 1 ? "" : "s"}</h2></div>{selectedBranch ? <span className="muted">{selectedBranch.name}</span> : null}</div>
-          {visibleServices.length ? <div className="service-list">
+          {!selectedBranchId ? <div className="mini-empty services-select-first"><strong>Select a branch first.</strong><span>Choose a branch above to view and manage its services.</span></div> : visibleServices.length ? <div className="service-list">
             {visibleServices.map((service) => {
               const branch = branchById.get(service.branch_id);
               return <article className="service-row" key={service.id}>
@@ -137,18 +134,22 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
                 </div> : null}
               </article>;
             })}
-          </div> : <div className="mini-empty"><strong>No services in this view.</strong><span>Select another branch or create a service for this branch.</span></div>}
+          </div> : <div className="mini-empty"><strong>No services in this branch.</strong><span>Create the first service for this branch.</span></div>}
         </section>
 
         {canManage ? <section className="dashboard-section dashboard-section-stack management-form-card service-create-card">
           <div><p className="eyebrow">Add queue category</p><h2>Create service</h2></div>
-          <form action={createService} className="form-stack management-form">
-            {selectedBranchId !== "all" ? <input type="hidden" name="branch_id" value={selectedBranchId}/> : <div className="mini-empty"><strong>Select a branch first.</strong><span>Choose a branch above before creating a service.</span></div>}
-            <label>Service name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Haircut"/></label>
-            <label>Description <em>optional</em><textarea name="description" maxLength={500} placeholder="What this queue is for"/></label>
-            <div className="form-split"><label>Queue prefix <em>optional</em><input name="queue_prefix" maxLength={6} placeholder="HC"/></label><label>Estimated minutes <em>optional</em><input name="estimated_minutes" type="number" min={1} max={480} step={1} placeholder="30"/></label></div>
-            <button className="button button-primary" type="submit" disabled={!branches.length || selectedBranchId === "all"}>Create service</button>
-          </form>
+          {selectedBranchId ? (
+            <form action={createService} className="form-stack management-form">
+              <input type="hidden" name="branch_id" value={selectedBranchId}/>
+              <label>Service name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Haircut"/></label>
+              <label>Description <em>optional</em><textarea name="description" maxLength={500} placeholder="What this queue is for"/></label>
+              <div className="form-split"><label>Queue prefix <em>optional</em><input name="queue_prefix" maxLength={6} placeholder="HC"/></label><label>Estimated minutes <em>optional</em><input name="estimated_minutes" type="number" min={1} max={480} step={1} placeholder="30"/></label></div>
+              <button className="button button-primary" type="submit">Create service</button>
+            </form>
+          ) : (
+            <div className="mini-empty services-select-first"><strong>Select a branch first.</strong><span>Choose a branch above before the service form becomes available.</span></div>
+          )}
         </section> : null}
       </div>
 

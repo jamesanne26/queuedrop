@@ -12,9 +12,12 @@ type Props = {
   role?: "owner" | "admin" | "manager" | "staff" | null;
   canViewSettings?: boolean;
   canViewReports?: boolean;
+  canManageTeam?: boolean;
+  canManageServices?: boolean;
+  canManageBranches?: boolean;
 };
 
-export function DashboardSidebar({ active, role = "owner", canViewSettings, canViewReports }: Props) {
+export function DashboardSidebar({ active, role = "owner", canViewSettings, canViewReports, canManageTeam, canManageServices, canManageBranches }: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -60,7 +63,9 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
     return () => globalThis.clearTimeout(timeoutId);
   }, [router]);
 
-  const canManageTeam = role === "owner" || role === "admin" || role === "manager";
+  const teamVisible = canManageTeam ?? (role === "owner" || role === "admin" || role === "manager");
+  const servicesVisible = canManageServices ?? true;
+  const branchesVisible = canManageBranches ?? true;
   const settingsVisible = canViewSettings ?? (role === "owner" || role === "admin" || role === "manager");
   const reportsVisible = canViewReports ?? (role === "owner" || role === "admin");
   const canOpenClientPage = role === "owner" || role === "admin";
@@ -68,10 +73,10 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      <Link className={`nav-item ${currentActive === "branches" ? "nav-item-active" : ""}`} href="/dashboard/branches" onClick={() => setOpen(false)}>Branches</Link>
-      <Link className={`nav-item ${currentActive === "services" ? "nav-item-active" : ""}`} href="/dashboard/services" onClick={() => setOpen(false)}>Services</Link>
+      {branchesVisible ? <Link className={`nav-item ${currentActive === "branches" ? "nav-item-active" : ""}`} href="/dashboard/branches" onClick={() => setOpen(false)}>Branches</Link> : null}
+      {servicesVisible ? <Link className={`nav-item ${currentActive === "services" ? "nav-item-active" : ""}`} href="/dashboard/services" onClick={() => setOpen(false)}>Services</Link> : null}
       <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queues</Link>
-      {canManageTeam ? <Link className={`nav-item ${currentActive === "team" ? "nav-item-active" : ""}`} href="/dashboard/team" onClick={() => setOpen(false)}>Team</Link> : null}
+      {teamVisible ? <Link className={`nav-item ${currentActive === "team" ? "nav-item-active" : ""}`} href="/dashboard/team" onClick={() => setOpen(false)}>Team</Link> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History & Reports</Link> : null}
       {settingsVisible ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
     </>

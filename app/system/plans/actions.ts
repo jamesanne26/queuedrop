@@ -105,3 +105,63 @@ export async function savePlan(formData: FormData) {
   revalidatePath("/client/subscription");
   redirect(plansUrl("message", id ? "Plan updated." : "Plan created."));
 }
+
+export async function deletePlan(formData: FormData) {
+  const actor = await requireSystemOwner();
+  const admin = createAdminClient();
+  const id = text(formData, "plan_id");
+  if (!id) redirect(plansUrl("error", "Plan ID is missing."));
+
+  try {
+    const { data: plan, error: planError } = await admin
+      .from("plans")
+      .select("id,name")
+      .eq("id", id)
+      .maybeSingle();
+    if (planError) throw planError;
+    if (!plan) throw new Error("Plan was not found.");
+
+    const [{ count: liveSubscriptionCount, error: usageError }, { count: openOrderCount, error: orderError }] = await Promise.all([
+      admin
+        .from("business_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_id", id)
+        .in("status", ["trialing", "active", "past_due"]),
+      admin
+        .from("subscription_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_id", id)
+        .in("status", ["pending", "checkout_created"]),
+    ]);
+    if (usageError) throw usageError;
+    if (orderError) throw orderError;
+    if ((liveSubscriptionCount ?? 0) > 0) {
+      throw new Error("This plan is still used by an active client subscription. Reassign that client first, then delete the plan.");
+    }
+    if ((openOrderCount ?? 0) > 0) {
+      throw new Error("This plan still has an unfinished checkout. Finish or cancel that order first, then delete the plan.");
+    }
+
+    // Historical cancelled/expired subscriptions and completed/failed orders
+    // are preserved. The database migration changes those plan references to
+    // ON DELETE SET NULL, so their billing history remains intact.
+    const { error } = await admin.from("plans").delete().eq("id", id);
+    if (error) throw error;
+
+    await admin.from("system_audit_logs").insert({
+      actor_user_id: actor.id,
+      action: "plan.deleted",
+      entity_type: "plan",
+      entity_id: id,
+      details: { name: plan.name },
+    });
+  } catch (error) {
+    redirect(plansUrl("error", error instanceof Error ? error.message : "Unable to delete plan."));
+  }
+
+  revalidatePath("/system");
+  revalidatePath("/system/plans");
+  revalidatePath("/pricing");
+  revalidatePath("/client/subscription");
+  redirect(plansUrl("message", "Plan deleted."));
+}
