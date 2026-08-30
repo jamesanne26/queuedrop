@@ -63,7 +63,7 @@ export async function callNextAction(formData: FormData) {
     );
   }
 
-  await dispatchSmsAfterQueueChange();
+  await dispatchSmsAfterQueueChange(branchId);
   revalidatePath("/dashboard/queues");
   redirect(
     queueRedirectUrl(branchId, serviceId, "success", "Next customer moved to serving"),
@@ -91,7 +91,7 @@ export async function returnLastCustomerAction(formData: FormData) {
     redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
   }
 
-  await dispatchSmsAfterQueueChange();
+  await dispatchSmsAfterQueueChange(branchId);
   revalidatePath("/dashboard/queues");
   redirect(
     queueRedirectUrl(branchId, serviceId, "success", "Last serving customer returned to queue"),
@@ -130,7 +130,7 @@ export async function updateTicketAction(formData: FormData) {
     );
   }
 
-  await dispatchSmsAfterQueueChange();
+  await dispatchSmsAfterQueueChange(branchId);
   revalidatePath("/dashboard/queues");
   redirect(
     queueRedirectUrl(branchId, serviceId, "success", "Queue updated"),
@@ -240,7 +240,7 @@ export async function staffAssistedJoinAction(
 
   const result = data as { display_number?: string } | null;
 
-  await dispatchSmsAfterQueueChange();
+  await dispatchSmsAfterQueueChange(branchId);
   revalidatePath("/dashboard/queues");
 
   return {

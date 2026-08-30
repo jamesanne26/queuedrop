@@ -60,6 +60,13 @@ export async function joinQueue(formData: FormData) {
     redirect(queueUrl(businessSlug, branchSlug, "Queue ticket was not created."));
   }
 
-  await dispatchSmsAfterQueueChange();
+  const { data: branch } = await supabase
+    .from("branches")
+    .select("id, businesses!inner(slug)")
+    .eq("slug", branchSlug)
+    .eq("businesses.slug", businessSlug)
+    .maybeSingle();
+
+  await dispatchSmsAfterQueueChange(branch?.id);
   redirect(`/q/status/${encodeURIComponent(result.session_token)}`);
 }

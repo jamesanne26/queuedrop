@@ -14,15 +14,28 @@ function semaphoreConfig() {
   };
 }
 
+function normalizeSmsRecipient(recipient: string) {
+  const digits = recipient.replace(/\D/g, "");
+
+  // QueueDrop currently accepts numbers-only input. Treat the familiar
+  // Philippine 09xxxxxxxxx format as +63 internally for the SMS provider.
+  if (/^09\d{9}$/.test(digits)) return `63${digits.slice(1)}`;
+  if (/^9\d{9}$/.test(digits)) return `63${digits}`;
+  if (/^639\d{9}$/.test(digits)) return digits;
+
+  return digits;
+}
+
 async function sendSemaphoreSms(recipient: string, message: string) {
   const { apiKey, senderName } = semaphoreConfig();
   if (!apiKey) {
     return { configured: false as const };
   }
 
+  const normalizedRecipient = normalizeSmsRecipient(recipient);
   const body = new URLSearchParams({
     apikey: apiKey,
-    number: recipient,
+    number: normalizedRecipient,
     message,
   });
   if (senderName) body.set("sendername", senderName);
@@ -121,8 +134,16 @@ export async function processPendingSmsNotifications(limit = 20) {
   return { sent, failed, skipped: false };
 }
 
-export async function dispatchSmsAfterQueueChange() {
+export async function dispatchSmsAfterQueueChange(branchId?: string) {
   try {
+    if (branchId) {
+      const admin = createAdminClient();
+      const { error } = await admin.rpc("enqueue_branch_position_notifications", {
+        target_branch_id: branchId,
+      });
+      if (error) throw error;
+    }
+
     await processPendingSmsNotifications();
   } catch (error) {
     // Queue operations must still succeed even if the external SMS provider is down.
