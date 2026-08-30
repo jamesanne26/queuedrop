@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { dispatchSmsAfterQueueChange } from "@/lib/notifications/sms";
 
 function field(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -59,5 +60,6 @@ export async function joinQueue(formData: FormData) {
     redirect(queueUrl(businessSlug, branchSlug, "Queue ticket was not created."));
   }
 
+  await dispatchSmsAfterQueueChange();
   redirect(`/q/status/${encodeURIComponent(result.session_token)}`);
 }

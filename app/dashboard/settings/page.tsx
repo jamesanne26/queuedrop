@@ -137,7 +137,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         supabase
           .from("queue_configurations")
           .select(
-            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, sms_notifications_enabled, sms_start_position, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
           )
           .eq("branch_id", selectedBranchId)
           .maybeSingle(),
@@ -390,11 +390,38 @@ export default async function SettingsPage({ searchParams }: Props) {
                 </p>
               </div>
 
+              <div className="settings-sms-threshold">
+                <label className="compact-check">
+                  <input
+                    type="checkbox"
+                    name="sms_notifications_enabled"
+                    defaultChecked={config?.sms_notifications_enabled ?? false}
+                  />
+                  <span>Enable automatic SMS queue updates</span>
+                </label>
+
+                <label className="settings-number-field">
+                  Start texting when customer reaches position
+                  <input
+                    name="sms_start_position"
+                    type="number"
+                    min={1}
+                    max={20}
+                    step={1}
+                    defaultValue={config?.sms_start_position ?? 3}
+                  />
+                </label>
+                <p className="muted">
+                  Example: set this to 3. A customer receives an SMS at 3rd,
+                  another SMS when they move to 2nd, and another when they move to 1st.
+                </p>
+              </div>
+
               <PositionRules
                 key={`${selectedBranchId}:${params.saved ?? "initial"}:position-rules`}
                 initialRules={(notificationRules ?? []).map((rule) => ({
                   position: rule.position,
-                  send_sms_once: rule.send_sms_once,
+                  send_sms_once: false,
                   browser_notification: rule.browser_notification,
                 }))}
               />
@@ -402,6 +429,8 @@ export default async function SettingsPage({ searchParams }: Props) {
 
             ) : (
               <>
+                {config?.sms_notifications_enabled ? <input type="hidden" name="sms_notifications_enabled" value="on" /> : null}
+                <input type="hidden" name="sms_start_position" value={config?.sms_start_position ?? 3} />
                 <input type="hidden" name="position_rule_count" value={(notificationRules ?? []).length} />
                 {(notificationRules ?? []).map((rule, index) => (
                   <span key={`hidden-position-rule-${rule.position}`} style={{ display: "none" }}>

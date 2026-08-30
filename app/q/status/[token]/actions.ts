@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { dispatchSmsAfterQueueChange } from "@/lib/notifications/sms";
 
 export async function updateCustomerTicket(formData: FormData) {
   const token = String(formData.get("token") ?? "").trim();
@@ -32,6 +33,7 @@ export async function leaveQueue(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("leave_public_queue", { target_session_token: token, target_exit_code: exitCode });
   if (error) redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent(error.message)}`);
+  await dispatchSmsAfterQueueChange();
   revalidatePath(`/q/status/${token}`);
   redirect(`/q/status/${encodeURIComponent(token)}?message=${encodeURIComponent("You left the queue.")}`);
 }
