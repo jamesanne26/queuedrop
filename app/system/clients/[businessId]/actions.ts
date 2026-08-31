@@ -64,3 +64,45 @@ export async function saveClientOverrides(formData: FormData) {
   revalidatePath("/client/subscription");
   redirect(`/system/clients/${businessId}?message=${encodeURIComponent("Client subscription settings updated.")}`);
 }
+
+export async function saveCustomerMoveDownVisibility(formData: FormData) {
+  const actor = await requireSystemOwner();
+  const admin = createAdminClient();
+  const businessId = text(formData, "business_id");
+  const branchId = text(formData, "branch_id");
+  const enabled = formData.get("customer_can_move_down") === "on";
+
+  if (!businessId || !branchId) {
+    redirect("/system?error=Missing%20client%20or%20branch.");
+  }
+
+  try {
+    const { data: branch, error: branchError } = await admin
+      .from("branches")
+      .select("id,business_id,name")
+      .eq("id", branchId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (branchError || !branch) throw branchError ?? new Error("Branch not found for this client.");
+
+    const { error } = await admin
+      .from("queue_configurations")
+      .upsert({ branch_id: branchId, customer_can_move_down: enabled, updated_at: new Date().toISOString() }, { onConflict: "branch_id" });
+    if (error) throw error;
+
+    await admin.from("system_audit_logs").insert({
+      actor_user_id: actor.id,
+      action: "client.customer_move_down_visibility.updated",
+      entity_type: "branch",
+      entity_id: branchId,
+      details: { business_id: businessId, branch_name: branch.name, customer_can_move_down: enabled },
+    });
+  } catch (error) {
+    redirect(`/system/clients/${businessId}?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to update customer move-down visibility.")}`);
+  }
+
+  revalidatePath(`/system/clients/${businessId}`);
+  revalidatePath("/dashboard/settings");
+  redirect(`/system/clients/${businessId}?message=${encodeURIComponent("Customer move-down visibility updated.")}`);
+}

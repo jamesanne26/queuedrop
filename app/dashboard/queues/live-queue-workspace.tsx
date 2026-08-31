@@ -1043,14 +1043,14 @@ export function LiveQueueWorkspace({
                   <article className="qd-history-row" key={item.id}>
                     <div>
                       <strong>
-                        {item.field_name === "mobile" ? "Mobile" : "Name"}
+                        {item.field_name === "mobile" ? "Mobile" : item.field_name === "queue_position" ? "Queue position" : "Name"}
                       </strong>
                       <span>
                         {item.old_value || "-"} {"->"} {item.new_value || "-"}
                       </span>
                     </div>
                     <small>
-                      {item.changed_by_type} - {" "}
+                      {item.changed_by_label ?? item.changed_by_type} - {" "}
                       {new Date(item.created_at).toLocaleString()}
                     </small>
                   </article>
@@ -1058,7 +1058,7 @@ export function LiveQueueWorkspace({
               ) : (
                 <div className="mini-empty">
                   <strong>No changes yet.</strong>
-                  <span>This ticket still has its original customer details.</span>
+                  <span>No customer detail or queue-position changes have been recorded.</span>
                 </div>
               )}
             </div>

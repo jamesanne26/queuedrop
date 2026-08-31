@@ -37,3 +37,26 @@ export async function leaveQueue(formData: FormData) {
   revalidatePath(`/q/status/${token}`);
   redirect(`/q/status/${encodeURIComponent(token)}?message=${encodeURIComponent("You left the queue.")}`);
 }
+
+
+export async function moveDownOnePlace(formData: FormData) {
+  const token = String(formData.get("token") ?? "").trim();
+  const confirmationCode = String(formData.get("confirmation_code") ?? "").trim().toUpperCase();
+  if (!token) redirect("/");
+  if (!/^[A-Z0-9]{6}$/.test(confirmationCode)) {
+    redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent("Enter the 6-character confirmation code.")}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("move_public_ticket_down_one", {
+    target_session_token: token,
+    target_confirmation_code: confirmationCode,
+  });
+  if (error) {
+    redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await dispatchSmsAfterQueueChange();
+  revalidatePath(`/q/status/${token}`);
+  redirect(`/q/status/${encodeURIComponent(token)}?message=${encodeURIComponent("You moved down one place in the queue.")}`);
+}

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LiveStatus } from "./live-status";
 import { updateCustomerTicket } from "./actions";
 import { LeaveQueueForm } from "./leave-queue-form";
+import { MoveDownForm } from "./move-down-form";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ message?: string; error?: string }> };
@@ -11,7 +12,7 @@ type QueueListItem = { display_number: string; position: number; is_you: boolean
 type TicketStatus = {
   ticket_id: string; display_number: string; status: "waiting"|"called"|"serving"|"completed"|"cancelled"|"no_show";
   position: number; customer_name: string|null; customer_phone: string|null;
-  customer_can_edit_name: boolean; customer_can_edit_mobile: boolean; customer_refresh_seconds: number; exit_code: string;
+  customer_can_edit_name: boolean; customer_can_edit_mobile: boolean; customer_can_move_down: boolean; customer_refresh_seconds: number; exit_code: string;
   business_name: string; branch_name: string; branch_phone: string|null; service_name: string; joined_at: string; queue_list: QueueListItem[];
 };
 
@@ -83,10 +84,15 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
       <section className="ticket-status-card customer-queue-list-card customer-queue-below">
         <div><p className="eyebrow">Current queue</p><h2>{ticket.service_name}</h2><p className="muted">Other customer names are hidden. Your row is highlighted.</p></div>
         <div className="customer-queue-list">
-          <div className="customer-queue-list-head"><span>Queue</span><span>Position</span></div>
-          {(ticket.queue_list ?? []).map((item) => <div className={item.is_you ? "customer-queue-list-row customer-queue-list-row-you" : "customer-queue-list-row"} key={item.display_number}>
-            <div><strong>{item.display_number}</strong><small>{item.is_you ? `${item.customer_name ?? ticket.customer_name ?? "You"} - You` : "Name hidden"}</small></div><strong>{item.position}</strong>
-          </div>)}
+          <div className="customer-queue-list-head"><span>Queue</span><span aria-hidden="true"></span><span>Position</span></div>
+          {(ticket.queue_list ?? []).map((item) => {
+            const canMoveThisRow = item.is_you && ticket.status === "waiting" && ticket.customer_can_move_down && ticket.position > 0 && ticket.position < (ticket.queue_list?.length ?? 0);
+            return <div className={item.is_you ? "customer-queue-list-row customer-queue-list-row-you" : "customer-queue-list-row"} key={item.display_number}>
+              <div><strong>{item.display_number}</strong><small>{item.is_you ? `${item.customer_name ?? ticket.customer_name ?? "You"} - You` : "Name hidden"}</small></div>
+              <div className="customer-queue-row-action">{canMoveThisRow ? <MoveDownForm token={token} confirmationCode={ticket.exit_code} compact /> : null}</div>
+              <strong className="customer-queue-position">{item.position}</strong>
+            </div>;
+          })}
         </div>
       </section>
       <p className="ticket-security-note"><Link href="/">QueueDrop</Link> private ticket link. Keep it private.</p>

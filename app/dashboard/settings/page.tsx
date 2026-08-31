@@ -137,7 +137,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         supabase
           .from("queue_configurations")
           .select(
-            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, sms_notifications_enabled, sms_start_position, customer_can_edit_name, customer_can_edit_mobile, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, sms_notifications_enabled, sms_start_position, customer_can_edit_name, customer_can_edit_mobile, customer_can_move_down, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
           )
           .eq("branch_id", selectedBranchId)
           .maybeSingle(),
@@ -472,6 +472,14 @@ export default async function SettingsPage({ searchParams }: Props) {
                     />{" "}
                     Can edit mobile number
                   </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="customer_can_move_down"
+                      defaultChecked={config?.customer_can_move_down ?? false}
+                    />{" "}
+                    Can move down 1 queue position
+                  </label>
                 </div>
 
                 <div className="permission-card">
@@ -520,6 +528,7 @@ export default async function SettingsPage({ searchParams }: Props) {
               <>
                 {config?.customer_can_edit_name ? <input type="hidden" name="customer_can_edit_name" value="on" /> : null}
                 {config?.customer_can_edit_mobile ? <input type="hidden" name="customer_can_edit_mobile" value="on" /> : null}
+                {config?.customer_can_move_down ? <input type="hidden" name="customer_can_move_down" value="on" /> : null}
                 {config?.staff_can_edit_name ? <input type="hidden" name="staff_can_edit_name" value="on" /> : null}
                 {config?.staff_can_edit_mobile ? <input type="hidden" name="staff_can_edit_mobile" value="on" /> : null}
                 {config?.manager_can_edit_name ? <input type="hidden" name="manager_can_edit_name" value="on" /> : null}

@@ -5057,3 +5057,90 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
 .sms-check { display:flex!important; grid-template-columns:auto 1fr; align-items:center; gap:.5rem!important; color:var(--ink)!important; }
 .sms-check input { width:auto!important; min-height:auto!important; }
 @media (max-width:760px){ .sms-config-grid{grid-template-columns:1fr;} }
+
+
+/* Customer self-service queue position control */
+.customer-ticket-hero > .customer-move-down-button {
+  width: calc(100% - 76px);
+  margin: 0 auto 14px;
+}
+.customer-move-down-panel {
+  border-color: #cfe2d8;
+  background: #f8fcfa;
+}
+@media (max-width: 720px) {
+  .customer-ticket-hero > .customer-move-down-button {
+    width: calc(100% - 44px);
+  }
+}
+
+/* Customer move-down control lives in the customer's highlighted queue row. */
+.customer-queue-list-head,
+.customer-queue-list-row {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, .65fr) 100px;
+}
+.customer-queue-row-action {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.customer-move-down-button-compact {
+  width: auto;
+  min-height: 40px;
+  padding: .55rem .85rem;
+  white-space: nowrap;
+}
+.customer-queue-position {
+  justify-self: start;
+}
+.customer-move-down-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 35, 27, .42);
+}
+.customer-move-down-modal {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .22);
+}
+.customer-move-down-modal .customer-move-down-panel {
+  margin: 0;
+  border: 0;
+  border-radius: 18px;
+}
+@media (max-width: 900px) {
+  .customer-queue-list-head,
+  .customer-queue-list-row {
+    grid-template-columns: minmax(0, 1fr) minmax(132px, auto) 72px;
+    gap: .5rem;
+  }
+  .customer-move-down-button-compact {
+    min-height: 38px;
+    padding: .48rem .62rem;
+    font-size: .78rem;
+    line-height: 1.15;
+    white-space: normal;
+  }
+}
+@media (max-width: 560px) {
+  .customer-queue-list-head,
+  .customer-queue-list-row {
+    grid-template-columns: minmax(0, 1fr) 118px 54px;
+    padding-left: .65rem;
+    padding-right: .65rem;
+  }
+  .customer-move-down-button-compact {
+    width: 100%;
+  }
+  .customer-move-down-modal-backdrop {
+    padding: 12px;
+  }
+}

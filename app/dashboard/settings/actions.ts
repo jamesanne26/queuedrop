@@ -192,6 +192,40 @@ export async function updateQueueSettings(formData: FormData) {
   });
   if (smsSettingsError) fail(branchId, smsSettingsError.message);
 
+  const moveDownEnabled = checked(formData, "customer_can_move_down");
+  const { error: moveDownSettingError } = await supabase.rpc("set_branch_customer_move_down_setting", {
+    target_branch_id: branchId,
+    target_enabled: moveDownEnabled,
+  });
+
+  if (moveDownSettingError) {
+    // Keep unrelated Settings saves (for example, Operating Hours) working even
+    // when PostgREST has not refreshed the newly added RPC in its schema cache.
+    // Business admins already have RLS permission to update queue_configurations,
+    // so this is a safe compatibility fallback while the repair migration reloads
+    // the API schema. Other permission scopes still use the security-definer RPC.
+    const missingMoveDownRpc =
+      moveDownSettingError.code === "PGRST202" ||
+      /set_branch_customer_move_down_setting/i.test(moveDownSettingError.message) &&
+        /schema cache|could not find the function/i.test(moveDownSettingError.message);
+
+    if (!missingMoveDownRpc) {
+      fail(branchId, moveDownSettingError.message);
+    }
+
+    const { error: fallbackError } = await supabase
+      .from("queue_configurations")
+      .update({ customer_can_move_down: moveDownEnabled })
+      .eq("branch_id", branchId);
+
+    if (fallbackError) {
+      fail(
+        branchId,
+        `Unable to save the customer move-down setting. Apply the latest Supabase migrations and try again. ${fallbackError.message}`,
+      );
+    }
+  }
+
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/branches");
 

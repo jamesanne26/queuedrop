@@ -270,10 +270,11 @@ export type ServiceHistoryTicket = {
 
 export type TicketCustomerChange = {
   id: string;
-  field_name: "name" | "mobile";
+  field_name: "name" | "mobile" | "queue_position";
   old_value: string | null;
   new_value: string | null;
   changed_by_type: string;
+  changed_by_label: string | null;
   created_at: string;
 };
 
@@ -293,7 +294,7 @@ export async function loadTicketChangeHistoryAction(
   const { data, error } = await supabase
     .from("ticket_customer_changes")
     .select(
-      "id, field_name, old_value, new_value, changed_by_type, created_at",
+      "id, field_name, old_value, new_value, changed_by_type, changed_by_label, created_at",
     )
     .eq("ticket_id", ticketId)
     .order("created_at", { ascending: false });

@@ -29,6 +29,7 @@ const LABELS: Record<string, string> = {
   show_branch_contact: "Show branch contact",
   customer_can_edit_name: "Customer can edit name",
   customer_can_edit_mobile: "Customer can edit mobile",
+  customer_can_move_down: "Customer can move down 1 queue position",
   staff_can_edit_name: "Staff can edit name",
   staff_can_edit_mobile: "Staff can edit mobile",
   manager_can_edit_name: "Manager can edit name",
