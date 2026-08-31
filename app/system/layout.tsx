@@ -17,6 +17,7 @@ export default async function SystemLayout({ children }: { children: ReactNode }
         <nav>
           <Link href="/system">Clients</Link>
           <Link href="/system/plans">Plans</Link>
+          <Link href="/system/sms">SMS Routing</Link>
           <Link href="/pricing">Public pricing</Link>
           <Link href="/">Website</Link>
         </nav>

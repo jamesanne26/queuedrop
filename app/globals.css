@@ -5049,3 +5049,11 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
     padding-inline: .65rem !important;
   }
 }
+
+.sms-config-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; align-items:end; }
+.sms-config-grid label, .sms-config-grid fieldset { display:grid; gap:.45rem; color:var(--muted); font-size:.82rem; font-weight:750; }
+.sms-config-grid input, .sms-config-grid select { width:100%; min-height:44px; padding:.65rem .75rem; border:1px solid var(--line); border-radius:10px; background:white; color:var(--ink); }
+.sms-config-grid fieldset { margin:0; padding:.75rem; border:1px solid var(--line); border-radius:12px; }
+.sms-check { display:flex!important; grid-template-columns:auto 1fr; align-items:center; gap:.5rem!important; color:var(--ink)!important; }
+.sms-check input { width:auto!important; min-height:auto!important; }
+@media (max-width:760px){ .sms-config-grid{grid-template-columns:1fr;} }
