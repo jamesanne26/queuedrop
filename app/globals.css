@@ -5189,3 +5189,68 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
     min-height: 0 !important;
   }
 }
+
+/* 2026-09-01 v3: keep the tablet-landscape QR action fully reachable above the browser viewport edge. */
+@media (orientation: landscape) and (min-width: 701px) and (max-width: 1400px) and (max-height: 900px) and (pointer: coarse) {
+  html,
+  body:has(.live-queue-shell-refined) {
+    min-height: 100%;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto;
+  }
+
+  .live-queue-shell-refined {
+    padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-queue-workspace-refined {
+    padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-service-panel-refined {
+    align-self: start !important;
+    overflow-y: auto !important;
+    overflow-x: visible !important;
+    padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .live-qr-card-refined {
+    flex: none !important;
+    display: grid !important;
+    grid-template-rows: auto auto auto !important;
+    gap: .65rem !important;
+    align-content: start !important;
+    overflow: visible !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .live-qr-card-refined .live-qr-image-button {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 0 !important;
+  }
+
+  .live-qr-card-refined .live-qr-image {
+    width: min(100%, 280px) !important;
+    max-width: 280px !important;
+    max-height: min(32dvh, 280px) !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+
+  .live-qr-card-refined > p {
+    margin: 0 !important;
+  }
+
+  .live-qr-actions-stacked {
+    grid-template-columns: 1fr !important;
+    margin-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-qr-actions-stacked .button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+}
