@@ -1184,7 +1184,7 @@ button, input { font: inherit; }
   overflow: hidden;
   padding: .8rem;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: .7rem;
   background: #f3f7f5;
 }
@@ -1460,7 +1460,7 @@ button, input { font: inherit; }
 
 @media (max-width: 900px) {
   .live-queue-shell-refined {
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .live-queue-workspace-refined {
