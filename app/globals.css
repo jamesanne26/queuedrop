@@ -5144,3 +5144,48 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
     padding: 12px;
   }
 }
+
+/* 2026-09-01: tablet landscape live queue must allow the page to reach the panel bottom. */
+@media (orientation: landscape) and (min-width: 701px) and (max-width: 1400px) and (max-height: 900px) and (pointer: coarse) {
+  body:has(.live-queue-shell-refined) {
+    overflow-y: auto !important;
+  }
+
+  .live-queue-shell-refined {
+    position: relative !important;
+    inset: auto !important;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+    grid-template-rows: auto auto !important;
+  }
+
+  .live-queue-workspace-refined {
+    height: auto !important;
+    min-height: 0 !important;
+    align-items: start !important;
+    overflow: visible !important;
+  }
+
+  .live-queue-workspace-refined .live-queue-list-panel,
+  .live-queue-workspace-refined .live-service-panel {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .live-queue-only-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  .live-service-panel-refined,
+  .live-qr-card-refined {
+    overflow: visible !important;
+  }
+
+  .live-qr-card-refined {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+}
