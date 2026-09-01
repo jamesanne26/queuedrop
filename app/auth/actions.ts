@@ -91,6 +91,59 @@ export async function signUp(formData: FormData) {
   redirect("/auth/login?message=Check%20your%20email%20to%20confirm%20your%20account.");
 }
 
+export async function requestPasswordReset(formData: FormData) {
+  const email = value(formData, "email").toLowerCase();
+
+  if (!email || !email.includes("@")) {
+    redirect(`/auth/forgot-password?error=${encodeURIComponent("Please enter a valid email address.")}`);
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (!siteUrl) {
+    redirect(`/auth/forgot-password?error=${encodeURIComponent("QueueDrop site URL is not configured.")}`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`,
+  });
+
+  if (error) {
+    redirect(`/auth/forgot-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // Keep the response generic so the page does not reveal whether an account exists.
+  redirect(`/auth/forgot-password?message=${encodeURIComponent("If an account exists for that email, a password reset link has been sent.")}`);
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = value(formData, "password");
+  const confirmPassword = value(formData, "confirm_password");
+
+  if (password.length < 8) {
+    redirect(`/auth/reset-password?error=${encodeURIComponent("Password must be at least 8 characters.")}`);
+  }
+
+  if (password !== confirmPassword) {
+    redirect(`/auth/reset-password?error=${encodeURIComponent("Passwords do not match.")}`);
+  }
+
+  const supabase = await createClient();
+  const { data: currentUser } = await supabase.auth.getUser();
+
+  if (!currentUser.user) {
+    redirect(`/auth/forgot-password?error=${encodeURIComponent("Your password reset link is invalid or has expired. Please request a new one.")}`);
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    redirect(`/auth/reset-password?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await supabase.auth.signOut();
+  redirect(`/auth/login?message=${encodeURIComponent("Password updated successfully. Sign in with your new password.")}`);
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

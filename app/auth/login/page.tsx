@@ -33,6 +33,9 @@ export default async function LoginPage({ searchParams }: Props) {
             Password
             <PasswordInput />
           </label>
+          <div className="auth-forgot-link">
+            <Link href="/auth/forgot-password">Forgot password?</Link>
+          </div>
           <AuthSubmitButton pendingLabel="Signing in...">Sign in</AuthSubmitButton>
         </form>
 

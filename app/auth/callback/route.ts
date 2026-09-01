@@ -21,6 +21,9 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       const { data } = await supabase.auth.getUser();
+      if (next === "/auth/reset-password" && data.user) {
+        return NextResponse.redirect(new URL(next, requestUrl.origin));
+      }
       const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
       return NextResponse.redirect(new URL(destination, requestUrl.origin));
     }
@@ -40,6 +43,9 @@ export async function GET(request: Request) {
       });
       if (!error) {
         const { data } = await supabase.auth.getUser();
+        if (next === "/auth/reset-password" && data.user) {
+          return NextResponse.redirect(new URL(next, requestUrl.origin));
+        }
         const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
         return NextResponse.redirect(new URL(destination, requestUrl.origin));
       }
