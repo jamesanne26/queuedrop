@@ -5254,3 +5254,90 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
     min-height: 48px !important;
   }
 }
+
+/* 2026-09-01 v4: tablet portrait live queue uses one normal full-page scroll. */
+@media (orientation: portrait) and (min-width: 701px) and (max-width: 1100px) and (pointer: coarse) {
+  html,
+  body:has(.live-queue-shell-refined) {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto;
+  }
+
+  .live-queue-shell-refined {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-queue-workspace-refined {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "services" "queue" !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    align-items: start !important;
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-service-panel-refined,
+  .live-queue-list-panel,
+  .live-queue-workspace-refined .live-service-panel,
+  .live-queue-workspace-refined .live-queue-list-panel {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+
+  .live-service-panel-refined {
+    grid-area: services !important;
+    order: -1 !important;
+    overflow-x: hidden !important;
+  }
+
+  .live-queue-list-panel {
+    grid-area: queue !important;
+    order: 1 !important;
+    overflow-x: hidden !important;
+  }
+
+  .live-queue-only-scroll,
+  .live-queue-table-wrap {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  .live-qr-card-refined {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .live-qr-actions,
+  .live-qr-actions-stacked {
+    position: relative !important;
+    z-index: 1 !important;
+    margin-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .live-qr-actions .button,
+  .live-qr-actions-stacked .button {
+    min-height: 48px !important;
+  }
+}
