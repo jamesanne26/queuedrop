@@ -208,7 +208,12 @@ export default async function QueuesPage({ searchParams }: Props) {
   const protocol =
     requestHeaders.get("x-forwarded-proto") ??
     (host.includes("localhost") ? "http" : "https");
-  const origin = `${protocol}://${host}`;
+
+  // Printed queue QR codes should point to the canonical URL for the
+  // current environment, not whichever Vercel preview/proxy host happened
+  // to render the dashboard. Keep the request host as a development fallback.
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "");
+  const origin = configuredAppUrl || `${protocol}://${host}`;
 
   const branchJoinUrl = `${origin}/q/${business.slug}/${selectedBranch.slug}`;
   const branchQrDataUrl = await getQueueQrDataUrl(branchJoinUrl);
