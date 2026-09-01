@@ -13,7 +13,9 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
+  const flow = requestUrl.searchParams.get("flow");
   const next = safeNext(requestUrl.searchParams.get("next"));
+  const isPasswordRecovery = flow === "recovery" || type === "recovery" || next === "/auth/reset-password";
 
   const supabase = await createClient();
 
@@ -21,8 +23,8 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       const { data } = await supabase.auth.getUser();
-      if (next === "/auth/reset-password" && data.user) {
-        return NextResponse.redirect(new URL(next, requestUrl.origin));
+      if (isPasswordRecovery && data.user) {
+        return NextResponse.redirect(new URL("/auth/reset-password", requestUrl.origin));
       }
       const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
       return NextResponse.redirect(new URL(destination, requestUrl.origin));
@@ -43,13 +45,22 @@ export async function GET(request: Request) {
       });
       if (!error) {
         const { data } = await supabase.auth.getUser();
-        if (next === "/auth/reset-password" && data.user) {
-          return NextResponse.redirect(new URL(next, requestUrl.origin));
+        if (isPasswordRecovery && data.user) {
+          return NextResponse.redirect(new URL("/auth/reset-password", requestUrl.origin));
         }
         const destination = data.user ? await resolveAuthenticatedLanding(supabase, data.user, next) : next;
         return NextResponse.redirect(new URL(destination, requestUrl.origin));
       }
     }
+  }
+
+  if (isPasswordRecovery) {
+    return NextResponse.redirect(
+      new URL(
+        `/auth/forgot-password?error=${encodeURIComponent("Your password reset link is invalid or has expired. Please request a new one.")}`,
+        requestUrl.origin,
+      ),
+    );
   }
 
   return NextResponse.redirect(

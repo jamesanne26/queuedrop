@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -98,14 +99,27 @@ export async function requestPasswordReset(formData: FormData) {
     redirect(`/auth/forgot-password?error=${encodeURIComponent("Please enter a valid email address.")}`);
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  // Keep the recovery request and its callback on the same host. This is
+  // important for Supabase PKCE cookies in local, preview, and test builds.
+  const requestHeaders = await headers();
+  const origin = requestHeaders.get("origin");
+  const forwardedHost = requestHeaders.get("x-forwarded-host");
+  const forwardedProto = requestHeaders.get("x-forwarded-proto") || "https";
+  const host = forwardedHost || requestHeaders.get("host");
+  const siteUrl = (
+    origin ||
+    (host ? `${forwardedProto}://${host}` : null) ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    ""
+  ).replace(/\/$/, "");
+
   if (!siteUrl) {
-    redirect(`/auth/forgot-password?error=${encodeURIComponent("QueueDrop site URL is not configured.")}`);
+    redirect(`/auth/forgot-password?error=${encodeURIComponent("Unable to determine the QueueDrop site URL.")}`);
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`,
+    redirectTo: `${siteUrl}/auth/callback?flow=recovery&next=${encodeURIComponent("/auth/reset-password")}`,
   });
 
   if (error) {
