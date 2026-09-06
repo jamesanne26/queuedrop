@@ -1,1288 +1,381 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useFormStatus } from "react-dom";
-import type { ReactNode } from "react";
-import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
-import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import {
-  callNextAction,
-  returnLastCustomerAction,
-  loadServiceHistoryAction,
-  loadTicketChangeHistoryAction,
-  staffAssistedJoinAction,
-  updateCustomerDetailsAction,
-  updateTicketAction,
-  type AssistedJoinState,
-  type ServiceHistoryTicket,
-  type TicketCustomerChange,
-} from "./actions";
+import { useFormStatus } from "react-dom";
+import { createClient } from "@/lib/supabase/client";
+import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
-
-type Branch = {
-  id: string;
-  name: string;
-  address: string | null;
-};
-
-type Service = {
-  id: string;
-  name: string;
-  qrDataUrl: string;
-};
-
-type ServiceDropdownProps = {
-  services: Service[];
-  customerChoiceOption?: { value: string; label: string };
-  value: string;
-  ariaLabel: string;
-  compact?: boolean;
-  includeAll?: boolean;
-  allLabel?: string;
-  onChange: (serviceId: string) => void;
-};
-
-function QueueSubmitButton({
-  children,
-  pendingLabel,
-  className,
-  disabled = false,
-}: {
-  children: ReactNode;
-  pendingLabel: string;
-  className: string;
-  disabled?: boolean;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      className={className}
-      type="submit"
-      disabled={pending || disabled}
-      aria-busy={pending}
-    >
-      {pending ? pendingLabel : children}
-    </button>
-  );
-}
-
-function ServiceDropdown({
-  services,
-  value,
-  ariaLabel,
-  compact = false,
-  includeAll = false,
-  allLabel = "All services",
-  customerChoiceOption,
-  onChange,
-}: ServiceDropdownProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const selected = services.find((service) => service.id === value) ?? null;
-  const customerChoiceSelected = customerChoiceOption?.value === value;
-
-  useEffect(() => {
-    if (!open) return;
-
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
-
-    return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div
-      ref={rootRef}
-      className={
-        compact
-          ? "qd-service-dropdown qd-service-dropdown-compact"
-          : "qd-service-dropdown"
-      }
-    >
-      <button
-        type="button"
-        className="qd-service-dropdown-trigger"
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{customerChoiceSelected ? customerChoiceOption?.label : selected?.name ?? (includeAll && value === "" ? allLabel : "Select service")}</span>
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="m5 7 5 5 5-5" />
-        </svg>
-      </button>
-
-      {open ? (
-        <div
-          className="qd-service-dropdown-menu"
-          role="listbox"
-          aria-label={ariaLabel}
-        >
-          {includeAll ? (
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === ""}
-              className={value === "" ? "qd-service-dropdown-option qd-service-dropdown-option-selected" : "qd-service-dropdown-option"}
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-            >
-              {allLabel}
-            </button>
-          ) : null}
-          {customerChoiceOption ? (
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === customerChoiceOption.value}
-              className={value === customerChoiceOption.value ? "qd-service-dropdown-option qd-service-dropdown-option-selected" : "qd-service-dropdown-option"}
-              onClick={() => {
-                onChange(customerChoiceOption.value);
-                setOpen(false);
-              }}
-            >
-              {customerChoiceOption.label}
-            </button>
-          ) : null}
-          {services.length ? (
-            services.map((service) => (
-              <button
-                key={service.id}
-                type="button"
-                role="option"
-                aria-selected={service.id === value}
-                className={
-                  service.id === value
-                    ? "qd-service-dropdown-option qd-service-dropdown-option-selected"
-                    : "qd-service-dropdown-option"
-                }
-                onClick={() => {
-                  onChange(service.id);
-                  setOpen(false);
-                }}
-              >
-                {service.name}
-              </button>
-            ))
-          ) : (
-            <span className="qd-service-dropdown-empty">
-              No active services
-            </span>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-
-
+type Branch = { id: string; name: string; address: string | null };
+type Service = { id: string; name: string };
 type Ticket = {
   id: string;
   display_number: string;
+  ticket_number: number;
   status: "waiting" | "called" | "serving";
   service_id: string;
   service_name: string;
   position: number | null;
-  customer_name: string;
-  customer_phone: string;
+  sms_enabled: boolean;
+  sms_phone: string | null;
+  session_token: string | null;
   joined_at: string;
   called_at: string | null;
   serving_at: string | null;
   updated_at: string;
-  session_token: string | null;
 };
-
-
-function ordinalPosition(position: number | null) {
-  if (!position || position < 1) return "-";
-  const mod100 = position % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${position}th`;
-  if (position % 10 === 1) return `${position}st`;
-  if (position % 10 === 2) return `${position}nd`;
-  if (position % 10 === 3) return `${position}rd`;
-  return `${position}th`;
-}
-
 
 type Props = {
   role: Role;
+  canSimulateStub: boolean;
   businessName: string;
   selectedBranchId: string;
   selectedBranch: Branch;
   branches: Branch[];
   services: Service[];
-  branchQrDataUrl: string;
   initialServiceId: string | null;
   tickets: Ticket[];
-  canEditName: boolean;
-  canEditMobile: boolean;
+  currentSessionDate: string;
   successMessage?: string;
   errorMessage?: string;
 };
 
-type ModalName =
-  | null
-  | "assist"
-  | "qr"
-  | "customer"
-  | "edit"
-  | "history"
-  | "service-history"
-  | "confirm-exit"
-  | "confirm-name-visibility"
-  | "confirm-call-next"
-  | "confirm-return-last"
-  | "result";
+type ConfirmAction = "cancel" | "return_last";
 
-const initialAssistState: AssistedJoinState = {
-  ok: false,
-  message: "",
-  requestId: null,
-};
+type ConfirmState = { ticket: Ticket; action: ConfirmAction; code: string } | null;
 
-export function LiveQueueWorkspace({
-  role,
-  businessName,
-  selectedBranchId,
-  selectedBranch,
-  branches,
-  services,
-  branchQrDataUrl,
-  initialServiceId,
-  tickets,
-  canEditName,
-  canEditMobile,
-  successMessage,
-  errorMessage,
-}: Props) {
+function ActionButton({ children, className = "button button-secondary", disabled = false }: { children: ReactNode; className?: string; disabled?: boolean }) {
+  const { pending } = useFormStatus();
+  return <button className={className} type="submit" disabled={disabled || pending}>{pending ? "Please wait…" : children}</button>;
+}
+
+export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBranch, branches, services, initialServiceId, tickets, currentSessionDate, canSimulateStub, successMessage, errorMessage }: Props) {
   const router = useRouter();
+  const [liveTickets, setLiveTickets] = useState<Ticket[]>(tickets);
   const [isBranchSwitching, startBranchTransition] = useTransition();
-  const defaultServiceId =
-    initialServiceId && services.some((service) => service.id === initialServiceId)
-      ? initialServiceId
-      : services[0]?.id ?? "";
-
+  const defaultServiceId = initialServiceId && services.some((s) => s.id === initialServiceId) ? initialServiceId : services[0]?.id ?? "";
   const [serviceId, setServiceId] = useState(defaultServiceId);
-  const [qrServiceId, setQrServiceId] = useState<string>("customer-selects-service");
-  const [assistServiceId, setAssistServiceId] = useState("");
-  const [modal, setModal] = useState<ModalName>(null);
-  const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
-  const [showNames, setShowNames] = useState(false);
-  const [queueServiceFilter, setQueueServiceFilter] = useState("all");
-  const [serviceHistory, setServiceHistory] = useState<ServiceHistoryTicket[]>([]);
-  const [serviceHistoryLoading, setServiceHistoryLoading] = useState(false);
-  const [ticketHistory, setTicketHistory] = useState<TicketCustomerChange[]>([]);
-  const [ticketHistoryLoading, setTicketHistoryLoading] = useState(false);
-  const [resultMessage, setResultMessage] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(
-    errorMessage
-      ? { type: "error", message: errorMessage }
-      : successMessage
-        ? { type: "success", message: successMessage }
-        : null,
-  );
-  const [assistState, assistAction, assistPending] = useActionState(
-    staffAssistedJoinAction,
-    initialAssistState,
-  );
-
-  const selectedService = useMemo(
-    () => services.find((service) => service.id === serviceId) ?? null,
-    [serviceId, services],
-  );
-
-  const selectedQrService = useMemo(
-    () => services.find((service) => service.id === qrServiceId) ?? null,
-    [qrServiceId, services],
-  );
-  const selectedQrDataUrl = qrServiceId === "customer-selects-service"
-    ? branchQrDataUrl
-    : selectedQrService?.qrDataUrl ?? branchQrDataUrl;
-  const selectedQrLabel = qrServiceId === "customer-selects-service"
-    ? "Customer selects service"
-    : selectedQrService?.name ?? "Customer selects service";
-
-  const activeTicket = useMemo(
-    () => tickets.find((ticket) => ticket.id === activeTicketId) ?? null,
-    [activeTicketId, tickets],
-  );
-
-  const filteredTickets = useMemo(
-    () =>
-      queueServiceFilter === "all"
-        ? tickets
-        : tickets.filter(
-            (ticket) => ticket.service_id === queueServiceFilter,
-          ),
-    [queueServiceFilter, tickets],
-  );
-
-  const servingTickets = useMemo(
-    () =>
-      filteredTickets
-        .filter((ticket) => ticket.status === "serving")
-        .sort((a, b) =>
-          new Date(a.serving_at ?? a.updated_at).getTime() -
-          new Date(b.serving_at ?? b.updated_at).getTime(),
-        ),
-    [filteredTickets],
-  );
-
-  const pendingTickets = useMemo(
-    () =>
-      filteredTickets
-        .filter((ticket) => ticket.status === "called")
-        .sort((a, b) =>
-          new Date(a.called_at ?? a.updated_at).getTime() -
-          new Date(b.called_at ?? b.updated_at).getTime(),
-        ),
-    [filteredTickets],
-  );
-
-  const waitingTickets = useMemo(
-    () =>
-      filteredTickets
-        .filter((ticket) => ticket.status === "waiting")
-        .sort((a, b) => (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER)),
-    [filteredTickets],
+  const [history, setHistory] = useState<ServiceHistoryTicket[] | null>(null);
+  const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [confirmInput, setConfirmInput] = useState("");
+  const [flash, setFlash] = useState<{ type: "success" | "error"; message: string } | null>(
+    successMessage ? { type: "success", message: successMessage } : errorMessage ? { type: "error", message: errorMessage } : null,
   );
 
   useEffect(() => {
-    if (!assistState.ok) return;
-
-    // Close the assisted-join modal immediately after the server action
-    // succeeds. Do not wait for router.refresh(), otherwise the modal can
-    // remain visible for an extra render while the refreshed queue loads.
-    window.dispatchEvent(new Event("qd:submit-complete"));
-    queueMicrotask(() => setModal(null));
-
-    // Refresh the queue data in a transition so the successful close remains
-    // responsive while the updated ticket list is fetched.
-    startTransition(() => {
-      router.refresh();
-    });
-  }, [assistState.requestId, router]);
-
-  const serviceIdsKey = services.map((service) => service.id).join("|");
+    setLiveTickets(tickets);
+  }, [tickets]);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const nextServiceId =
-        initialServiceId &&
-        services.some((service) => service.id === initialServiceId)
-          ? initialServiceId
-          : services[0]?.id ?? "";
+    const supabase = createClient();
+    let disposed = false;
+    let reconcileBusy = false;
 
-      setServiceId(nextServiceId);
-      setQueueServiceFilter(nextServiceId || "all");
-      queueMicrotask(() => setModal(null));
-      setActiveTicketId(null);
-    });
-
-    return () => cancelAnimationFrame(frame);
-    // Service IDs, not the array identity, intentionally drive this reset.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialServiceId, selectedBranchId, serviceIdsKey]);
-
-  useEffect(() => {
-    document.body.dataset.qdModalOpen = modal ? "true" : "false";
-    return () => {
-      delete document.body.dataset.qdModalOpen;
-    };
-  }, [modal]);
-
-  useEffect(() => {
-    if (!errorMessage && !successMessage) return;
-
-    const frame = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event("qd:submit-complete"));
-      if (errorMessage) {
-        setResultMessage({ type: "error", message: errorMessage });
-        setModal("result");
-      } else if (successMessage) {
-        setResultMessage({ type: "success", message: successMessage });
-        setModal("result");
+    const recalculatePositions = (rows: Ticket[]) => {
+      const waitingByService = new Map<string, Ticket[]>();
+      for (const ticket of rows) {
+        if (ticket.status !== "waiting") continue;
+        const list = waitingByService.get(ticket.service_id) ?? [];
+        list.push(ticket);
+        waitingByService.set(ticket.service_id, list);
       }
-    });
+      const positions = new Map<string, number>();
+      for (const list of waitingByService.values()) {
+        list.sort((a, b) => a.ticket_number - b.ticket_number)
+          .forEach((ticket, index) => positions.set(ticket.id, index + 1));
+      }
+      return rows.map((ticket) => ({
+        ...ticket,
+        position: ticket.status === "waiting" ? (positions.get(ticket.id) ?? null) : null,
+      }));
+    };
 
-    return () => cancelAnimationFrame(frame);
+    const applyRealtimeRow = (eventType: "INSERT" | "UPDATE" | "DELETE", nextRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null) => {
+      const row = (eventType === "DELETE" ? oldRow : nextRow) ?? {};
+      if (String(row.branch_id ?? "") !== selectedBranchId) return;
+      const id = String(row.id ?? "");
+      if (!id) return;
+
+      setLiveTickets((current) => {
+        if (eventType === "DELETE") return recalculatePositions(current.filter((ticket) => ticket.id !== id));
+        const status = String(row.status ?? "");
+        const active = status === "waiting" || status === "called" || status === "serving";
+        const existing = current.find((ticket) => ticket.id === id);
+        if (!active) return recalculatePositions(current.filter((ticket) => ticket.id !== id));
+
+        const serviceId = String(row.service_id ?? existing?.service_id ?? "");
+        const serviceName = services.find((service) => service.id === serviceId)?.name ?? existing?.service_name ?? "Service";
+        const next: Ticket = {
+          id,
+          display_number: String(row.display_number ?? existing?.display_number ?? "Queue"),
+          ticket_number: Number(row.ticket_number ?? existing?.ticket_number ?? 0),
+          status: status as Ticket["status"],
+          service_id: serviceId,
+          service_name: serviceName,
+          position: existing?.position ?? null,
+          sms_enabled: Boolean(row.sms_phone ?? existing?.sms_phone),
+          sms_phone: (row.sms_phone as string | null | undefined) ?? existing?.sms_phone ?? null,
+          session_token: existing?.session_token ?? null,
+          joined_at: String(row.joined_at ?? existing?.joined_at ?? new Date().toISOString()),
+          called_at: (row.called_at as string | null | undefined) ?? existing?.called_at ?? null,
+          serving_at: (row.serving_at as string | null | undefined) ?? existing?.serving_at ?? null,
+          updated_at: String(row.updated_at ?? existing?.updated_at ?? new Date().toISOString()),
+        };
+        return recalculatePositions(existing ? current.map((ticket) => ticket.id === id ? next : ticket) : [...current, next]);
+      });
+    };
+
+    const reconcile = async () => {
+      if (reconcileBusy || disposed || !navigator.onLine) return;
+      reconcileBusy = true;
+      try {
+        const { data, error } = await supabase.from("tickets")
+          .select("id,display_number,status,joined_at,called_at,serving_at,updated_at,service_id,ticket_number,sms_phone,customer_sessions(session_token),services(id,name),queue_sessions!inner(session_date,status)")
+          .eq("branch_id", selectedBranchId)
+          .eq("queue_sessions.session_date", currentSessionDate)
+          .eq("queue_sessions.status", "open")
+          .in("status", ["waiting", "called", "serving"])
+          .order("joined_at", { ascending: true })
+          .limit(250);
+        if (error || disposed) return;
+        const fresh: Ticket[] = (data ?? []).map((row: any) => {
+          const service = Array.isArray(row.services) ? row.services[0] : row.services;
+          const customerSession = Array.isArray(row.customer_sessions) ? row.customer_sessions[0] : row.customer_sessions;
+          return {
+            id: row.id,
+            display_number: row.display_number,
+            ticket_number: row.ticket_number,
+            status: row.status,
+            service_id: row.service_id,
+            service_name: service?.name ?? services.find((item) => item.id === row.service_id)?.name ?? "Service",
+            position: null,
+            sms_enabled: Boolean(row.sms_phone),
+            sms_phone: row.sms_phone,
+            session_token: customerSession?.session_token ?? null,
+            joined_at: row.joined_at,
+            called_at: row.called_at,
+            serving_at: row.serving_at,
+            updated_at: row.updated_at,
+          } satisfies Ticket;
+        });
+        setLiveTickets(recalculatePositions(fresh));
+      } finally {
+        reconcileBusy = false;
+      }
+    };
+
+    // Subscribe without a server-side branch filter. RLS still limits what the
+    // signed-in operator can receive, while client-side filtering avoids a class
+    // of missed postgres_changes events seen with filtered subscriptions.
+    const channel = supabase.channel(`queue-workspace-${selectedBranchId}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
+        applyRealtimeRow(
+          payload.eventType as "INSERT" | "UPDATE" | "DELETE",
+          (payload.new as Record<string, unknown>) ?? null,
+          (payload.old as Record<string, unknown>) ?? null,
+        );
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void reconcile();
+      });
+
+    // Realtime should normally update in under a second. This is a deliberately
+    // lightweight safety reconciliation so the UI self-heals even when a Wi-Fi
+    // hop, browser sleep, or websocket edge drops one database event.
+    const safetyTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void reconcile();
+    }, 2500);
+    const onVisible = () => { if (document.visibilityState === "visible") void reconcile(); };
+    const onOnline = () => void reconcile();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    void reconcile();
+
+    return () => {
+      disposed = true;
+      window.clearInterval(safetyTimer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+      void supabase.removeChannel(channel);
+    };
+  }, [selectedBranchId, currentSessionDate, services]);
+
+  useEffect(() => {
+    const onTicketChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ eventType: "INSERT" | "UPDATE" | "DELETE"; new: Record<string, unknown> | null; old: Record<string, unknown> | null }>).detail;
+      if (!detail) return;
+      const row = (detail.eventType === "DELETE" ? detail.old : detail.new) ?? {};
+      if (String(row.branch_id ?? "") !== selectedBranchId) return;
+      const id = String(row.id ?? "");
+      if (!id) return;
+
+      setLiveTickets((current) => {
+        if (detail.eventType === "DELETE") return current.filter((ticket) => ticket.id !== id);
+
+        const status = String(row.status ?? "");
+        const active = status === "waiting" || status === "called" || status === "serving";
+        const existing = current.find((ticket) => ticket.id === id);
+        if (!active) return current.filter((ticket) => ticket.id !== id);
+
+        const serviceId = String(row.service_id ?? existing?.service_id ?? "");
+        const serviceName = services.find((service) => service.id === serviceId)?.name ?? existing?.service_name ?? "Service";
+        const ticketNumber = Number(row.ticket_number ?? existing?.ticket_number ?? 0);
+        const joinedAt = String(row.joined_at ?? existing?.joined_at ?? new Date().toISOString());
+        const next: Ticket = {
+          id,
+          display_number: String(row.display_number ?? existing?.display_number ?? "Queue"),
+          ticket_number: ticketNumber,
+          status: status as Ticket["status"],
+          service_id: serviceId,
+          service_name: serviceName,
+          position: existing?.position ?? null,
+          sms_enabled: Boolean(row.sms_phone ?? existing?.sms_phone),
+          sms_phone: (row.sms_phone as string | null | undefined) ?? existing?.sms_phone ?? null,
+          session_token: existing?.session_token ?? null,
+          joined_at: joinedAt,
+          called_at: (row.called_at as string | null | undefined) ?? existing?.called_at ?? null,
+          serving_at: (row.serving_at as string | null | undefined) ?? existing?.serving_at ?? null,
+          updated_at: String(row.updated_at ?? existing?.updated_at ?? new Date().toISOString()),
+        };
+
+        const merged = existing ? current.map((ticket) => ticket.id === id ? next : ticket) : [...current, next];
+        const waitingByService = new Map<string, Ticket[]>();
+        for (const ticket of merged) {
+          if (ticket.status !== "waiting") continue;
+          const list = waitingByService.get(ticket.service_id) ?? [];
+          list.push(ticket);
+          waitingByService.set(ticket.service_id, list);
+        }
+        const positions = new Map<string, number>();
+        for (const list of waitingByService.values()) {
+          list.sort((a, b) => a.ticket_number - b.ticket_number).forEach((ticket, index) => positions.set(ticket.id, index + 1));
+        }
+        return merged.map((ticket) => ({ ...ticket, position: ticket.status === "waiting" ? positions.get(ticket.id) ?? ticket.position : null }));
+      });
+    };
+    window.addEventListener("queuedrop:ticket-change", onTicketChange);
+    return () => window.removeEventListener("queuedrop:ticket-change", onTicketChange);
+  }, [selectedBranchId, services]);
+
+  useEffect(() => {
+    const message = successMessage || errorMessage;
+    if (!message) return;
+    setFlash({ type: successMessage ? "success" : "error", message });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("success");
+    url.searchParams.delete("error");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    const timer = window.setTimeout(() => setFlash(null), errorMessage ? 4200 : 2600);
+    return () => window.clearTimeout(timer);
   }, [successMessage, errorMessage]);
 
-  function openTicket(ticketId: string) {
-    setActiveTicketId(ticketId);
-    setModal("customer");
-  }
+  useEffect(() => {
+    const open = Boolean(confirm || previewTicket);
+    if (open) document.body.dataset.qdModalOpen = "true";
+    else delete document.body.dataset.qdModalOpen;
+    return () => { delete document.body.dataset.qdModalOpen; };
+  }, [confirm, previewTicket]);
 
-  function closeModal() {
-    queueMicrotask(() => setModal(null));
-  }
+  useEffect(() => {
+    if (!confirm && !previewTicket) window.dispatchEvent(new Event("queuedrop:modal-closed"));
+  }, [confirm, previewTicket]);
+
+  const selectedService = services.find((s) => s.id === serviceId) ?? null;
+  const filtered = useMemo(() => liveTickets.filter((t) => !serviceId || t.service_id === serviceId), [liveTickets, serviceId]);
+  const serving = filtered.filter((t) => t.status === "serving");
+  const pending = filtered.filter((t) => t.status === "called");
+  const waiting = filtered.filter((t) => t.status === "waiting").sort((a,b) => (a.position ?? 999999) - (b.position ?? 999999));
 
   function navigateBranch(branchId: string) {
     if (!branchId || branchId === selectedBranchId || isBranchSwitching) return;
-
-    startBranchTransition(() => {
-      router.replace(`/dashboard/queues?branch=${encodeURIComponent(branchId)}`, {
-        scroll: false,
-      });
-    });
+    startBranchTransition(() => router.replace(`/dashboard/queues?branch=${encodeURIComponent(branchId)}`, { scroll: false }));
   }
 
-  function selectService(nextServiceId: string) {
-    setServiceId(nextServiceId);
-    setQueueServiceFilter(nextServiceId || "all");
-    // Keep the queue service selector and the QR/service selector in sync
-    // whenever a specific service is chosen. The special All services flow
-    // continues to use Customer selects service via showAllServices().
-    if (nextServiceId) setQrServiceId(nextServiceId);
+  async function showHistory() { setHistory(await loadServiceHistoryAction(selectedBranchId)); }
+
+  function openConfirm(ticket: Ticket, action: ConfirmAction) {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    setConfirm({ ticket, action, code: String(1000 + (values[0] % 9000)) });
+    setConfirmInput("");
   }
 
-  function selectQrService(nextServiceId: string) {
-    setQrServiceId(nextServiceId);
-    // Selecting a concrete service from the QR panel should also focus the
-    // queue on that same service. Customer selects service intentionally does
-    // not change the queue filter so the existing All services behavior stays
-    // intact.
-    if (nextServiceId !== "customer-selects-service") {
-      setServiceId(nextServiceId);
-      setQueueServiceFilter(nextServiceId);
-    }
-  }
+  function closeConfirm() { setConfirm(null); setConfirmInput(""); }
 
-  function showAllServices() {
-    setQueueServiceFilter("all");
-    // All-services queue view uses the branch QR so the customer chooses a service.
-    setQrServiceId("customer-selects-service");
-  }
-
-  function openAssist() {
-    setAssistServiceId(qrServiceId === "customer-selects-service" ? "" : qrServiceId);
-    setModal("assist");
-  }
-
-  function requestCallNext() {
-    if (!selectedService) return;
-    setModal("confirm-call-next");
-  }
-
-  function requestReturnLast() {
-    if (!selectedService) return;
-    setModal("confirm-return-last");
-  }
-
-  function requestExit() {
-    setModal("confirm-exit");
-  }
-
-  function requestToggleNames() {
-    setModal("confirm-name-visibility");
-  }
-
-  function confirmToggleNames() {
-    setShowNames((current) => !current);
-    queueMicrotask(() => setModal(null));
-  }
-
-  async function openServiceHistory() {
-    setModal("service-history");
-    setServiceHistoryLoading(true);
-    try {
-      const rows = await loadServiceHistoryAction(selectedBranchId);
-      setServiceHistory(rows);
-    } finally {
-      setServiceHistoryLoading(false);
-    }
-  }
-
-  async function openTicketHistory() {
-    if (!activeTicket) return;
-    setModal("history");
-    setTicketHistoryLoading(true);
-    try {
-      const rows = await loadTicketChangeHistoryAction(activeTicket.id);
-      setTicketHistory(rows);
-    } finally {
-      setTicketHistoryLoading(false);
-    }
-  }
-
-  return (
-    <main className="live-queue-shell live-queue-shell-refined">
-      {isBranchSwitching ? (
-        <div className="qd-loading-backdrop qd-branch-switch-backdrop" role="status" aria-live="polite" aria-label="Loading branch queue">
-          <section className="qd-branch-switch-modal">
-            <span className="qd-branch-switch-spinner" aria-hidden="true" />
-            <strong>Please wait</strong>
-          </section>
-        </div>
-      ) : null}
-      <header className="live-queue-banner">
-        <div className="live-banner-branches">
-          {branches.length > 1 ? (
-            <>
-              <ResponsiveBranchSelect
-                branches={branches.map((branch) => ({
-                  id: branch.id,
-                  name: branch.name,
-                }))}
-                selectedBranchId={selectedBranchId}
-                onNavigate={navigateBranch}
-                isNavigating={isBranchSwitching}
-              />
-              <div className="live-banner-branch-links-desktop">
-                {branches.map((branch) => (
-                  <Link
-                    key={branch.id}
-                    href={`/dashboard/queues?branch=${branch.id}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      navigateBranch(branch.id);
-                    }}
-                    aria-disabled={isBranchSwitching || branch.id === selectedBranchId}
-                    className={
-                      branch.id === selectedBranchId
-                        ? "live-banner-branch live-banner-branch-active"
-                        : "live-banner-branch"
-                    }
-                  >
-                    {branch.name}
-                  </Link>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="live-banner-single-branch">
-              <strong>{selectedBranch.name}</strong>
-              {selectedBranch.address ? (
-                <small>{selectedBranch.address}</small>
-              ) : null}
-            </div>
-          )}
-        </div>
-
-        <div className="live-banner-center">
-          <span className="live-dot" />
-          <strong>Live queue</strong>
-          <small>{businessName}</small>
-        </div>
-
-        <div className="live-banner-actions">
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={openServiceHistory}
-          >
-            History
-          </button>
-
-          <button
-            type="button"
-            className="button button-secondary live-exit-button"
-            onClick={requestExit}
-          >
-            Exit live view
-          </button>
-        </div>
-      </header>
-
-      <section className="live-queue-workspace live-queue-workspace-refined">
-        <section className="live-queue-list-panel">
-          <div className="live-panel-heading">
-            <div>
-              <p className="eyebrow">Current queue</p>
-            </div>
-            <div className="live-queue-heading-actions">
-              <div className="live-queue-heading-primary-actions">
-                <button type="button" className="button button-primary button-small live-heading-action-button" disabled={!selectedService} onClick={requestCallNext}>
-                  Call Next<br />Customer
-                </button>
-                <button type="button" className="button button-secondary button-small live-heading-action-button" disabled={!selectedService} onClick={requestReturnLast}>
-                  Return last<br />customer<br />to queue
-                </button>
-              </div>
-              <button
-                type="button"
-                className={
-                  queueServiceFilter === "all"
-                    ? "button button-small live-all-services-button live-all-services-button-active"
-                    : "button button-secondary button-small live-all-services-button"
-                }
-                onClick={showAllServices}
-              >
-                All services
-              </button>
-              <span className="status-chip">{filteredTickets.length} Active</span>
-            </div>
-          </div>
-
-          <div className="live-queue-mobile-controls" aria-label="Mobile queue controls">
-            <div className="live-queue-mobile-service-filter">
-              <span>Queue service</span>
-              <ServiceDropdown
-                services={services}
-                value={queueServiceFilter === "all" ? "" : queueServiceFilter}
-                ariaLabel="Filter queue by service"
-                includeAll
-                onChange={(nextServiceId) => nextServiceId ? selectService(nextServiceId) : showAllServices()}
-              />
-            </div>
-            <div className="live-queue-mobile-primary-actions">
-              <button type="button" className="button button-primary live-mobile-queue-action" disabled={!selectedService} onClick={requestCallNext}>
-                Call Next<br />Customer
-              </button>
-              <button type="button" className="button button-secondary live-mobile-queue-action" disabled={!selectedService} onClick={requestReturnLast}>
-                Return last<br />customer<br />to queue
-              </button>
-            </div>
-            {queueServiceFilter === "all" && selectedService ? (
-              <small className="live-mobile-action-note">Actions will use {selectedService.name}. Choose another service above the QR panel to change it.</small>
-            ) : null}
-          </div>
-
-          <div className="live-queue-table-wrap live-queue-only-scroll">
-            <table className="live-queue-table">
-              <thead>
-                <tr>
-                  <th>Queue</th>
-                  <th>
-                    <ServiceDropdown
-                      services={services}
-                      value={
-                        queueServiceFilter === "all"
-                          ? ""
-                          : queueServiceFilter
-                      }
-                      ariaLabel="Filter queue by service"
-                      compact
-                      onChange={selectService}
-                    />
-                  </th>
-                  <th>Position</th>
-                  <th>
-                    <div className="live-name-header">
-                      <span>Name</span>
-                      <button
-                        type="button"
-                        className="name-visibility-button"
-                        aria-label={showNames ? "Hide customer names" : "Show customer names"}
-                        title={showNames ? "Hide customer names" : "Show customer names"}
-                        onClick={requestToggleNames}
-                      >
-                        {showNames ? (
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-                            <circle cx="12" cy="12" r="2.8" />
-                          </svg>
-                        ) : (
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M3 3l18 18" />
-                            <path d="M10.6 6.2A10.7 10.7 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.2 2.8" />
-                            <path d="M6.1 6.1C3.7 8 2.5 12 2.5 12s3.5 6 9.5 6c1.5 0 2.8-.4 4-.9" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </th>
-                  <th>Status</th>
-                  <th className="live-queue-header-actions-cell">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="live-queue-section-row live-queue-section-serving">
-                  <td colSpan={6}><span>Serving</span></td>
-                </tr>
-                {servingTickets.map((ticket, index) => (
-                  <tr key={ticket.id}>
-                    <td data-label="Queue"><button type="button" className="queue-code-button" onClick={() => openTicket(ticket.id)}>{ticket.display_number}</button></td>
-                    <td data-label="Service"><strong>{ticket.service_name}</strong></td>
-                    <td data-label="Position"><strong>{index + 1}</strong></td>
-                    <td data-label="Customer">
-                      <button type="button" className={showNames ? "live-customer-name live-customer-name-button" : "live-customer-name live-customer-name-hidden live-customer-name-button"} onClick={() => openTicket(ticket.id)} aria-label={`Open customer view for ${ticket.display_number}`}>
-                        {showNames ? ticket.customer_name : "Hidden"}
-                      </button>
-                    </td>
-                    <td data-label="Status"><span className="ticket-status-chip ticket-status-serving">serving</span></td>
-                    <td data-label="Actions">
-                      <div className="live-row-actions">
-                        <form action={updateTicketAction} data-no-global-loading="true">
-                          <input type="hidden" name="branch_id" value={selectedBranchId} />
-                          <input type="hidden" name="service_id" value={ticket.service_id} />
-                          <input type="hidden" name="ticket_id" value={ticket.id} />
-                          <input type="hidden" name="action" value="complete" />
-                          <QueueSubmitButton className="button button-primary button-small" pendingLabel="Completing...">Complete</QueueSubmitButton>
-                        </form>
-                        <form action={updateTicketAction} data-no-global-loading="true">
-                          <input type="hidden" name="branch_id" value={selectedBranchId} />
-                          <input type="hidden" name="service_id" value={ticket.service_id} />
-                          <input type="hidden" name="ticket_id" value={ticket.id} />
-                          <input type="hidden" name="action" value="pending" />
-                          <QueueSubmitButton className="button button-secondary button-small" pendingLabel="Moving...">Move to pending</QueueSubmitButton>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                <tr className="live-queue-section-row live-queue-section-pending">
-                  <td colSpan={6}><span>Pending</span></td>
-                </tr>
-                {pendingTickets.map((ticket, index) => (
-                  <tr key={ticket.id}>
-                    <td data-label="Queue"><button type="button" className="queue-code-button" onClick={() => openTicket(ticket.id)}>{ticket.display_number}</button></td>
-                    <td data-label="Service"><strong>{ticket.service_name}</strong></td>
-                    <td data-label="Position"><strong>{index + 1}</strong></td>
-                    <td data-label="Customer">
-                      <button type="button" className={showNames ? "live-customer-name live-customer-name-button" : "live-customer-name live-customer-name-hidden live-customer-name-button"} onClick={() => openTicket(ticket.id)} aria-label={`Open customer view for ${ticket.display_number}`}>
-                        {showNames ? ticket.customer_name : "Hidden"}
-                      </button>
-                    </td>
-                    <td data-label="Status"><span className="ticket-status-chip ticket-status-called">pending</span></td>
-                    <td data-label="Actions">
-                      <div className="live-row-actions">
-                        <form action={updateTicketAction} data-no-global-loading="true">
-                          <input type="hidden" name="branch_id" value={selectedBranchId} />
-                          <input type="hidden" name="service_id" value={ticket.service_id} />
-                          <input type="hidden" name="ticket_id" value={ticket.id} />
-                          <input type="hidden" name="action" value="serve" />
-                          <QueueSubmitButton className="button button-secondary button-small" pendingLabel="Moving...">Move to serving</QueueSubmitButton>
-                        </form>
-                        <form action={updateTicketAction} data-no-global-loading="true">
-                          <input type="hidden" name="branch_id" value={selectedBranchId} />
-                          <input type="hidden" name="service_id" value={ticket.service_id} />
-                          <input type="hidden" name="ticket_id" value={ticket.id} />
-                          <input type="hidden" name="action" value="no_show" />
-                          <QueueSubmitButton className="button button-secondary button-small" pendingLabel="Saving...">No-show</QueueSubmitButton>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                <tr className="live-queue-section-row live-queue-section-waiting">
-                  <td colSpan={6}><span>Waiting</span></td>
-                </tr>
-                {waitingTickets.map((ticket, index) => (
-                  <tr key={ticket.id}>
-                    <td data-label="Queue"><button type="button" className="queue-code-button" onClick={() => openTicket(ticket.id)}>{ticket.display_number}</button></td>
-                    <td data-label="Service"><strong>{ticket.service_name}</strong></td>
-                    <td data-label="Position"><strong>{queueServiceFilter === "all" ? ticket.position ?? index + 1 : index + 1}</strong></td>
-                    <td data-label="Customer">
-                      <button type="button" className={showNames ? "live-customer-name live-customer-name-button" : "live-customer-name live-customer-name-hidden live-customer-name-button"} onClick={() => openTicket(ticket.id)} aria-label={`Open customer view for ${ticket.display_number}`}>
-                        {showNames ? ticket.customer_name : "Hidden"}
-                      </button>
-                    </td>
-                    <td data-label="Status"><span className="ticket-status-chip ticket-status-waiting">waiting</span></td>
-                    <td data-label="Actions"><span className="live-no-actions" aria-hidden="true">—</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {!filteredTickets.length ? (
-              <div className="mini-empty">
-                <strong>
-                  {queueServiceFilter === "all"
-                    ? "No active queue tickets."
-                    : "No active tickets for this service."}
-                </strong>
-                <span>
-                  {queueServiceFilter === "all"
-                    ? "Select a service and show its QR code."
-                    : "Choose All services or another service to view its queue."}
-                </span>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <aside className="live-service-panel live-service-panel-refined">
-          <div className="live-panel-heading live-service-heading">
-            <div>
-              <p className="eyebrow">Service/s</p>
-            </div>
-          </div>
-
-          <ServiceDropdown
-            services={services}
-            value={qrServiceId}
-            ariaLabel="Select QR code"
-            customerChoiceOption={{ value: "customer-selects-service", label: "Customer selects service" }}
-            onChange={selectQrService}
-          />
-
-          {services.length ? (
-            <div className="live-qr-card live-qr-card-refined">
-              <button
-                type="button"
-                className="live-qr-image-button"
-                onClick={() => setModal("qr")}
-                aria-label={`Maximize QR code for ${selectedQrLabel}`}
-              >
-                <img
-                  src={selectedQrDataUrl}
-                  alt={`QR code for ${selectedQrLabel}`}
-                  className="live-qr-image"
-                />
-              </button>
-
-              <p>{qrServiceId === "customer-selects-service" ? "Scan this QR code and let the customer choose a service." : `Scan this QR code to preselect ${selectedQrLabel}.`}</p>
-
-              <div className="live-qr-actions live-qr-actions-stacked">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={openAssist}
-                >
-                  Fill up for customer
-                </button>
-
-
-              </div>
-            </div>
-          ) : services.length === 0 ? (
-            <div className="live-service-empty">
-              <strong>No active services.</strong>
-            </div>
-          ) : null}
-        </aside>
-      </section>
-
-      {modal === "qr" ? (
-        <div className="qd-modal-backdrop qd-qr-modal-backdrop" role="presentation">
-          <section className="qd-qr-max-modal" role="dialog" aria-modal="true" aria-label={`QR code for ${selectedQrLabel}`}>
-            <img src={selectedQrDataUrl} alt={`QR code for ${selectedQrLabel}`} />
-            <button className="button button-secondary qd-qr-cancel" type="button" onClick={closeModal}>Cancel</button>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "assist" && services.length ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section className="qd-modal" role="dialog" aria-modal="true" aria-labelledby="assist-title">
-            <div className="qd-modal-header">
-              <div>
-                <h2 id="assist-title">Fill up customer details</h2>
-                <span className="queue-service-name">{assistServiceId ? services.find((service) => service.id === assistServiceId)?.name ?? "Select service" : "Customer selects service"}</span>
-              </div>
-            </div>
-
-            <form action={assistAction} className="form-stack" data-no-global-loading="true">
-              <input type="hidden" name="branch_id" value={selectedBranchId} />
-              <label>
-                Service
-                <select name="service_id" required value={assistServiceId} onChange={(event) => setAssistServiceId(event.target.value)}>
-                  <option value="" disabled>Select service</option>
-                  {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-                </select>
-              </label>
-              <label>
-                Customer name
-                <input name="name" required minLength={1} maxLength={100} placeholder="Enter your name" />
-              </label>
-              <label>
-                Mobile number
-                <DigitsOnlyInput name="phone" required maxLength={20} autoComplete="tel" placeholder="09171234567" />
-              </label>
-              {assistState.message && !assistState.ok ? <div className="notice notice-error">{assistState.message}</div> : null}
-              <div className="qd-modal-actions">
-                <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
-                <button className="button button-primary" type="submit" disabled={assistPending || !assistServiceId}>{assistPending ? "Adding..." : "Add to queue"}</button>
-              </div>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "customer" && activeTicket ? (
-        <div className="qd-modal-backdrop qd-customer-preview-backdrop" role="presentation">
-          <section className="qd-customer-preview-modal" role="dialog" aria-modal="true" aria-labelledby="customer-preview-title">
-            <div className="qd-customer-preview-toolbar">
-              <div>
-                <p className="eyebrow">Staff preview</p>
-                <strong id="customer-preview-title">{activeTicket.display_number} customer view</strong>
-              </div>
-              <div className="qd-customer-preview-toolbar-actions">
-                {(canEditName || canEditMobile) ? <button className="button button-secondary button-small" type="button" onClick={() => setModal("edit")}>Edit customer</button> : null}
-                <button className="button button-secondary button-small" type="button" onClick={openTicketHistory}>Change history</button>
-                <button className="button button-primary button-small" type="button" onClick={closeModal}>Close</button>
-              </div>
-            </div>
-            {activeTicket.session_token ? (
-              <iframe
-                className="qd-customer-preview-frame"
-                src={`/q/status/${activeTicket.session_token}`}
-                title={`Customer view for ${activeTicket.display_number}`}
-              />
-            ) : (
-              <div className="mini-empty qd-customer-preview-unavailable">
-                <strong>Customer view is unavailable for this ticket.</strong>
-                <span>The ticket does not have a customer session link.</span>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "edit" && activeTicket ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-title"
-          >
-            <div className="qd-modal-header">
-              <div>
-                <p className="eyebrow">{activeTicket.display_number}</p>
-                <h2 id="edit-title">Edit customer details</h2>
-              </div>
-            </div>
-
-            <form action={updateCustomerDetailsAction} className="form-stack" data-no-global-loading="true">
-              <input type="hidden" name="branch_id" value={selectedBranchId} />
-              <input type="hidden" name="service_id" value={serviceId} />
-              <input type="hidden" name="ticket_id" value={activeTicket.id} />
-
-              {canEditName ? (
-                <label>
-                  Name
-                  <input
-                    name="name"
-                    required
-                    maxLength={100}
-                    defaultValue={activeTicket.customer_name}
-                  />
-                </label>
-              ) : (
-                <input type="hidden" name="name" value={activeTicket.customer_name} />
-              )}
-
-              {canEditMobile ? (
-                <label>
-                  Mobile number
-                  <DigitsOnlyInput
-                    name="phone"
-                    required
-                    maxLength={20}
-                    autoComplete="tel"
-                    defaultValue={activeTicket.customer_phone}
-                  />
-                </label>
-              ) : (
-                <input
-                  type="hidden"
-                  name="phone"
-                  value={activeTicket.customer_phone}
-                />
-              )}
-
-              <div className="qd-modal-actions">
-                <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={() => setModal("customer")}
-                >
-                  Cancel
-                </button>
-                <QueueSubmitButton
-                  className="button button-primary"
-                  pendingLabel="Saving..."
-                >
-                  Save
-                </QueueSubmitButton>
-              </div>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "history" && activeTicket ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="history-title"
-          >
-            <div className="qd-modal-header">
-              <div>
-                <p className="eyebrow">{activeTicket.display_number}</p>
-                <h2 id="history-title">Change history</h2>
-              </div>
-            </div>
-
-            <div className="qd-history-list">
-              {ticketHistoryLoading ? (
-                <div className="mini-empty">
-                  <strong>Loading change history...</strong>
-                </div>
-              ) : ticketHistory.length ? (
-                ticketHistory.map((item) => (
-                  <article className="qd-history-row" key={item.id}>
-                    <div>
-                      <strong>
-                        {item.field_name === "mobile" ? "Mobile" : item.field_name === "queue_position" ? "Queue position" : "Name"}
-                      </strong>
-                      <span>
-                        {item.old_value || "-"} {"->"} {item.new_value || "-"}
-                      </span>
-                    </div>
-                    <small>
-                      {item.changed_by_label ?? item.changed_by_type} - {" "}
-                      {new Date(item.created_at).toLocaleString()}
-                    </small>
-                  </article>
-                ))
-              ) : (
-                <div className="mini-empty">
-                  <strong>No changes yet.</strong>
-                  <span>No customer detail or queue-position changes have been recorded.</span>
-                </div>
-              )}
-            </div>
-
-            <div className="qd-modal-actions">
-              <button
-                className="button button-secondary"
-                type="button"
-                onClick={() => setModal("customer")}
-              >
-                Cancel
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "service-history" ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal qd-service-history-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="service-history-title"
-          >
-            <div className="qd-service-history-header">
-              <div>
-                <p className="eyebrow">Service history</p>
-                <h2 id="service-history-title">
-                  {role === "owner" || role === "admin"
-                    ? "All branch history"
-                    : role === "manager"
-                      ? "Assigned branch history"
-                      : "Current branch history"}
-                </h2>
-                <span>
-                  {serviceHistoryLoading
-                    ? "Loading history..."
-                    : `${serviceHistory.length} historical ticket${
-                        serviceHistory.length === 1 ? "" : "s"
-                      }`}
-                </span>
-              </div>
-
-              <button
-                className="button button-secondary qd-service-history-close"
-                type="button"
-                onClick={closeModal}
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="qd-service-history-list">
-              {serviceHistoryLoading ? (
-                <div className="mini-empty">
-                  <strong>Loading service history...</strong>
-                </div>
-              ) : serviceHistory.length ? (
-                serviceHistory.map((ticket) => (
-                  <article className="qd-service-history-row" key={ticket.id}>
-                    <div className="qd-service-history-main">
-                      <div>
-                        <strong>{ticket.display_number}</strong>
-                        <span>{ticket.service_name}</span>
-                      </div>
-                      <span
-                        className={`ticket-status-chip ticket-status-${ticket.status}`}
-                      >
-                        {ticket.status.replace("_", " ")}
-                      </span>
-                    </div>
-
-                    <div className="qd-service-history-meta">
-                      <span><b>Branch:</b> {ticket.branch_name}</span>
-                      <span><b>Customer:</b> {ticket.customer_name}</span>
-                      <span><b>Mobile:</b> {ticket.customer_phone}</span>
-                      <span>
-                        <b>Joined:</b>{" "}
-                        {new Date(ticket.joined_at).toLocaleString()}
-                      </span>
-                      {ticket.completed_at ? (
-                        <span>
-                          <b>Completed:</b>{" "}
-                          {new Date(ticket.completed_at).toLocaleString()}
-                        </span>
-                      ) : null}
-                      {ticket.cancelled_at ? (
-                        <span>
-                          <b>Cancelled:</b>{" "}
-                          {new Date(ticket.cancelled_at).toLocaleString()}
-                        </span>
-                      ) : null}
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <div className="mini-empty">
-                  <strong>No service history yet.</strong>
-                  <span>Completed, cancelled, and no-show tickets will appear here.</span>
-                </div>
-              )}
-            </div>
-
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "confirm-call-next" && selectedService ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-call-next-title">
-            <div className="qd-confirm-icon" aria-hidden="true">?</div>
-            <div className="qd-confirm-copy"><h2 id="confirm-call-next-title">Call next customer?</h2><p>Are you sure you want to call the next waiting customer for <strong>{selectedService.name}</strong>?</p></div>
-            <form action={callNextAction} className="qd-modal-actions" data-no-global-loading="true">
-              <input type="hidden" name="branch_id" value={selectedBranchId} /><input type="hidden" name="service_id" value={selectedService.id} />
-              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
-              <QueueSubmitButton className="button button-primary" pendingLabel="Calling...">Yes, call next</QueueSubmitButton>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "confirm-return-last" && selectedService ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-return-last-title">
-            <div className="qd-confirm-icon" aria-hidden="true">?</div>
-            <div className="qd-confirm-copy"><h2 id="confirm-return-last-title">Return last customer to queue?</h2><p>Are you sure you want to return the last customer for <strong>{selectedService.name}</strong> back to the waiting queue?</p></div>
-            <form action={returnLastCustomerAction} className="qd-modal-actions" data-no-global-loading="true">
-              <input type="hidden" name="branch_id" value={selectedBranchId} /><input type="hidden" name="service_id" value={selectedService.id} />
-              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
-              <QueueSubmitButton className="button button-primary" pendingLabel="Returning...">Yes, return customer</QueueSubmitButton>
-            </form>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "confirm-exit" ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-exit-title">
-            <div className="qd-confirm-icon">!</div>
-            <div className="qd-confirm-copy">
-              <h2 id="confirm-exit-title">Exit live queue?</h2>
-              <p>Are you sure you want to exit the live queue view?</p>
-            </div>
-            <div className="qd-modal-actions">
-              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
-              <button className="button button-primary" type="button" onClick={() => router.push("/dashboard")}>Yes, exit</button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-      {modal === "confirm-name-visibility" ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-name-title">
-            <div className="qd-confirm-icon">?</div>
-            <div className="qd-confirm-copy">
-              <h2 id="confirm-name-title">{showNames ? "Hide customer names?" : "Show customer names?"}</h2>
-              <p>
-                {showNames
-                  ? "Are you sure you want to hide customer names from the live queue list?"
-                  : "Are you sure you want to show customer names on the live queue list?"}
-              </p>
-            </div>
-            <div className="qd-modal-actions">
-              <button className="button button-secondary" type="button" onClick={closeModal}>Cancel</button>
-              <button className="button button-primary" type="button" onClick={confirmToggleNames}>
-                {showNames ? "Yes, hide names" : "Yes, show names"}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {modal === "result" && resultMessage ? (
-        <div className="qd-modal-backdrop" role="presentation">
-          <section
-            className="qd-modal qd-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="live-result-title"
-          >
-            <div
-              className={
-                resultMessage.type === "error"
-                  ? "qd-confirm-icon qd-confirm-icon-danger"
-                  : "qd-confirm-icon"
-              }
-            >
-              {resultMessage.type === "error" ? "!" : "OK"}
-            </div>
-
-            <div className="qd-confirm-copy">
-              <h2 id="live-result-title">
-                {resultMessage.type === "error"
-                  ? "Unable to complete action"
-                  : "Action completed"}
-              </h2>
-              <p>{resultMessage.message}</p>
-            </div>
-
-            <div className="qd-modal-actions">
-              <button
-                className="button button-primary"
-                type="button"
-                onClick={() => {
-                  queueMicrotask(() => setModal(null));
-                  setResultMessage(null);
-                  router.replace(
-                    `/dashboard/queues?branch=${selectedBranchId}${
-                      serviceId ? `&service=${serviceId}` : ""
-                    }`,
-                    { scroll: false },
-                  );
-                }}
-              >
-                OK
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-
-    </main>
+  const TicketLink = ({ ticket }: { ticket: Ticket }) => (
+    <button type="button" className="live-ticket-number-button" onClick={() => setPreviewTicket(ticket)} title="Open customer phone view">
+      <span>{ticket.display_number}</span>{ticket.sms_enabled ? <span className="live-mobile-icon" aria-label="Mobile number added" title="Mobile number added">📱</span> : null}
+    </button>
   );
+
+  const ServingRow = ({ ticket }: { ticket: Ticket }) => (
+    <article className="live-ticket-card live-ticket-card-compact live-serving-row-v4">
+      <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
+      <div className="live-ticket-meta"><strong>Now serving</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
+      <div className="live-ticket-action live-ticket-multi-actions">
+        <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="complete"/><ActionButton className="button button-primary">Complete</ActionButton></form>
+        <button className="button button-secondary" type="button" onClick={() => openConfirm(ticket, "return_last")}>Return to last</button>
+        <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="pending"/><ActionButton className="button button-secondary">Move to pending</ActionButton></form>
+      </div>
+    </article>
+  );
+
+  const PendingRow = ({ ticket }: { ticket: Ticket }) => (
+    <article className="live-ticket-card live-ticket-card-compact live-pending-row-v4">
+      <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
+      <div className="live-ticket-meta"><strong>Pending</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
+      <div className="live-ticket-action live-ticket-multi-actions">
+        <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="serve"/><ActionButton className="button button-primary">Move to serving</ActionButton></form>
+        <button className="text-link live-cancel-link" type="button" onClick={() => openConfirm(ticket, "cancel")}>Cancel</button>
+      </div>
+    </article>
+  );
+
+  const WaitingRow = ({ ticket }: { ticket: Ticket }) => (
+    <article className="live-ticket-card">
+      <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
+      <div className="live-ticket-meta"><strong>#{ticket.position ?? "-"} in line</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
+      <div className="live-ticket-action"><button className="text-link live-cancel-link" type="button" onClick={() => openConfirm(ticket, "cancel")}>Cancel</button></div>
+    </article>
+  );
+
+  return <section className="dashboard-content live-queue-page live-queue-page-v4">
+    <header className="dashboard-header live-queue-header-v4">
+      <div><p className="eyebrow">Live queue</p><h1>{businessName}</h1><p className="muted">{selectedBranch.name}{selectedBranch.address ? ` · ${selectedBranch.address}` : ""}</p></div>
+      <label className="live-business-branch-picker">
+        <span>Business / branch</span>
+        <select value={selectedBranchId} onChange={(e) => navigateBranch(e.target.value)} disabled={isBranchSwitching}>
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{businessName} — {branch.name}</option>)}
+        </select>
+      </label>
+    </header>
+
+    {flash ? <div className={`notice ${flash.type === "success" ? "notice-success" : "notice-error"} live-queue-flash`} role="status">{flash.message}</div> : null}
+
+    <section className="dashboard-section live-command-bar live-command-bar-v4">
+      <label className="live-service-picker-v2"><span>Queue service</span><select value={serviceId} onChange={(e) => setServiceId(e.target.value)} aria-label="Queue service">{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <div className="live-command-actions">
+        {canSimulateStub ? <form action={simulateGetStubAction} className="live-test-stub-form-v2" data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button live-get-stub-button-v2" disabled={!selectedService}>＋ Get test stub</ActionButton><span>DEV / CLIENT ADMIN</span></form> : null}
+        <form action={callNextAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button button-primary live-primary-action" disabled={!selectedService}>Call next</ActionButton></form>
+        <a className="button button-secondary" href="/dashboard">Dashboard</a>
+        <button className="button button-secondary" type="button" onClick={showHistory}>History</button>
+        <a className="button button-secondary" href="/dashboard/terminals">Terminals</a>
+      </div>
+    </section>
+
+    <section className="live-current-grid live-current-grid-v4">
+      <div className="dashboard-section live-current-panel live-serving-panel"><div className="live-panel-title"><div><span className="live-status-dot"/><h2>Now serving</h2></div><strong>{serving.length}</strong></div><div className="live-current-list">{serving.length ? serving.map((t) => <ServingRow ticket={t} key={t.id}/>) : <div className="live-empty-state"><strong>No stub being served</strong><span>Move a pending stub to serving when ready.</span></div>}</div></div>
+      <div className="dashboard-section live-current-panel live-pending-panel"><div className="live-panel-title"><div><span className="live-status-dot live-status-dot-pending"/><h2>Pending</h2></div><strong>{pending.length}</strong></div><div className="live-current-list">{pending.length ? pending.map((t) => <PendingRow ticket={t} key={t.id}/>) : <div className="live-empty-state"><strong>No pending stub</strong><span>Call next to move the first waiting stub here.</span></div>}</div></div>
+    </section>
+
+    <section className="dashboard-section live-waiting-panel"><div className="live-waiting-header"><div><p className="eyebrow">Up next</p><h2>Waiting queue</h2><span>{selectedService?.name ?? "Service"}</span></div><div className="live-waiting-count"><strong>{waiting.length}</strong><span>waiting</span></div></div>{waiting.length ? <div className="live-waiting-grid">{waiting.map((t) => <WaitingRow ticket={t} key={t.id}/>)}</div> : <div className="live-empty-state live-empty-state-large"><strong>No one is waiting</strong><span>New terminal stubs will appear here automatically.</span></div>}</section>
+
+    {history ? <section className="dashboard-section live-history-panel"><div className="live-column-head"><h2>Recent stub history</h2><button className="text-link" type="button" onClick={() => setHistory(null)}>Close</button></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Queue</th><th>Branch</th><th>Service</th><th>Status</th><th>Joined</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td><strong>{row.display_number}</strong></td><td>{row.branch_name}</td><td>{row.service_name}</td><td>{row.status}</td><td>{new Date(row.joined_at).toLocaleString()}</td></tr>)}</tbody></table></div></section> : null}
+
+    {previewTicket ? <div className="live-confirm-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewTicket(null); }}><section className="live-phone-preview-dialog" role="dialog" aria-modal="true" aria-label={`Customer view for ${previewTicket.display_number}`}><div className="live-phone-preview-heading"><div><p className="eyebrow">Customer phone view</p><h2>{previewTicket.display_number}{previewTicket.sms_enabled ? <span className="live-mobile-icon">📱</span> : null}</h2><p>{previewTicket.sms_phone ? `Mobile: ${previewTicket.sms_phone}` : "No mobile number added"}</p></div><button type="button" className="live-confirm-close" onClick={() => setPreviewTicket(null)} aria-label="Close">×</button></div>{previewTicket.session_token ? <div className="live-phone-shell"><div className="live-phone-speaker"/><iframe title={`Customer status ${previewTicket.display_number}`} src={`/q/status/${previewTicket.session_token}`}/></div> : <div className="live-empty-state live-phone-unavailable"><strong>Customer link unavailable</strong><span>This stub has no active status token.</span></div>}</section></div> : null}
+
+    {confirm ? <div className="live-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirm(); }}><section className="live-confirm-dialog" role="dialog" aria-modal="true"><div className="live-confirm-heading"><div><p className="eyebrow">Verification required</p><h2>{confirm.action === "cancel" ? `Cancel ${confirm.ticket.display_number}?` : `Return ${confirm.ticket.display_number} to last?`}</h2></div><button type="button" className="live-confirm-close" onClick={closeConfirm} aria-label="Close">×</button></div><p className="live-confirm-copy">{confirm.action === "cancel" ? "This removes the stub from the active queue." : "This moves the serving stub to the end of the waiting queue."} Type the verification code to continue.</p><div className="live-confirm-code">{confirm.code}</div><form action={updateTicketAction} className="live-confirm-form" data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={confirm.ticket.service_id}/><input type="hidden" name="ticket_id" value={confirm.ticket.id}/><input type="hidden" name="action" value={confirm.action}/><input type="hidden" name="expected_code" value={confirm.code}/><label><span>Type {confirm.code} to confirm</span><input name="confirm_code" inputMode="numeric" autoComplete="off" maxLength={4} value={confirmInput} onChange={(event) => setConfirmInput(event.target.value.replace(/\D/g, "").slice(0, 4))} autoFocus/></label><div className="live-confirm-actions"><button type="button" className="button button-secondary" onClick={closeConfirm}>Go back</button><ActionButton className={confirm.action === "cancel" ? "button live-danger-button" : "button button-primary"} disabled={confirmInput !== confirm.code}>{confirm.action === "cancel" ? "Cancel stub" : "Return to last"}</ActionButton></div></form></section></div> : null}
+  </section>;
 }
-
-

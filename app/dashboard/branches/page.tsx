@@ -65,7 +65,7 @@ export default async function BranchesPage({ searchParams }: Props) {
   const { data: configs } = branchIds.length
     ? await supabase
         .from("queue_configurations")
-        .select("branch_id, ticket_prefix, starting_number, no_show_minutes, allow_qr_join, is_active")
+        .select("branch_id, ticket_prefix, starting_number, no_show_minutes, is_active")
         .in("branch_id", branchIds)
     : { data: [] };
 

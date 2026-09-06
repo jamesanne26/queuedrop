@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { saveClientOverrides, saveCustomerMoveDownVisibility } from "./actions";
+import { saveClientOverrides } from "./actions";
 
 type Props = { params: Promise<{ businessId: string }>; searchParams: Promise<{ message?: string; error?: string }> };
 
@@ -21,12 +21,6 @@ export default async function SystemClientDetailPage({ params, searchParams }: P
   ]);
   if (!business) notFound();
 
-  const { data: branchSettings } = await admin
-    .from("branches")
-    .select("id,name,queue_configurations(customer_can_move_down)")
-    .eq("business_id", businessId)
-    .order("created_at", { ascending: true });
-
   const selectedPlanId = subscription?.plan_id ?? plans?.find((p) => p.is_active)?.id ?? "";
   const selectedPlan = (plans ?? []).find((p) => p.id === selectedPlanId);
 
@@ -35,29 +29,6 @@ export default async function SystemClientDetailPage({ params, searchParams }: P
       <div className="system-hero"><div><p className="eyebrow">Client settings</p><h1>{business.name}</h1><p className="muted">{business.slug} · {branchCount ?? 0} branch(es) · {business.status}</p></div><Link className="button button-secondary" href="/system">Back to clients</Link></div>
       {query.message ? <div className="notice notice-success">{query.message}</div> : null}
       {query.error ? <div className="notice notice-error">{query.error}</div> : null}
-
-      <section className="system-panel">
-        <div className="system-panel-title"><div><p className="eyebrow">Customer queue controls</p><h2>Move down one place</h2></div></div>
-        <p className="muted">System Owner can show or hide the customer self-service move-down button per branch. Clients can also manage the same setting from Dashboard → Settings.</p>
-        <div className="system-form-grid">
-          {(branchSettings ?? []).map((branch) => {
-            const relation = Array.isArray(branch.queue_configurations) ? branch.queue_configurations[0] : branch.queue_configurations;
-            return (
-              <form action={saveCustomerMoveDownVisibility} className="system-form-wide permission-card" key={branch.id}>
-                <input type="hidden" name="business_id" value={business.id} />
-                <input type="hidden" name="branch_id" value={branch.id} />
-                <strong>{branch.name}</strong>
-                <label>
-                  <input type="checkbox" name="customer_can_move_down" defaultChecked={relation?.customer_can_move_down ?? false} />{" "}
-                  Show “Move down 1 place” in Customer View
-                </label>
-                <div><button className="button button-secondary" type="submit">Save branch setting</button></div>
-              </form>
-            );
-          })}
-          {!(branchSettings ?? []).length ? <p className="muted system-form-wide">This client has no branches yet.</p> : null}
-        </div>
-      </section>
 
       <section className="system-panel">
         <div className="system-panel-title"><div><p className="eyebrow">Subscription</p><h2>Plan & client-specific overrides</h2></div><span>{subscription?.status ?? "Not subscribed"}</span></div>

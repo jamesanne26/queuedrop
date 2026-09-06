@@ -31,7 +31,7 @@ export default async function PricingPage() {
           <ul>
             <li>{plan.max_active_queues_per_branch ? `Up to ${plan.max_active_queues_per_branch} active queues` : "Custom active queue allowance"}</li>
             <li>{plan.trial_days > 0 ? `${plan.trial_days}-day trial` : "No trial"}</li>
-            <li>Live queue + customer browser tracking</li>
+            <li>Live queue + printed-stub status tracking</li>
           </ul>
           <Link href="/auth/signup" className="button button-primary">Subscribe</Link>
         </article>

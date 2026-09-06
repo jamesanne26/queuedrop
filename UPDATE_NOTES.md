@@ -196,3 +196,100 @@ This package includes the latest live-queue UX fixes:
 - Added Starter trial assignment for newly created self-service workspaces.
 - Added database enforcement for subscribed/trialing branch and service/active-queue limits.
 - Added system audit log table for plan and client override changes.
+
+## 2026-09-05 — Stub-first QueueDrop
+
+- Customer entry is now designed around a physical QueueDrop ticket terminal.
+- No customer name or mobile number is required to get a queue ticket.
+- Added `/kiosk/[deviceToken]` fullscreen GET STUB terminal screen.
+- Added kiosk ticket API and native printer bridge contract.
+- Added Dashboard > Terminals for owner/admin device registration.
+- Added DB Stub Mode configuration, terminal-to-service binding, ticket source/device/printed tracking, and secure terminal RPCs.
+- Printed stub QR opens the existing private `/q/status/[token]` live status page.
+- Live status now offers optional SMS opt-in instead of customer name editing.
+- Existing dashboard, roles, reports, queue operations, notifications, subscriptions, services and branches remain reusable SaaS capabilities.
+- Legacy public/QR joining is disabled by the migration but retained in the codebase as a future optional mode.
+
+Hardware note: direct built-in thermal printing requires the QueueDrop Android WebView wrapper to expose `QueueDropPrinter.printStub(...)`; see `docs/STUB_TERMINAL.md`.
+
+## 2026-09-05 Queue responsiveness fix
+- Live Queue no longer refreshes the entire server route every 5 seconds. It subscribes to branch-scoped ticket changes through Supabase Realtime and refreshes only after a ticket insert/update/delete, with manual Refresh as fallback.
+- Queue View loads active tickets directly by branch/status instead of depending on a separate queue-session lookup, fixing newly issued test stubs not appearing in Waiting.
+- Dashboard layout role/permission lookup reduced to one business_users query.
+- Removed eager programmatic prefetch of every dashboard page from the sidebar.
+- Queue server actions reuse their authenticated user lookup instead of immediately requesting it again.
+
+## 2026-09-06 Queue responsiveness + cancellation safety
+- Queue success/error banners are now one-time flashes and remove their URL parameters without a reload.
+- Global submit loading now clears on completed Next.js navigation/query-string redirects and has a shorter safety timeout.
+- Queue SMS dispatch is deferred with Next.js `after()` so queue actions return before external SMS delivery work finishes.
+- Live Queue only renders tickets from the branch's current open daily queue session, preventing stale/duplicate active tickets from old sessions.
+- Waiting-ticket cancellation now requires a 4-digit verification code in a confirmation modal before the cancel action can be submitted.
+
+## 2026-09-06 - Live Queue operator workflow v4
+- Replaced the Called panel with Pending (DB keeps `called` internally for compatibility).
+- Call next now moves the first waiting stub to Pending, not directly to Serving.
+- Serving cards now expose Complete, Return to last, and Move to pending.
+- Pending cards expose Move to serving and Cancel.
+- Removed the top Return last command.
+- Added verification-code confirmation for Return to last, matching Cancel protection.
+- Added combined Business / branch selector to the Live Queue header.
+- Queue numbers are clickable and open the actual customer `/q/status/[token]` page inside a phone-shaped preview.
+- Customer mobile/SMS presence is visible through a mobile icon and the preview shows the saved SMS number.
+- Queue action forms use local pending buttons instead of the blocking global Please wait overlay.
+- Added migration 20260906010500_queue_pending_operator_controls.sql.
+
+## 2026-09-06 Queue operator v5
+- Fixed clipped Now Serving/Pending action buttons.
+- Added exact-ticket return-to-last RPC with verification flow.
+- Removed nested Current Queue scroll on customer status page.
+- Added sticky upper-right customer position/status indicator when hero status scrolls out of view.
+
+
+## 2026-09-06 - Queue operator v6
+- Added Dashboard button beside Call next on Live Queue.
+- Removed obsolete Add customer / Edit customer permissions from active configuration UI/types.
+- Saving employee configuration now explicitly disables legacy add/edit-customer permissions for the stub-only workflow.
+
+## 2026-09-06 — Get Stub Print Bridge + protected mobile kiosk exit
+- Added durable `print_jobs` queue for web → QueueDrop Print Bridge → thermal printer.
+- Added secure device-token claim/complete APIs with retry/backoff and duplicate-print protection.
+- Kept legacy `QueueDropPrinter.printStub(...)` compatibility during APK transition.
+- Added mobile-only **Get Stub** side-navigation entry and terminal launcher.
+- Added PIN-protected Back button when kiosk mode is launched from the dashboard.
+- Added owner/admin Settings control for the kiosk exit PIN; PIN is bcrypt-hashed with pgcrypto.
+- Added failed-PIN lockout after five attempts for one minute.
+
+## 2026-09-06 — Multi-service Get Stub terminal update
+- Get Stub now has a large green tactile **PRESS HERE / to get stub** kiosk button based on the supplied reference.
+- A ticket terminal is assigned to one branch and a **default service**; the default is preselected when kiosk mode opens.
+- Customers can choose any active service in the terminal's branch before requesting a printed stub.
+- Multiple terminals can intentionally use the same default service; there is no one-terminal-per-service restriction.
+- Stub tickets now send the selected service to the backend and create the durable Print Bridge job for that service.
+- The older one-argument `issue_stub_ticket` RPC remains compatible and uses the terminal default service.
+- Get Queue remains browser-only and redirects the phone to the live queue/status page; it does not create a print job.
+- New migration: `20260906170000_multiservice_stub_terminals.sql`.
+
+
+## 2026-09-06 — Single terminal launcher
+- Replaced the duplicate `Open Get Stub` and `Open Get Queue` actions on Dashboard → Terminals with one `Open Terminal` button.
+- `Open Terminal` launches the configured kiosk/terminal view.
+- Browser-only `Get Queue` is still available from the dashboard navigation for phone-only/no-printer usage.
+- No database migration is required for this UI-only change.
+
+## 2026-09-06 — Instant Live Queue Sync
+- Live Queue now applies Supabase ticket INSERT/UPDATE/DELETE events directly to the visible queue before the background server refresh completes.
+- Added ticket-number-aware local position recalculation for waiting queues.
+- Realtime remains the primary transport; no 1-second polling loop was added.
+- Added reconnect status (`Live connected` / `Reconnecting…`).
+- Added lightweight 12-second fallback refresh only while the realtime websocket is disconnected.
+- Refreshes on browser focus/visibility restore and when internet connectivity returns.
+- Queue refresh deferred by an open confirmation/preview modal is replayed after the modal closes instead of being lost.
+- No database migration is required for this update; `tickets` is already part of the `supabase_realtime` publication in the project schema.
+
+## 2026-09-06 — Live Queue no-manual-refresh hardening
+- Live Queue now subscribes directly to `tickets` Postgres changes inside the workspace state instead of relying only on a cross-component browser event.
+- Subscription is intentionally unfiltered at the Realtime server layer; authenticated RLS still scopes readable rows, and the workspace filters by selected branch client-side. This avoids missed filtered change events.
+- Added a lightweight 2.5-second reconciliation while the Live Queue tab is visible. Realtime remains primary; reconciliation is a safety net for dropped WebSocket events/browser sleep/Wi-Fi transitions.
+- Reconciliation reads only active tickets for the selected branch/current open queue session and updates the existing React state; no manual refresh is required.
+- No database migration required for this update.

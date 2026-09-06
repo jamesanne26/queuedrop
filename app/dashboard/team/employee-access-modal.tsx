@@ -5,13 +5,13 @@ import { updateEmployeeAccess } from "./actions";
 
 export type EmployeePermissions = Record<
   | "can_set_branch_status" | "can_manage_services" | "can_manage_operating_hours" | "can_manage_team" | "can_manage_kiosk_display"
-  | "can_add_customer" | "can_edit_customer" | "can_call_customer" | "can_serve_customer" | "can_complete_ticket" | "can_cancel_ticket" | "can_mark_no_show" | "can_view_customer_contact"
+  | "can_call_customer" | "can_serve_customer" | "can_complete_ticket" | "can_cancel_ticket" | "can_mark_no_show" | "can_view_customer_contact"
   | "can_view_reports" | "can_export_reports" | "can_view_audit_logs" | "can_view_queue_information_editing" | "can_view_position_notifications",
   boolean
 >;
 
 const groups: { title: string; items: [keyof EmployeePermissions, string][] }[] = [
-  { title: "Queue management", items: [["can_add_customer","Add customer"],["can_edit_customer","Edit customer"],["can_call_customer","Call next customer"],["can_serve_customer","Move to serving / pending"],["can_complete_ticket","Complete customer"],["can_cancel_ticket","Cancel customer"],["can_mark_no_show","Mark no show"],["can_view_customer_contact","View customer contact"]] },
+  { title: "Queue management", items: [["can_call_customer","Call next stub"],["can_serve_customer","Move stub to serving / pending"],["can_complete_ticket","Complete stub"],["can_cancel_ticket","Cancel stub"],["can_mark_no_show","Mark no show"]] },
   { title: "Business management", items: [["can_set_branch_status","Change branch status"],["can_manage_services","Manage services"],["can_manage_operating_hours","Manage operating hours"],["can_manage_team","Manage employees"],["can_manage_kiosk_display","Manage kiosk & display"]] },
   { title: "Settings & reports", items: [["can_view_queue_information_editing","Queue information settings"],["can_view_position_notifications","Position notification settings"],["can_view_reports","View reports"],["can_export_reports","Export reports"],["can_view_audit_logs","View audit logs"]] },
 ];

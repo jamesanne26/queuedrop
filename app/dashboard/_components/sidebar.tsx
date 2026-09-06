@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
 
-type NavKey = "overview" | "branches" | "services" | "queues" | "team" | "reports" | "settings";
+type NavKey = "overview" | "branches" | "services" | "queues" | "terminals" | "team" | "reports" | "settings" | "getStub" | "getQueue";
 
 type Props = {
   active?: NavKey;
@@ -19,15 +19,20 @@ type Props = {
 
 export function DashboardSidebar({ active, role = "owner", canViewSettings, canViewReports, canManageTeam, canManageServices, canManageBranches }: Props) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
   const pathname = usePathname();
 
-  const routeActive: NavKey = pathname.startsWith("/dashboard/branches")
+  const routeActive: NavKey = pathname.startsWith("/dashboard/get-queue")
+    ? "getQueue"
+    : pathname.startsWith("/dashboard/get-stub")
+    ? "getStub"
+    : pathname.startsWith("/dashboard/branches")
     ? "branches"
     : pathname.startsWith("/dashboard/services")
       ? "services"
       : pathname.startsWith("/dashboard/queues")
         ? "queues"
+        : pathname.startsWith("/dashboard/terminals")
+          ? "terminals"
         : pathname.startsWith("/dashboard/team")
           ? "team"
           : pathname.startsWith("/dashboard/reports")
@@ -36,32 +41,6 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
             ? "settings"
             : "overview";
   const currentActive = active ?? routeActive;
-
-  useEffect(() => {
-    const routes = [
-      "/dashboard",
-      "/dashboard/branches",
-      "/dashboard/services",
-      "/dashboard/queues",
-      "/dashboard/team",
-      "/dashboard/reports",
-      "/dashboard/settings",
-    ];
-
-    const prefetch = () => {
-      for (const route of routes) router.prefetch(route);
-    };
-
-    const idleCallback = window.requestIdleCallback;
-
-    if (typeof idleCallback === "function") {
-      const idleId = idleCallback(prefetch, { timeout: 1200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timeoutId = globalThis.setTimeout(prefetch, 250);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [router]);
 
   const teamVisible = canManageTeam ?? (role === "owner" || role === "admin" || role === "manager");
   const servicesVisible = canManageServices ?? true;
@@ -76,6 +55,9 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
       {branchesVisible ? <Link className={`nav-item ${currentActive === "branches" ? "nav-item-active" : ""}`} href="/dashboard/branches" onClick={() => setOpen(false)}>Branches</Link> : null}
       {servicesVisible ? <Link className={`nav-item ${currentActive === "services" ? "nav-item-active" : ""}`} href="/dashboard/services" onClick={() => setOpen(false)}>Services</Link> : null}
       <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queues</Link>
+      <Link className={`nav-item mobile-get-stub-nav ${currentActive === "getStub" ? "nav-item-active" : ""}`} href="/dashboard/get-stub" onClick={() => setOpen(false)}>Get Stub</Link>
+      <Link className={`nav-item mobile-get-stub-nav ${currentActive === "getQueue" ? "nav-item-active" : ""}`} href="/dashboard/get-queue" onClick={() => setOpen(false)}>Get Queue</Link>
+      {(role === "owner" || role === "admin") ? <Link className={`nav-item ${currentActive === "terminals" ? "nav-item-active" : ""}`} href="/dashboard/terminals" onClick={() => setOpen(false)}>Terminals</Link> : null}
       {teamVisible ? <Link className={`nav-item ${currentActive === "team" ? "nav-item-active" : ""}`} href="/dashboard/team" onClick={() => setOpen(false)}>Team</Link> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History & Reports</Link> : null}
       {settingsVisible ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}

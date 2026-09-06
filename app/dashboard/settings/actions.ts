@@ -135,42 +135,14 @@ export async function updateQueueSettings(formData: FormData) {
 
   const ticketPrefix = currentConfig?.ticket_prefix || "Q";
 
-  const { error } = await supabase.rpc("save_branch_queue_settings", {
+  const { error } = await supabase.rpc("save_stub_queue_settings", {
     target_branch_id: branchId,
     target_ticket_prefix: ticketPrefix,
     target_starting_number: startingNumber,
     target_no_show_minutes: noShowMinutes,
     target_timezone: timezone,
-    target_allow_qr_join: checked(formData, "allow_qr_join"),
     target_is_active: checked(formData, "is_active"),
-    target_show_branch_contact: checked(
-      formData,
-      "show_branch_contact",
-    ),
-    target_customer_can_edit_name: checked(
-      formData,
-      "customer_can_edit_name",
-    ),
-    target_customer_can_edit_mobile: checked(
-      formData,
-      "customer_can_edit_mobile",
-    ),
-    target_staff_can_edit_name: checked(
-      formData,
-      "staff_can_edit_name",
-    ),
-    target_staff_can_edit_mobile: checked(
-      formData,
-      "staff_can_edit_mobile",
-    ),
-    target_manager_can_edit_name: checked(
-      formData,
-      "manager_can_edit_name",
-    ),
-    target_manager_can_edit_mobile: checked(
-      formData,
-      "manager_can_edit_mobile",
-    ),
+    target_show_branch_contact: checked(formData, "show_branch_contact"),
     target_hours: hours,
     target_position_rules: rules,
   });
@@ -192,40 +164,6 @@ export async function updateQueueSettings(formData: FormData) {
   });
   if (smsSettingsError) fail(branchId, smsSettingsError.message);
 
-  const moveDownEnabled = checked(formData, "customer_can_move_down");
-  const { error: moveDownSettingError } = await supabase.rpc("set_branch_customer_move_down_setting", {
-    target_branch_id: branchId,
-    target_enabled: moveDownEnabled,
-  });
-
-  if (moveDownSettingError) {
-    // Keep unrelated Settings saves (for example, Operating Hours) working even
-    // when PostgREST has not refreshed the newly added RPC in its schema cache.
-    // Business admins already have RLS permission to update queue_configurations,
-    // so this is a safe compatibility fallback while the repair migration reloads
-    // the API schema. Other permission scopes still use the security-definer RPC.
-    const missingMoveDownRpc =
-      moveDownSettingError.code === "PGRST202" ||
-      /set_branch_customer_move_down_setting/i.test(moveDownSettingError.message) &&
-        /schema cache|could not find the function/i.test(moveDownSettingError.message);
-
-    if (!missingMoveDownRpc) {
-      fail(branchId, moveDownSettingError.message);
-    }
-
-    const { error: fallbackError } = await supabase
-      .from("queue_configurations")
-      .update({ customer_can_move_down: moveDownEnabled })
-      .eq("branch_id", branchId);
-
-    if (fallbackError) {
-      fail(
-        branchId,
-        `Unable to save the customer move-down setting. Apply the latest Supabase migrations and try again. ${fallbackError.message}`,
-      );
-    }
-  }
-
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/branches");
 
@@ -241,4 +179,21 @@ export async function updateQueueSettings(formData: FormData) {
       savedToken,
     )}&message=${encodeURIComponent("Branch settings saved.")}`,
   );
+}
+
+
+export async function updateKioskExitPin(formData: FormData) {
+  const pin = field(formData, "kiosk_exit_pin");
+  const confirmPin = field(formData, "kiosk_exit_pin_confirm");
+  if (!/^\d{4,8}$/.test(pin)) fail("", "Kiosk exit PIN must contain 4 to 8 digits.");
+  if (pin !== confirmPin) fail("", "Kiosk exit PIN confirmation does not match.");
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
+  const { error } = await supabase.rpc("set_kiosk_exit_pin", { target_pin: pin });
+  if (error) fail("", error.message);
+
+  revalidatePath("/dashboard/settings");
+  redirect(`/dashboard/settings?message=${encodeURIComponent("Kiosk exit PIN updated.")}`);
 }

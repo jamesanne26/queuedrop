@@ -9,7 +9,7 @@ type Role = "owner" | "admin" | "manager" | "staff";
 type Member = {
   id: string; user_id: string; role: Role; role_id?: string | null; is_active: boolean; created_at: string; custom_role_name: string | null;
   can_set_branch_status: boolean; can_manage_services: boolean; can_manage_operating_hours: boolean; can_manage_team: boolean;
-  can_manage_kiosk_display: boolean; can_add_customer: boolean; can_edit_customer: boolean; can_call_customer: boolean;
+  can_manage_kiosk_display: boolean; can_call_customer: boolean;
   can_serve_customer: boolean; can_complete_ticket: boolean; can_cancel_ticket: boolean; can_mark_no_show: boolean;
   can_view_customer_contact: boolean; can_view_reports: boolean; can_export_reports: boolean; can_view_audit_logs: boolean;
   can_view_queue_information_editing: boolean; can_view_position_notifications: boolean;

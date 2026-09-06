@@ -93,7 +93,7 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
             <RoleEditor
               mode="create"
               permissions={groupedPermissions}
-              checkedPermissions={new Set(["view_live_queue", "add_customer", "edit_customer", "call_next_customer"])}
+              checkedPermissions={new Set(["view_live_queue", "call_next_customer"])}
               onCancel={() => setCreating(false)}
             />
           ) : activeRole ? (
@@ -155,7 +155,7 @@ function RoleEditor({
         </div>
         <label className={styles.field}>
           Description
-          <input name="description" defaultValue={role?.description ?? ""} maxLength={240} disabled={protectedRole} placeholder="Handles customer registration and queue management" />
+          <input name="description" defaultValue={role?.description ?? ""} maxLength={240} disabled={protectedRole} placeholder="Handles stub queue operations" />
         </label>
         <label className={styles.field}>
           Branch Access Scope

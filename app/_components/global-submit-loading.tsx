@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 
 type Listener = () => void;
 
@@ -23,7 +24,7 @@ function startTimeout() {
   timeoutId = setTimeout(() => {
     timeoutId = undefined;
     setGlobalLoading(false);
-  }, 12000);
+  }, 6000);
 }
 
 function subscribe(listener: Listener) {
@@ -40,11 +41,41 @@ function getServerSnapshot() {
 }
 
 export function GlobalSubmitLoading() {
+  const pathname = usePathname();
   const isLoading = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot,
   );
+
+
+  useEffect(() => {
+    // A pathname change means the navigation completed.
+    setGlobalLoading(false);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isLoading) return;
+    // Server-action redirects often change only the query string. Poll the
+    // address briefly while blocked so those in-app navigations also clear
+    // the overlay immediately instead of waiting for the safety timeout.
+    const startHref = window.location.href;
+    const interval = window.setInterval(() => {
+      if (window.location.href !== startHref) {
+        window.clearInterval(interval);
+        setGlobalLoading(false);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
+        }
+      }
+    }, 80);
+    return () => window.clearInterval(interval);
+  }, [isLoading]);
 
   useEffect(() => {
     const handleSubmit = (event: Event) => {

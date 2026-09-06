@@ -142,7 +142,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             <div><span className="status-dot" />RLS-protected database</div>
             <div><span className="status-dot" />Atomic owner onboarding</div>
             <div><span className="status-dot" />Branch-scoped staff access</div>
-            <div><span className="status-dot" />Public customer queue joining</div>
+            <div><span className="status-dot" />Terminal-issued anonymous stub queue</div>
           </div>
         </section>
       </section>

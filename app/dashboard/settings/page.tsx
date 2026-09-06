@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
-import { updateQueueSettings } from "./actions";
+import { updateKioskExitPin, updateQueueSettings } from "./actions";
 import { DAYS } from "./constants";
 import { PositionRules } from "./position-rules";
 import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
@@ -63,7 +63,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_view_reports, can_export_reports, can_view_audit_logs, businesses(name)")
+    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_view_reports, can_export_reports, can_view_audit_logs, businesses(name,kiosk_exit_pin_hash)")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .limit(1)
@@ -137,7 +137,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         supabase
           .from("queue_configurations")
           .select(
-            "starting_number, no_show_minutes, allow_qr_join, is_active, show_branch_contact, customer_refresh_seconds, sms_notifications_enabled, sms_start_position, customer_can_edit_name, customer_can_edit_mobile, customer_can_move_down, staff_can_edit_name, staff_can_edit_mobile, manager_can_edit_name, manager_can_edit_mobile",
+            "starting_number, no_show_minutes, is_active, show_branch_contact, customer_refresh_seconds, sms_notifications_enabled, sms_start_position",
           )
           .eq("branch_id", selectedBranchId)
           .maybeSingle(),
@@ -217,13 +217,13 @@ export default async function SettingsPage({ searchParams }: Props) {
 
             <SettingsOverviewCard icon="queue" title="Queue Configuration" description="Configure how each branch queue works." href="#queue-configuration">
               <SettingsOverviewRow href="#queue-configuration">Branch queue settings</SettingsOverviewRow>
-              <SettingsOverviewRow href="#customer-experience">Customer refresh</SettingsOverviewRow>
+              <SettingsOverviewRow href="#customer-experience">Stub status refresh</SettingsOverviewRow>
               <SettingsOverviewRow href="#notifications">Position notifications</SettingsOverviewRow>
             </SettingsOverviewCard>
 
-            <SettingsOverviewCard icon="customer" title="Customer Experience" description="Control customer-facing queue behavior." href="#customer-experience">
+            <SettingsOverviewCard icon="customer" title="Stub Experience" description="Control the printed-stub status experience." href="#customer-experience">
               <SettingsOverviewRow href="#customer-experience">Queue status refresh</SettingsOverviewRow>
-              <SettingsOverviewRow href="#customer-editing">Customer editing</SettingsOverviewRow>
+              
               {canManageBranches ? <SettingsOverviewRow href="/dashboard/branches">Branch contact visibility</SettingsOverviewRow> : <SettingsOverviewRow>Branch contact visibility</SettingsOverviewRow>}
             </SettingsOverviewCard>
 
@@ -236,7 +236,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             {canManageTeam ? <SettingsOverviewCard icon="security" title="Security & Access" description="Control employee access and sensitive data." href="/dashboard/team?tab=permissions">
               <SettingsOverviewRow href="/dashboard/team?tab=permissions">Role permissions</SettingsOverviewRow>
               <SettingsOverviewRow href="/dashboard/team?tab=employees">Employee branch access</SettingsOverviewRow>
-              {businessWide ? <SettingsOverviewRow href="/client/configurations">Configuration access</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
+              {businessWide ? <SettingsOverviewRow href="#kiosk-security">Get Stub exit PIN</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
             </SettingsOverviewCard> : null}
 
             {canViewReports ? <SettingsOverviewCard icon="reports" title="Reports" description="Report access, exports, and operational visibility." href="/dashboard/reports">
@@ -253,8 +253,27 @@ export default async function SettingsPage({ searchParams }: Props) {
           </div>
         </section>
 
+        {businessWide ? (
+          <section id="kiosk-security" className="dashboard-section dashboard-section-stack settings-card kiosk-security-card">
+            <div>
+              <p className="eyebrow">Kiosk security</p>
+              <h2>Get Stub exit PIN</h2>
+              <p className="muted">When Get Stub mode is opened from the mobile dashboard, Back requires this PIN before returning to the dashboard.</p>
+            </div>
+            <div className="kiosk-pin-status">
+              <strong>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "PIN configured" : "No PIN configured yet"}</strong>
+              <span>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "You can replace it below at any time." : "Set a 4 to 8 digit PIN before using protected kiosk exit."}</span>
+            </div>
+            <form action={updateKioskExitPin} className="kiosk-pin-form">
+              <label>New PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4–8 digits" /></label>
+              <label>Confirm PIN<input name="kiosk_exit_pin_confirm" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="Repeat PIN" /></label>
+              <button className="button button-primary" type="submit">Save exit PIN</button>
+            </form>
+          </section>
+        ) : null}
+
         <div className="settings-section-divider" id="queue-configuration">
-          <div><p className="eyebrow">Branch settings</p><h2>Queue Configuration</h2><p className="muted">Select a branch and update its customer-facing queue behavior.</p></div>
+          <div><p className="eyebrow">Branch settings</p><h2>Queue Configuration</h2><p className="muted">Select a branch and update its stub queue behavior.</p></div>
         </div>
 
         {selectedBranchId && selectedBranch ? (
@@ -364,14 +383,13 @@ export default async function SettingsPage({ searchParams }: Props) {
             <input type="hidden" name="no_show_minutes" value={config?.no_show_minutes ?? 5} />
             <input type="hidden" name="timezone" value={selectedBranch.timezone ?? "Asia/Manila"} />
             {config?.is_active ?? true ? <input type="hidden" name="is_active" value="on" /> : null}
-            {config?.allow_qr_join ?? true ? <input type="hidden" name="allow_qr_join" value="on" /> : null}
-            {config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null}
+                        {config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null}
 
             <section id="customer-experience" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
-                <p className="eyebrow">Customer experience</p>
+                <p className="eyebrow">Stub status</p>
                 <h2>Automatic refresh</h2>
-                <p className="muted">Choose how often the customer queue page refreshes. Recommended: 8 seconds.</p>
+                <p className="muted">Choose how often the scanned stub status page refreshes. Recommended: 8 seconds.</p>
               </div>
               <label className="settings-number-field">
                 Refresh every (seconds)
@@ -383,7 +401,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             <section id="notifications" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
                 <p className="eyebrow">Notifications</p>
-                <h2>Notify customers by queue position</h2>
+                <h2>Notify stub holders by queue position</h2>
                 <p className="muted">
                   Example: send one SMS and/or browser notification when a
                   ticket reaches position 2.
@@ -401,7 +419,7 @@ export default async function SettingsPage({ searchParams }: Props) {
                 </label>
 
                 <label className="settings-number-field">
-                  Start texting when customer reaches position
+                  Start texting when the stub reaches position
                   <input
                     name="sms_start_position"
                     type="number"
@@ -412,7 +430,7 @@ export default async function SettingsPage({ searchParams }: Props) {
                   />
                 </label>
                 <p className="muted">
-                  Example: set this to 3. A customer receives an SMS at 3rd,
+                  Example: set this to 3. The stub holder receives an SMS at 3rd,
                   another SMS when they move to 2nd, and another when they move to 1st.
                 </p>
               </div>
@@ -442,108 +460,13 @@ export default async function SettingsPage({ searchParams }: Props) {
               </>
             )}
 
-            {canViewQueueInformationEditing ? (
-            <section id="customer-editing" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
-              <div>
-                <p className="eyebrow">Queue information editing</p>
-                <h2>Who may update name & mobile</h2>
-                <p className="muted">
-                  Owner/Admin are always allowed. Customer, Staff, and Manager
-                  permissions are configurable per branch.
-                </p>
-              </div>
-
-              <div className="permission-grid">
-                <div className="permission-card">
-                  <strong>Customer</strong>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="customer_can_edit_name"
-                      defaultChecked={config?.customer_can_edit_name ?? false}
-                    />{" "}
-                    Can edit name
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="customer_can_edit_mobile"
-                      defaultChecked={config?.customer_can_edit_mobile ?? false}
-                    />{" "}
-                    Can edit mobile number
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="customer_can_move_down"
-                      defaultChecked={config?.customer_can_move_down ?? false}
-                    />{" "}
-                    Can move down 1 queue position
-                  </label>
-                </div>
-
-                <div className="permission-card">
-                  <strong>Staff</strong>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="staff_can_edit_name"
-                      defaultChecked={config?.staff_can_edit_name ?? true}
-                    />{" "}
-                    Can edit name
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="staff_can_edit_mobile"
-                      defaultChecked={config?.staff_can_edit_mobile ?? true}
-                    />{" "}
-                    Can edit mobile number
-                  </label>
-                </div>
-
-                <div className="permission-card">
-                  <strong>Manager</strong>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="manager_can_edit_name"
-                      defaultChecked={config?.manager_can_edit_name ?? true}
-                    />{" "}
-                    Can edit name
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="manager_can_edit_mobile"
-                      defaultChecked={config?.manager_can_edit_mobile ?? true}
-                    />{" "}
-                    Can edit mobile number
-                  </label>
-                </div>
-              </div>
-            </section>
-
-            ) : (
-              <>
-                {config?.customer_can_edit_name ? <input type="hidden" name="customer_can_edit_name" value="on" /> : null}
-                {config?.customer_can_edit_mobile ? <input type="hidden" name="customer_can_edit_mobile" value="on" /> : null}
-                {config?.customer_can_move_down ? <input type="hidden" name="customer_can_move_down" value="on" /> : null}
-                {config?.staff_can_edit_name ? <input type="hidden" name="staff_can_edit_name" value="on" /> : null}
-                {config?.staff_can_edit_mobile ? <input type="hidden" name="staff_can_edit_mobile" value="on" /> : null}
-                {config?.manager_can_edit_name ? <input type="hidden" name="manager_can_edit_name" value="on" /> : null}
-                {config?.manager_can_edit_mobile ? <input type="hidden" name="manager_can_edit_mobile" value="on" /> : null}
-              </>
-            )}
-
             {canManageOperatingHours ? (
             <section className="dashboard-section dashboard-section-stack settings-card">
               <div>
                 <p className="eyebrow">Operating rules</p>
                 <h2>Weekly hours</h2>
                 <p className="muted">
-                  Public joining is blocked outside these hours. Existing staff
-                  queue operations remain available.
+                  Stub issuing is blocked outside these hours. Existing staff queue operations remain available.
                 </p>
               </div>
 

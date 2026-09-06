@@ -26,8 +26,6 @@ export type ConfigurationUser = {
   canManageOperatingHours: boolean;
   canManageTeam: boolean;
   canManageKioskDisplay: boolean;
-  canAddCustomer: boolean;
-  canEditCustomer: boolean;
   canCallCustomer: boolean;
   canServeCustomer: boolean;
   canCompleteTicket: boolean;
@@ -249,15 +247,12 @@ export function ConfigurationUsers({
                       <section>
                         <h4>Queue operations</h4>
                         <div className="client-permission-check-grid">
-                          <label><input type="checkbox" name="add_customer" defaultChecked={selected.canAddCustomer} /><span>Add customer / ticket</span></label>
-                          <label><input type="checkbox" name="edit_customer" defaultChecked={selected.canEditCustomer} /><span>Edit customer information</span></label>
-                          <label><input type="checkbox" name="call_customer" defaultChecked={selected.canCallCustomer} /><span>Call customer</span></label>
+                                                                              <label><input type="checkbox" name="call_customer" defaultChecked={selected.canCallCustomer} /><span>Call next stub</span></label>
                           <label><input type="checkbox" name="serve_customer" defaultChecked={selected.canServeCustomer} /><span>Start serving</span></label>
                           <label><input type="checkbox" name="complete_ticket" defaultChecked={selected.canCompleteTicket} /><span>Complete ticket</span></label>
                           <label><input type="checkbox" name="cancel_ticket" defaultChecked={selected.canCancelTicket} /><span>Cancel ticket</span></label>
                           <label><input type="checkbox" name="mark_no_show" defaultChecked={selected.canMarkNoShow} /><span>Mark no-show</span></label>
-                          <label><input type="checkbox" name="view_customer_contact" defaultChecked={selected.canViewCustomerContact} /><span>View customer mobile/contact</span></label>
-                        </div>
+                                                  </div>
                       </section>
 
                       {role === "manager" ? (

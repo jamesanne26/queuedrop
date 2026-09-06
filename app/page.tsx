@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const features = [
-  ["No app required", "Customers join and track their queue directly from the browser."],
+  ["No app required", "Customers tap GET STUB, then scan only if they want live status."],
   ["Built for branches", "Each branch can run its own services, queue settings, staff, and operating hours."],
   ["Real-time operations", "Staff can call, serve, complete, cancel, and mark no-shows from one live workspace."],
 ];
@@ -22,7 +22,7 @@ export default function Home() {
         <div className="hero-grid">
           <div className="hero-copy">
             <span className="pill">Digital queues. Less waiting.</span>
-            <h1>Let customers leave the line without losing their place.</h1>
+            <h1>One tap for a stub. Live queue status when they need it.</h1>
             <p>
               QueueDrop is a web-based queue management platform for salons, clinics, repair shops, service centers, and multi-branch businesses.
             </p>
@@ -68,7 +68,7 @@ export default function Home() {
 
       <section className="flow-section">
         <div className="flow-copy">
-          <p className="eyebrow">Customer flow</p>
+          <p className="eyebrow">Stub flow</p>
           <h2>Join in seconds.</h2>
           <p>Choose a service, enter basic details, receive a queue number, and monitor your position from any phone browser.</p>
         </div>

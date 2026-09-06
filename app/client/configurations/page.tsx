@@ -19,8 +19,6 @@ type Member = {
   can_manage_operating_hours: boolean;
   can_manage_team: boolean;
   can_manage_kiosk_display: boolean;
-  can_add_customer: boolean;
-  can_edit_customer: boolean;
   can_call_customer: boolean;
   can_serve_customer: boolean;
   can_complete_ticket: boolean;
@@ -61,7 +59,7 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
   const [membersResult, branchesResult] = await Promise.all([
     supabase
       .from("business_users")
-      .select("user_id, role, custom_role_name, is_active, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_add_customer, can_edit_customer, can_call_customer, can_serve_customer, can_complete_ticket, can_cancel_ticket, can_mark_no_show, can_view_customer_contact, can_view_reports, can_export_reports, can_view_audit_logs")
+      .select("user_id, role, custom_role_name, is_active, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_call_customer, can_serve_customer, can_complete_ticket, can_cancel_ticket, can_mark_no_show, can_view_customer_contact, can_view_reports, can_export_reports, can_view_audit_logs")
       .eq("business_id", membership.business_id)
       .order("created_at", { ascending: true }),
     supabase
@@ -112,8 +110,6 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
       canManageOperatingHours: member.can_manage_operating_hours,
       canManageTeam: member.can_manage_team,
       canManageKioskDisplay: member.can_manage_kiosk_display,
-      canAddCustomer: member.can_add_customer,
-      canEditCustomer: member.can_edit_customer,
       canCallCustomer: member.can_call_customer,
       canServeCustomer: member.can_serve_customer,
       canCompleteTicket: member.can_complete_ticket,

@@ -1,0 +1,3 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+export async function POST(request:NextRequest,{params}:{params:Promise<{deviceToken:string}>}){const {deviceToken}=await params;const supabase=await createClient();const {data,error}=await supabase.rpc("issue_browser_queue_ticket",{target_device_token:deviceToken});if(error||!data)return NextResponse.json({error:error?.message||"Unable to join queue."},{status:400});const ticket=data as {session_token:string};return NextResponse.json({...ticket,status_url:`${request.nextUrl.origin}/q/status/${ticket.session_token}`});}
