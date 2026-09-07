@@ -135,7 +135,7 @@ export default async function ClientConfigurationsPage({ searchParams }: Props) 
             <h1>{business?.name ?? "QueueDrop"}</h1>
             <p className="muted page-lead">View every business user, their role, and the configuration access assigned to them.</p>
           </div>
-          <Link href="/client" className="button button-secondary">Client home</Link>
+          <Link href="/client" className="button button-secondary">Settings</Link>
         </div>
 
         <section className="client-config-card">

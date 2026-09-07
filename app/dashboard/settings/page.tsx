@@ -4,11 +4,12 @@ import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
-import { updateKioskExitPin, updateQueueSettings } from "./actions";
+import { updateQueueSettings, updateTerminalAppearance } from "./actions";
 import { DAYS } from "./constants";
 import { PositionRules } from "./position-rules";
 import { ResponsiveBranchSelect } from "@/app/dashboard/_components/responsive-branch-select";
 import { SettingsSaveGuard } from "./settings-save-guard";
+import { TerminalAppearanceForm } from "./terminal-appearance-form";
 
 type Props = {
   searchParams: Promise<{
@@ -63,7 +64,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_view_reports, can_export_reports, can_view_audit_logs, businesses(name,kiosk_exit_pin_hash)")
+    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_view_reports, can_export_reports, can_view_audit_logs, businesses(name,terminal_theme,terminal_page_bg_color,terminal_press_bg_color,terminal_accent_color,terminal_text_color,terminal_muted_text_color,terminal_background_image_url,terminal_logo_url,terminal_background_overlay)")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .limit(1)
@@ -236,7 +237,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             {canManageTeam ? <SettingsOverviewCard icon="security" title="Security & Access" description="Control employee access and sensitive data." href="/dashboard/team?tab=permissions">
               <SettingsOverviewRow href="/dashboard/team?tab=permissions">Role permissions</SettingsOverviewRow>
               <SettingsOverviewRow href="/dashboard/team?tab=employees">Employee branch access</SettingsOverviewRow>
-              {businessWide ? <SettingsOverviewRow href="#kiosk-security">Get Stub exit PIN</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
+              {businessWide ? <SettingsOverviewRow href="/dashboard/terminals#kiosk-security">Terminal PIN security</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
             </SettingsOverviewCard> : null}
 
             {canViewReports ? <SettingsOverviewCard icon="reports" title="Reports" description="Report access, exports, and operational visibility." href="/dashboard/reports">
@@ -245,32 +246,37 @@ export default async function SettingsPage({ searchParams }: Props) {
               {canManageTeam ? <SettingsOverviewRow href="/dashboard/team?tab=roles">Report permissions by role</SettingsOverviewRow> : <SettingsOverviewRow>Report permissions</SettingsOverviewRow>}
             </SettingsOverviewCard> : null}
 
+            {businessWide ? <SettingsOverviewCard icon="security" title="Account & Configuration Access" description="Manage client-level users, branch assignments, and configuration access." href="/client/configurations">
+              <SettingsOverviewRow href="/client/configurations">Business users</SettingsOverviewRow>
+              <SettingsOverviewRow href="/client/configurations">Branch assignments</SettingsOverviewRow>
+              <SettingsOverviewRow href="/client/configurations">Configuration access</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
+
             {businessWide ? <SettingsOverviewCard icon="billing" title="Billing & Subscription" description="Plan, limits, checkout, and billing history." href="/client/subscription">
               <SettingsOverviewRow href="/client/subscription">Current plan</SettingsOverviewRow>
               <SettingsOverviewRow href="/client/subscription">Usage & limits</SettingsOverviewRow>
               <SettingsOverviewRow href="/client/subscription">Billing history</SettingsOverviewRow>
             </SettingsOverviewCard> : null}
+
+            {businessWide ? <SettingsOverviewCard icon="business" title="Terminal Appearance" description="Theme, colors, logo, and background picture for customer terminals." href="#terminal-appearance">
+              <SettingsOverviewRow href="#terminal-appearance">Theme gallery</SettingsOverviewRow>
+              <SettingsOverviewRow href="#terminal-appearance">PRESS HERE & label colors</SettingsOverviewRow>
+              <SettingsOverviewRow href="#terminal-appearance">Logo & background image</SettingsOverviewRow>
+            </SettingsOverviewCard> : null}
           </div>
         </section>
 
-        {businessWide ? (
-          <section id="kiosk-security" className="dashboard-section dashboard-section-stack settings-card kiosk-security-card">
-            <div>
-              <p className="eyebrow">Kiosk security</p>
-              <h2>Get Stub exit PIN</h2>
-              <p className="muted">When Get Stub mode is opened from the mobile dashboard, Back requires this PIN before returning to the dashboard.</p>
-            </div>
-            <div className="kiosk-pin-status">
-              <strong>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "PIN configured" : "No PIN configured yet"}</strong>
-              <span>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "You can replace it below at any time." : "Set a 4 to 8 digit PIN before using protected kiosk exit."}</span>
-            </div>
-            <form action={updateKioskExitPin} className="kiosk-pin-form">
-              <label>New PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4–8 digits" /></label>
-              <label>Confirm PIN<input name="kiosk_exit_pin_confirm" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="Repeat PIN" /></label>
-              <button className="button button-primary" type="submit">Save exit PIN</button>
-            </form>
-          </section>
-        ) : null}
+        {businessWide ? <section id="terminal-appearance" className="dashboard-section dashboard-section-stack terminal-appearance-section">
+          <div className="terminal-appearance-heading">
+            <div><p className="eyebrow">Customer terminal design</p><h2>Terminal Appearance</h2><p className="muted">Customize the Get Stub terminal without changing its queue behavior. Pick a ready-made design or fine-tune colors, logo, and background picture.</p></div>
+            <span className="terminal-appearance-badge">Business-wide</span>
+          </div>
+          <TerminalAppearanceForm
+            action={updateTerminalAppearance}
+            businessName={business?.name ?? "Your Business"}
+            appearance={business ?? {}}
+          />
+        </section> : null}
 
         <div className="settings-section-divider" id="queue-configuration">
           <div><p className="eyebrow">Branch settings</p><h2>Queue Configuration</h2><p className="muted">Select a branch and update its stub queue behavior.</p></div>

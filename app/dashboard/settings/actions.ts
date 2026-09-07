@@ -181,19 +181,87 @@ export async function updateQueueSettings(formData: FormData) {
   );
 }
 
+const TERMINAL_THEMES = new Set(["classic","ocean","midnight","sunset","rose","violet","cafe","clean","tropical","dark"]);
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const TERMINAL_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
-export async function updateKioskExitPin(formData: FormData) {
-  const pin = field(formData, "kiosk_exit_pin");
-  const confirmPin = field(formData, "kiosk_exit_pin_confirm");
-  if (!/^\d{4,8}$/.test(pin)) fail("", "Kiosk exit PIN must contain 4 to 8 digits.");
-  if (pin !== confirmPin) fail("", "Kiosk exit PIN confirmation does not match.");
+function imageExtension(type: string) {
+  if (type === "image/png") return "png";
+  if (type === "image/webp") return "webp";
+  return "jpg";
+}
 
+export async function updateTerminalAppearance(formData: FormData) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
-  const { error } = await supabase.rpc("set_kiosk_exit_pin", { target_pin: pin });
-  if (error) fail("", error.message);
 
+  const { data: membership } = await supabase.from("business_users")
+    .select("business_id,role,businesses(terminal_background_image_url,terminal_logo_url)")
+    .eq("user_id", userData.user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (!membership || !["owner", "admin"].includes(membership.role)) {
+    redirect(`/dashboard/settings?error=${encodeURIComponent("Only an owner or admin can change terminal appearance.")}#terminal-appearance`);
+  }
+
+  const theme = field(formData, "terminal_theme");
+  const pageColor = field(formData, "terminal_page_bg_color");
+  const pressColor = field(formData, "terminal_press_bg_color");
+  const accentColor = field(formData, "terminal_accent_color");
+  const textColor = field(formData, "terminal_text_color");
+  const mutedColor = field(formData, "terminal_muted_text_color");
+  const overlay = Number(field(formData, "terminal_background_overlay") || "18");
+
+  if (!TERMINAL_THEMES.has(theme)) redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal theme.")}#terminal-appearance`);
+  if (![pageColor, pressColor, accentColor, textColor, mutedColor].every((color) => HEX_COLOR.test(color))) {
+    redirect(`/dashboard/settings?error=${encodeURIComponent("Terminal colors must be valid 6-digit hex colors.")}#terminal-appearance`);
+  }
+  if (!Number.isInteger(overlay) || overlay < 0 || overlay > 90) {
+    redirect(`/dashboard/settings?error=${encodeURIComponent("Background overlay must be between 0 and 90.")}#terminal-appearance`);
+  }
+
+  const businessId = membership.business_id;
+  const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
+  let logoUrl = (business as { terminal_logo_url?: string | null } | null)?.terminal_logo_url ?? null;
+  let backgroundUrl = (business as { terminal_background_image_url?: string | null } | null)?.terminal_background_image_url ?? null;
+
+  if (field(formData, "remove_terminal_logo") === "1") logoUrl = null;
+  if (field(formData, "remove_terminal_background") === "1") backgroundUrl = null;
+
+  async function uploadAsset(inputName: string, kind: "logo" | "background") {
+    const value = formData.get(inputName);
+    if (!(value instanceof File) || value.size === 0) return null;
+    if (value.size > 5 * 1024 * 1024) throw new Error(`${kind === "logo" ? "Logo" : "Background"} image must be 5 MB or smaller.`);
+    if (!TERMINAL_IMAGE_TYPES.has(value.type)) throw new Error(`${kind === "logo" ? "Logo" : "Background"} must be PNG, JPG, or WebP.`);
+    const path = `${businessId}/${kind}-${Date.now()}.${imageExtension(value.type)}`;
+    const { error } = await supabase.storage.from("terminal-assets").upload(path, value, { contentType: value.type, upsert: false });
+    if (error) throw new Error(error.message);
+    return supabase.storage.from("terminal-assets").getPublicUrl(path).data.publicUrl;
+  }
+
+  try {
+    logoUrl = (await uploadAsset("terminal_logo", "logo")) ?? logoUrl;
+    backgroundUrl = (await uploadAsset("terminal_background", "background")) ?? backgroundUrl;
+  } catch (error) {
+    redirect(`/dashboard/settings?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload terminal image.")}#terminal-appearance`);
+  }
+
+  const { error } = await supabase.from("businesses").update({
+    terminal_theme: theme,
+    terminal_page_bg_color: pageColor,
+    terminal_press_bg_color: pressColor,
+    terminal_accent_color: accentColor,
+    terminal_text_color: textColor,
+    terminal_muted_text_color: mutedColor,
+    terminal_background_overlay: overlay,
+    terminal_logo_url: logoUrl,
+    terminal_background_image_url: backgroundUrl,
+  }).eq("id", membership.business_id);
+
+  if (error) redirect(`/dashboard/settings?error=${encodeURIComponent(error.message)}#terminal-appearance`);
   revalidatePath("/dashboard/settings");
-  redirect(`/dashboard/settings?message=${encodeURIComponent("Kiosk exit PIN updated.")}`);
+  revalidatePath("/dashboard/terminals");
+  redirect(`/dashboard/settings?message=${encodeURIComponent("Terminal appearance updated.")}#terminal-appearance`);
 }

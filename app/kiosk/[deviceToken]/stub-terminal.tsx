@@ -15,6 +15,15 @@ type TerminalInfo = {
   queue_active: boolean;
   branch_open: boolean;
   exit_pin_configured?: boolean;
+  terminal_theme?: string;
+  terminal_page_bg_color?: string;
+  terminal_press_bg_color?: string;
+  terminal_accent_color?: string;
+  terminal_text_color?: string;
+  terminal_muted_text_color?: string;
+  terminal_background_image_url?: string | null;
+  terminal_logo_url?: string | null;
+  terminal_background_overlay?: number;
 };
 
 type Ticket = {
@@ -93,7 +102,7 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
   async function exitKiosk() {
     if (exitBusy) return;
     if (!terminal.exit_pin_configured) {
-      setExitError("Set the Get Stub exit PIN in Dashboard → Settings first.");
+      setExitError("Set the terminal exit PIN in Dashboard → Terminals first.");
       return;
     }
     setExitBusy(true);
@@ -120,6 +129,7 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
     <section className="stub-terminal-card stub-terminal-card-press">
       {protectedExit ? <button type="button" className="stub-back-button" onClick={() => { setExitOpen(true); setExitError(""); }}>← Back</button> : null}
       <div className="stub-terminal-brand">QueueDrop</div>
+      {terminal.terminal_logo_url ? <img className="stub-business-logo" src={terminal.terminal_logo_url} alt={`${terminal.business_name} logo`} /> : null}
       <div className="stub-terminal-copy stub-terminal-copy-compact">
         <p>{terminal.business_name}</p>
         <h1>{terminal.branch_name}</h1>

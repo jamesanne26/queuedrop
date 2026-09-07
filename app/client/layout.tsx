@@ -23,7 +23,7 @@ export default async function ClientLayout({ children }: { children: ReactNode }
   return (
     <main className="client-shell">
       <header className="client-topbar">
-        <Link href="/client" className="brand-mark">QueueDrop Client</Link>
+        <Link href="/client" className="brand-mark">QueueDrop Settings</Link>
         <Link href="/dashboard" className="button button-secondary">Back to dashboard</Link>
       </header>
       {children}

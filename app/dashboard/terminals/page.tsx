@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createTerminal, deleteTerminal, updateTerminal } from "./actions";
+import { createTerminal, deleteTerminal, updateKioskExitPin, updateTerminal } from "./actions";
 import { TerminalForm } from "./terminal-form";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
@@ -12,9 +12,11 @@ export default async function TerminalsPage({ searchParams }: Props) {
   if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fterminals");
 
   const { data: membership } = await supabase.from("business_users")
-    .select("business_id,role")
+    .select("business_id,role,businesses(kiosk_exit_pin_hash)")
     .eq("user_id", userData.user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership || !["owner","admin"].includes(membership.role)) redirect("/dashboard");
+
+  const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
   const { data: branches } = await supabase.from("branches")
     .select("id,name,services(id,name,is_active)")
@@ -30,13 +32,30 @@ export default async function TerminalsPage({ searchParams }: Props) {
     {notices.message ? <div className="notice notice-success">{notices.message}</div> : null}
     {notices.error ? <div className="notice notice-error">{notices.error}</div> : null}
 
+    <section id="kiosk-security" className="dashboard-section dashboard-section-stack settings-card kiosk-security-card terminal-security-card">
+      <div>
+        <p className="eyebrow">Terminal security</p>
+        <h2>Kiosk PIN security</h2>
+        <p className="muted">Use one 4 to 8 digit PIN to protect exit from QueueDrop terminal mode and prevent customers from returning to the dashboard.</p>
+      </div>
+      <div className="kiosk-pin-status">
+        <strong>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "PIN configured" : "No PIN configured yet"}</strong>
+        <span>{(business as { kiosk_exit_pin_hash?: string | null } | null)?.kiosk_exit_pin_hash ? "You can replace it below at any time." : "Set a PIN before using protected terminal exit."}</span>
+      </div>
+      <form action={updateKioskExitPin} className="kiosk-pin-form">
+        <label>New PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4–8 digits" /></label>
+        <label>Confirm PIN<input name="kiosk_exit_pin_confirm" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="Repeat PIN" /></label>
+        <button className="button button-primary" type="submit">Save PIN</button>
+      </form>
+    </section>
+
     <section className="dashboard-section dashboard-section-stack">
       <div><h2>Add terminal</h2><p className="muted">Select the branch first, then choose the service that should be preselected by default. The same service can be the default on more than one terminal.</p></div>
       <TerminalForm branches={safeBranches} action={createTerminal} submitLabel="Create terminal" />
     </section>
 
     <section className="dashboard-section dashboard-section-stack">
-      <div><h2>Registered terminals</h2><p className="muted">Use Open Terminal as the single launcher for this device. The terminal keeps its branch and default-service setup; browser-only Get Queue remains available from the dashboard navigation when you specifically need a no-printer phone flow.</p></div>
+      <div><h2>Registered terminals</h2><p className="muted">Use Open Terminal as the single launcher for this device. The terminal keeps its branch and default-service setup; the registered terminal remains the single launcher for its assigned branch and default service.</p></div>
       <div className="terminal-list">
         {(terminals ?? []).length ? (terminals ?? []).map((t:any)=>{
           const branch=Array.isArray(t.branches)?t.branches[0]:t.branches; const service=Array.isArray(t.services)?t.services[0]:t.services;
