@@ -6,7 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "node scripts/run-tests.mjs unit",
+    "test:unit:watch": "node scripts/run-tests.mjs unit --watch",
+    "test:unit:coverage": "node scripts/run-tests.mjs unit --coverage",
+    "test:integration": "node scripts/run-tests.mjs integration",
+    "test:smoke": "node scripts/run-tests.mjs e2e/smoke",
+    "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run security:secrets",
+    "verify": "npm run quality && npm run test:integration && npm run build",
+    "security:secrets": "node scripts/check-secrets.mjs",
+    "test:integration:required": "node scripts/run-tests.mjs integration --required",
+    "test:smoke:required": "node scripts/run-tests.mjs e2e/smoke --required"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

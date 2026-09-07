@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type TerminalInfo={branch_name:string;business_name:string;service_name:string;stub_mode_enabled:boolean;queue_active:boolean;branch_open:boolean;exit_pin_configured?:boolean};
+export type TerminalInfo={branch_name:string;business_name:string;service_name:string;stub_mode_enabled:boolean;queue_active:boolean;branch_open:boolean;exit_pin_configured?:boolean};
 export function BrowserQueueTerminal({deviceToken,terminal,protectedExit=false}:{deviceToken:string;terminal:TerminalInfo;protectedExit?:boolean}){
  const router=useRouter(); const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [exitOpen,setExitOpen]=useState(false); const [pin,setPin]=useState(""); const [exitBusy,setExitBusy]=useState(false); const [exitError,setExitError]=useState(""); const available=terminal.stub_mode_enabled&&terminal.queue_active&&terminal.branch_open;
  async function getQueue(){if(busy||!available)return;setBusy(true);setError("");try{const r=await fetch(`/api/browser-queue/${encodeURIComponent(deviceToken)}/ticket`,{method:"POST"});const x=await r.json();if(!r.ok)throw new Error(x.error||"Unable to join queue.");router.replace(x.status_url);}catch(e){setError(e instanceof Error?e.message:"Unable to join queue.");setBusy(false)}}

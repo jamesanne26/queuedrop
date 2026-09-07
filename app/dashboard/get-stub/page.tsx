@@ -25,7 +25,7 @@ export default async function GetStubLauncherPage() {
     ? await supabase.from("devices")
         .select("id,name,device_token,branch_id,service_id,branches(name),services(name)")
         .in("branch_id", branchIds).eq("device_type", "ticket_terminal").eq("is_active", true).order("created_at")
-    : { data: [] as any[] };
+    : { data: [] };
 
   if ((terminals ?? []).length === 1) {
     redirect(`/kiosk/${terminals![0].device_token}?from=dashboard`);
@@ -37,7 +37,7 @@ export default async function GetStubLauncherPage() {
         <div><p className="eyebrow">Kiosk mode</p><h1>Get Stub</h1><p className="muted">Choose which registered terminal this device should use.</p></div>
       </header>
       <section className="dashboard-section dashboard-section-stack">
-        {(terminals ?? []).length ? <div className="get-stub-terminal-grid">{(terminals ?? []).map((terminal: any) => {
+        {(terminals ?? []).length ? <div className="get-stub-terminal-grid">{(terminals ?? []).map((terminal) => {
           const branch = Array.isArray(terminal.branches) ? terminal.branches[0] : terminal.branches;
           const service = Array.isArray(terminal.services) ? terminal.services[0] : terminal.services;
           return <Link key={terminal.id} className="get-stub-terminal-choice" href={`/kiosk/${terminal.device_token}?from=dashboard`}>

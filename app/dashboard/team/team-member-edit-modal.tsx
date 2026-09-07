@@ -19,7 +19,6 @@ type Props = {
   isActive: boolean;
   assignedBranchIds: string[];
   branches: Branch[];
-  managerMode: boolean;
   viewBranch: string;
 };
 
@@ -117,7 +116,6 @@ export function TeamMemberEditModal({
   isActive: initialActive,
   assignedBranchIds,
   branches,
-  managerMode,
   viewBranch,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -248,7 +246,7 @@ export function TeamMemberEditModal({
               <label className="team-field">
                 Assigned role
                 <input value={businessRoleName} disabled />
-                <small>Change the employee's role from the Team list. Role permissions are managed in the Roles tab.</small>
+                <small>Change the employee&apos;s role from the Team list. Role permissions are managed in the Roles tab.</small>
               </label>
 
               {branchScope === "own_branch_only" ? (

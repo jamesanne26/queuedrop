@@ -57,7 +57,7 @@ export default async function TerminalsPage({ searchParams }: Props) {
     <section className="dashboard-section dashboard-section-stack">
       <div><h2>Registered terminals</h2><p className="muted">Use Open Terminal as the single launcher for this device. The terminal keeps its branch and default-service setup; the registered terminal remains the single launcher for its assigned branch and default service.</p></div>
       <div className="terminal-list">
-        {(terminals ?? []).length ? (terminals ?? []).map((t:any)=>{
+        {(terminals ?? []).length ? (terminals ?? []).map((t)=>{
           const branch=Array.isArray(t.branches)?t.branches[0]:t.branches; const service=Array.isArray(t.services)?t.services[0]:t.services;
           return <article className="terminal-card terminal-card-editable" key={t.id}>
             <div className="terminal-card-summary"><div><strong>{t.name}</strong><span>{branch?.name ?? "Branch not assigned"} · {service?.name ?? "Service not assigned"}</span></div><small>{t.last_seen_at ? `Last seen ${new Date(t.last_seen_at).toLocaleString()}` : "Not connected yet"}</small></div>

@@ -202,7 +202,6 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
                         isActive={member.is_active}
                         assignedBranchIds={assignedIds}
                         branches={activeBranches.map((branch) => ({ id: branch.id, name: branch.name }))}
-                        managerMode={isManager}
                         viewBranch={selectedBranchId}
                       />
                     </div>

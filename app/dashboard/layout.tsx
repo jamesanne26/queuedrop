@@ -1,19 +1,13 @@
 import type { ReactNode } from "react";
 import { DashboardFrame } from "@/app/dashboard/_components/dashboard-frame";
 import { createClient } from "@/lib/supabase/server";
-
-type Role = "owner" | "admin" | "manager" | "staff";
+import { dashboardAccessFor } from "@/lib/auth/access";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
 
-  let role: Role | null = null;
-  let canViewSettings = false;
-  let canViewReports = false;
-  let canManageTeam = false;
-  let canManageServices = false;
-  let canManageBranches = false;
+  let access = dashboardAccessFor(null);
 
   if (userData.user) {
     const { data: membership } = await supabase
@@ -24,27 +18,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       .limit(1)
       .maybeSingle();
 
-    role = (membership?.role as Role | undefined) ?? null;
-
-    if (role === "owner" || role === "admin") {
-      canViewSettings = true;
-      canViewReports = true;
-      canManageTeam = true;
-      canManageServices = true;
-      canManageBranches = true;
-    } else if (membership && (role === "manager" || role === "staff")) {
-      canViewReports = Boolean(membership.can_view_reports);
-      canManageTeam = Boolean(membership.can_manage_team);
-      canManageServices = Boolean(membership.can_manage_services);
-      canManageBranches = Boolean(membership.can_set_branch_status || membership.can_manage_operating_hours || membership.can_manage_kiosk_display);
-      canViewSettings = Boolean(
-        membership.can_view_queue_information_editing ||
-          membership.can_view_position_notifications ||
-          membership.can_manage_operating_hours ||
-          membership.can_manage_kiosk_display,
-      );
-    }
+    access = dashboardAccessFor(membership);
   }
 
-  return <DashboardFrame role={role} canViewSettings={canViewSettings} canViewReports={canViewReports} canManageTeam={canManageTeam} canManageServices={canManageServices} canManageBranches={canManageBranches}>{children}</DashboardFrame>;
+  return <DashboardFrame role={access.role} canViewSettings={access.canViewSettings} canViewReports={access.canViewReports} canManageTeam={access.canManageTeam} canManageServices={access.canManageServices} canManageBranches={access.canManageBranches}>{children}</DashboardFrame>;
 }

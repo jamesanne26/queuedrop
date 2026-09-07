@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DAYS, TIMEZONES } from "./constants";
+import { isOwnerOrAdmin } from "@/lib/auth/access";
+import { TERMINAL_ASSET_BUCKET, TERMINAL_THEMES, isHexColor, isSafeTerminalAssetPath, isValidTerminalOverlay } from "@/lib/terminal/appearance";
 
 function field(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -181,8 +183,6 @@ export async function updateQueueSettings(formData: FormData) {
   );
 }
 
-const TERMINAL_THEMES = new Set(["classic","ocean","midnight","sunset","rose","violet","cafe","clean","tropical","dark"]);
-const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 export async function updateTerminalAppearance(formData: FormData) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -194,7 +194,7 @@ export async function updateTerminalAppearance(formData: FormData) {
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
-  if (!membership || !["owner", "admin"].includes(membership.role)) {
+  if (!membership || !isOwnerOrAdmin(membership.role)) {
     redirect(`/dashboard/settings?error=${encodeURIComponent("Only an owner or admin can change terminal appearance.")}#terminal-appearance`);
   }
 
@@ -206,11 +206,11 @@ export async function updateTerminalAppearance(formData: FormData) {
   const mutedColor = field(formData, "terminal_muted_text_color");
   const overlay = Number(field(formData, "terminal_background_overlay") || "18");
 
-  if (!TERMINAL_THEMES.has(theme)) redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal theme.")}#terminal-appearance`);
-  if (![pageColor, pressColor, accentColor, textColor, mutedColor].every((color) => HEX_COLOR.test(color))) {
+  if (!(theme in TERMINAL_THEMES)) redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal theme.")}#terminal-appearance`);
+  if (![pageColor, pressColor, accentColor, textColor, mutedColor].every((color) => isHexColor(color))) {
     redirect(`/dashboard/settings?error=${encodeURIComponent("Terminal colors must be valid 6-digit hex colors.")}#terminal-appearance`);
   }
-  if (!Number.isInteger(overlay) || overlay < 0 || overlay > 90) {
+  if (!isValidTerminalOverlay(overlay)) {
     redirect(`/dashboard/settings?error=${encodeURIComponent("Background overlay must be between 0 and 90.")}#terminal-appearance`);
   }
 
@@ -227,11 +227,10 @@ export async function updateTerminalAppearance(formData: FormData) {
 
   function publicAssetUrl(path: string, kind: "logo" | "background") {
     if (!path) return null;
-    const expectedPrefix = `${businessId}/${kind}-`;
-    if (!path.startsWith(expectedPrefix) || path.includes("..")) {
+    if (!isSafeTerminalAssetPath(path, businessId, kind)) {
       redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal image path.")}#terminal-appearance`);
     }
-    return supabase.storage.from("terminal-assets").getPublicUrl(path).data.publicUrl;
+    return supabase.storage.from(TERMINAL_ASSET_BUCKET).getPublicUrl(path).data.publicUrl;
   }
 
   logoUrl = publicAssetUrl(logoPath, "logo") ?? logoUrl;

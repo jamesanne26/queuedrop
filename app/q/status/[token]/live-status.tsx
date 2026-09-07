@@ -10,7 +10,6 @@ export function LiveStatus({ refreshSeconds = 8 }: { refreshSeconds?: number }) 
 
   useEffect(() => {
     let remaining = interval;
-    setSeconds(interval);
     const timer = window.setInterval(() => {
       remaining -= 1;
       if (remaining <= 0) {

@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { TERMINAL_ASSET_BUCKET, TERMINAL_THEMES, safeTerminalTheme, terminalAssetPath, validateTerminalAsset, type TerminalThemeKey } from "@/lib/terminal/appearance";
 import type { CSSProperties } from "react";
 
 type Appearance = {
@@ -18,31 +20,14 @@ type Appearance = {
 
 type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; appearance: Appearance };
 
-const THEMES = {
-  classic: { name: "QueueDrop Classic", note: "Fresh green and clean cards", page: "#f4fbf7", press: "#11915f", accent: "#0d6b49", text: "#10231a", muted: "#5b7166" },
-  ocean: { name: "Ocean Blue", note: "Cool blue, bright and professional", page: "#eef8ff", press: "#1479c9", accent: "#075f9f", text: "#102535", muted: "#617582" },
-  midnight: { name: "Midnight Glass", note: "Deep navy with luminous controls", page: "#0e1726", press: "#21a8f6", accent: "#70cfff", text: "#f6fbff", muted: "#b1c3d0" },
-  sunset: { name: "Sunset Orange", note: "Warm energetic counter style", page: "#fff7ed", press: "#ea6a24", accent: "#bd4812", text: "#321b11", muted: "#796258" },
-  rose: { name: "Rose Boutique", note: "Soft premium salon look", page: "#fff3f7", press: "#d94f7d", accent: "#a82d58", text: "#35151f", muted: "#7b6069" },
-  violet: { name: "Violet Modern", note: "Modern purple technology theme", page: "#f7f3ff", press: "#7652d6", accent: "#5635ae", text: "#24183f", muted: "#70677f" },
-  cafe: { name: "Warm Café", note: "Earthy and welcoming", page: "#fbf6ee", press: "#9b6841", accent: "#6f482b", text: "#2d2119", muted: "#76685e" },
-  clean: { name: "Clean White", note: "Minimal bright reception display", page: "#ffffff", press: "#111827", accent: "#111827", text: "#111827", muted: "#6b7280" },
-  tropical: { name: "Tropical", note: "Vibrant teal for busy service counters", page: "#ecfffb", press: "#07988b", accent: "#057267", text: "#102b29", muted: "#617c79" },
-  dark: { name: "Modern Dark", note: "High contrast dark terminal", page: "#171a1f", press: "#2bb673", accent: "#58db98", text: "#f5f7f6", muted: "#b1bbb6" },
-} as const;
-
-type ThemeKey = keyof typeof THEMES;
-
-function safeTheme(value?: string | null): ThemeKey { return value && value in THEMES ? value as ThemeKey : "classic"; }
-
 export function TerminalAppearanceForm({ action, businessId, businessName, appearance }: Props) {
-  const initialTheme = safeTheme(appearance.terminal_theme);
-  const [theme, setTheme] = useState<ThemeKey>(initialTheme);
-  const [page, setPage] = useState(appearance.terminal_page_bg_color || THEMES[initialTheme].page);
-  const [press, setPress] = useState(appearance.terminal_press_bg_color || THEMES[initialTheme].press);
-  const [accent, setAccent] = useState(appearance.terminal_accent_color || THEMES[initialTheme].accent);
-  const [text, setText] = useState(appearance.terminal_text_color || THEMES[initialTheme].text);
-  const [muted, setMuted] = useState(appearance.terminal_muted_text_color || THEMES[initialTheme].muted);
+  const initialTheme = safeTerminalTheme(appearance.terminal_theme);
+  const [theme, setTheme] = useState<TerminalThemeKey>(initialTheme);
+  const [page, setPage] = useState(appearance.terminal_page_bg_color || TERMINAL_THEMES[initialTheme].page);
+  const [press, setPress] = useState(appearance.terminal_press_bg_color || TERMINAL_THEMES[initialTheme].press);
+  const [accent, setAccent] = useState(appearance.terminal_accent_color || TERMINAL_THEMES[initialTheme].accent);
+  const [text, setText] = useState(appearance.terminal_text_color || TERMINAL_THEMES[initialTheme].text);
+  const [muted, setMuted] = useState(appearance.terminal_muted_text_color || TERMINAL_THEMES[initialTheme].muted);
   const [overlay, setOverlay] = useState(appearance.terminal_background_overlay ?? 18);
   const [backgroundPreview, setBackgroundPreview] = useState(appearance.terminal_background_image_url || "");
   const [logoPreview, setLogoPreview] = useState(appearance.terminal_logo_url || "");
@@ -59,8 +44,8 @@ export function TerminalAppearanceForm({ action, businessId, businessName, appea
     backgroundImage: backgroundPreview ? `linear-gradient(rgba(0,0,0,${overlay / 100}),rgba(0,0,0,${overlay / 100})),url("${backgroundPreview}")` : undefined,
   }) as CSSProperties, [page, press, accent, text, muted, overlay, backgroundPreview]);
 
-  function applyTheme(next: ThemeKey) {
-    const preset = THEMES[next];
+  function applyTheme(next: TerminalThemeKey) {
+    const preset = TERMINAL_THEMES[next];
     setTheme(next); setPage(preset.page); setPress(preset.press); setAccent(preset.accent); setText(preset.text); setMuted(preset.muted);
   }
 
@@ -84,12 +69,12 @@ export function TerminalAppearanceForm({ action, businessId, businessName, appea
         const value = formData.get(inputName);
         formData.delete(inputName);
         if (!(value instanceof File) || value.size === 0) return;
-        if (value.size > 5 * 1024 * 1024) throw new Error(`${kind === "logo" ? "Logo" : "Background"} image must be 5 MB or smaller.`);
-        if (!["image/png", "image/jpeg", "image/webp"].includes(value.type)) throw new Error(`${kind === "logo" ? "Logo" : "Background"} must be PNG, JPG, or WebP.`);
+        const validationError = validateTerminalAsset(value, kind);
+        if (validationError) throw new Error(validationError);
 
-        const extension = value.type === "image/png" ? "png" : value.type === "image/webp" ? "webp" : "jpg";
-        const path = `${businessId}/${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-        const { error } = await supabase.storage.from("terminal-assets").upload(path, value, { contentType: value.type, upsert: false });
+        const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const path = terminalAssetPath(businessId, kind, value.type, nonce);
+        const { error } = await supabase.storage.from(TERMINAL_ASSET_BUCKET).upload(path, value, { contentType: value.type, upsert: false });
         if (error) throw new Error(error.message);
         formData.set(kind === "logo" ? "terminal_logo_path" : "terminal_background_path", path);
       }
@@ -105,7 +90,7 @@ export function TerminalAppearanceForm({ action, businessId, businessName, appea
 
   return <form onSubmit={handleSubmit} className="terminal-appearance-settings">
     <div className="terminal-theme-grid" role="radiogroup" aria-label="Terminal themes">
-      {(Object.entries(THEMES) as [ThemeKey, typeof THEMES[ThemeKey]][]).map(([key, preset]) => (
+      {(Object.entries(TERMINAL_THEMES) as [TerminalThemeKey, typeof TERMINAL_THEMES[TerminalThemeKey]][]).map(([key, preset]) => (
         <label key={key} className={`terminal-theme-option ${theme === key ? "is-selected" : ""}`}>
           <input type="radio" name="terminal_theme" value={key} checked={theme === key} onChange={() => applyTheme(key)} />
           <span className="terminal-theme-swatches"><i style={{ background: preset.page }} /><i style={{ background: preset.press }} /><i style={{ background: preset.accent }} /></span>
@@ -142,7 +127,7 @@ export function TerminalAppearanceForm({ action, businessId, businessName, appea
         <div className={`terminal-design-preview theme-${theme}`} style={previewStyle}>
           <div className="terminal-preview-qd">QueueDrop</div>
           <div className="terminal-preview-center">
-            {logoPreview ? <img src={logoPreview} alt="Business logo preview" /> : <div className="terminal-preview-logo-placeholder">{businessName.slice(0,1).toUpperCase()}</div>}
+            {logoPreview ? <Image unoptimized src={logoPreview} alt="Business logo preview" width={120} height={120} /> : <div className="terminal-preview-logo-placeholder">{businessName.slice(0,1).toUpperCase()}</div>}
             <p>{businessName}</p><h3>Commonwealth</h3>
             <label><span>Choose service</span><div>Haircut <b>⌄</b></div></label>
             <button type="button"><strong>PRESS HERE</strong><span>to get stub</span></button>

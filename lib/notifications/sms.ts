@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeSmsRecipient } from "@/lib/notifications/phone";
 
 type PendingSms = {
   id: string;
@@ -14,17 +15,6 @@ function semaphoreConfig() {
   };
 }
 
-function normalizeSmsRecipient(recipient: string) {
-  const digits = recipient.replace(/\D/g, "");
-
-  // QueueDrop currently accepts numbers-only input. Treat the familiar
-  // Philippine 09xxxxxxxxx format as +63 internally for the SMS provider.
-  if (/^09\d{9}$/.test(digits)) return `63${digits.slice(1)}`;
-  if (/^9\d{9}$/.test(digits)) return `63${digits}`;
-  if (/^639\d{9}$/.test(digits)) return digits;
-
-  return digits;
-}
 
 async function sendSemaphoreSms(recipient: string, message: string) {
   const { apiKey, senderName } = semaphoreConfig();

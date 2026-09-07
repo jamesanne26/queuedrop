@@ -14,11 +14,9 @@ type BusinessRole = { id: string; name: string; base_role: "owner" | "admin" | "
 function PasswordField({
   minLength,
   placeholder,
-  managerPassword,
 }: {
   minLength: number;
   placeholder: string;
-  managerPassword: boolean;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -188,7 +186,7 @@ export function TeamCreateFields({
 
       <PasswordField
         minLength={passwordMin}
-        managerPassword={false}
+       
         placeholder="At least 6 characters"
       />
     </>

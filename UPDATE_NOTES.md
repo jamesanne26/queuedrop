@@ -293,3 +293,13 @@ Hardware note: direct built-in thermal printing requires the QueueDrop Android W
 - Added a lightweight 2.5-second reconciliation while the Live Queue tab is visible. Realtime remains primary; reconciliation is a safety net for dropped WebSocket events/browser sleep/Wi-Fi transitions.
 - Reconciliation reads only active tickets for the selected branch/current open queue session and updates the existing React state; no manual refresh is required.
 - No database migration required for this update.
+
+## 2026-09-07 — Engineering hardening foundation
+
+- Added in-repository unit, integration and deployment-smoke test structure.
+- Added 33 passing unit tests for access rules, service queue positions, terminal appearance/path validation and SMS normalization.
+- Extracted reusable dashboard access, queue position, terminal appearance and phone normalization logic into `lib/`.
+- Added CI quality gates, TEST checks, nightly foundation and Dependabot configuration.
+- Added architecture, authorization, database, development, testing, deployment, technical-debt, maturity and repository-setting documentation plus ADRs.
+- Added sanitized `.env.example`, contributor workflow, PR template and lightweight secret scanner.
+- Existing external Playwright regression runner is intentionally not discarded; migrate its independent scenarios incrementally into `tests/e2e/regression/`.

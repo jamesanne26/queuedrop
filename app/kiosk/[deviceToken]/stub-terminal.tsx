@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -129,7 +130,7 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
     <section className="stub-terminal-card stub-terminal-card-press">
       {protectedExit ? <button type="button" className="stub-back-button" onClick={() => { setExitOpen(true); setExitError(""); }}>← Back</button> : null}
       <div className="stub-terminal-brand">QueueDrop</div>
-      {terminal.terminal_logo_url ? <img className="stub-business-logo" src={terminal.terminal_logo_url} alt={`${terminal.business_name} logo`} /> : null}
+      {terminal.terminal_logo_url ? <Image unoptimized className="stub-business-logo" src={terminal.terminal_logo_url} alt={`${terminal.business_name} logo`} width={180} height={180} /> : null}
       <div className="stub-terminal-copy stub-terminal-copy-compact">
         <p>{terminal.business_name}</p>
         <h1>{terminal.branch_name}</h1>

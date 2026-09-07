@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type ReactNode } from "rea
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
+import { recalculateQueuePositions } from "@/lib/queue/positions";
 import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
@@ -64,33 +65,11 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
     successMessage ? { type: "success", message: successMessage } : errorMessage ? { type: "error", message: errorMessage } : null,
   );
 
-  useEffect(() => {
-    setLiveTickets(tickets);
-  }, [tickets]);
 
   useEffect(() => {
     const supabase = createClient();
     let disposed = false;
     let reconcileBusy = false;
-
-    const recalculatePositions = (rows: Ticket[]) => {
-      const waitingByService = new Map<string, Ticket[]>();
-      for (const ticket of rows) {
-        if (ticket.status !== "waiting") continue;
-        const list = waitingByService.get(ticket.service_id) ?? [];
-        list.push(ticket);
-        waitingByService.set(ticket.service_id, list);
-      }
-      const positions = new Map<string, number>();
-      for (const list of waitingByService.values()) {
-        list.sort((a, b) => a.ticket_number - b.ticket_number)
-          .forEach((ticket, index) => positions.set(ticket.id, index + 1));
-      }
-      return rows.map((ticket) => ({
-        ...ticket,
-        position: ticket.status === "waiting" ? (positions.get(ticket.id) ?? null) : null,
-      }));
-    };
 
     const applyRealtimeRow = (eventType: "INSERT" | "UPDATE" | "DELETE", nextRow: Record<string, unknown> | null, oldRow: Record<string, unknown> | null) => {
       const row = (eventType === "DELETE" ? oldRow : nextRow) ?? {};
@@ -99,11 +78,11 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
       if (!id) return;
 
       setLiveTickets((current) => {
-        if (eventType === "DELETE") return recalculatePositions(current.filter((ticket) => ticket.id !== id));
+        if (eventType === "DELETE") return recalculateQueuePositions(current.filter((ticket) => ticket.id !== id));
         const status = String(row.status ?? "");
         const active = status === "waiting" || status === "called" || status === "serving";
         const existing = current.find((ticket) => ticket.id === id);
-        if (!active) return recalculatePositions(current.filter((ticket) => ticket.id !== id));
+        if (!active) return recalculateQueuePositions(current.filter((ticket) => ticket.id !== id));
 
         const serviceId = String(row.service_id ?? existing?.service_id ?? "");
         const serviceName = services.find((service) => service.id === serviceId)?.name ?? existing?.service_name ?? "Service";
@@ -123,7 +102,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
           serving_at: (row.serving_at as string | null | undefined) ?? existing?.serving_at ?? null,
           updated_at: String(row.updated_at ?? existing?.updated_at ?? new Date().toISOString()),
         };
-        return recalculatePositions(existing ? current.map((ticket) => ticket.id === id ? next : ticket) : [...current, next]);
+        return recalculateQueuePositions(existing ? current.map((ticket) => ticket.id === id ? next : ticket) : [...current, next]);
       });
     };
 
@@ -140,7 +119,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
           .order("joined_at", { ascending: true })
           .limit(250);
         if (error || disposed) return;
-        const fresh: Ticket[] = (data ?? []).map((row: any) => {
+        const fresh: Ticket[] = (data ?? []).map((row) => {
           const service = Array.isArray(row.services) ? row.services[0] : row.services;
           const customerSession = Array.isArray(row.customer_sessions) ? row.customer_sessions[0] : row.customer_sessions;
           return {
@@ -160,7 +139,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
             updated_at: row.updated_at,
           } satisfies Ticket;
         });
-        setLiveTickets(recalculatePositions(fresh));
+        setLiveTickets(recalculateQueuePositions(fresh));
       } finally {
         reconcileBusy = false;
       }
@@ -241,18 +220,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
         };
 
         const merged = existing ? current.map((ticket) => ticket.id === id ? next : ticket) : [...current, next];
-        const waitingByService = new Map<string, Ticket[]>();
-        for (const ticket of merged) {
-          if (ticket.status !== "waiting") continue;
-          const list = waitingByService.get(ticket.service_id) ?? [];
-          list.push(ticket);
-          waitingByService.set(ticket.service_id, list);
-        }
-        const positions = new Map<string, number>();
-        for (const list of waitingByService.values()) {
-          list.sort((a, b) => a.ticket_number - b.ticket_number).forEach((ticket, index) => positions.set(ticket.id, index + 1));
-        }
-        return merged.map((ticket) => ({ ...ticket, position: ticket.status === "waiting" ? positions.get(ticket.id) ?? ticket.position : null }));
+        return recalculateQueuePositions(merged);
       });
     };
     window.addEventListener("queuedrop:ticket-change", onTicketChange);
@@ -262,13 +230,20 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
   useEffect(() => {
     const message = successMessage || errorMessage;
     if (!message) return;
-    setFlash({ type: successMessage ? "success" : "error", message });
+
     const url = new URL(window.location.href);
     url.searchParams.delete("success");
     url.searchParams.delete("error");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
-    const timer = window.setTimeout(() => setFlash(null), errorMessage ? 4200 : 2600);
-    return () => window.clearTimeout(timer);
+
+    const showTimer = window.setTimeout(() => {
+      setFlash({ type: successMessage ? "success" : "error", message });
+    }, 0);
+    const hideTimer = window.setTimeout(() => setFlash(null), errorMessage ? 4200 : 2600);
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
   }, [successMessage, errorMessage]);
 
   useEffect(() => {
