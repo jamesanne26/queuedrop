@@ -18,25 +18,30 @@
     "verify": "npm run quality && npm run test:integration && npm run build",
     "security:secrets": "node scripts/check-secrets.mjs",
     "test:integration:required": "node scripts/run-tests.mjs integration --required",
-    "test:smoke:required": "node scripts/run-tests.mjs e2e/smoke --required"
+    "test:smoke:required": "node scripts/run-tests.mjs e2e/smoke --required",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "next": "16.3.2",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "qrcode": "^1.5.4"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@types/qrcode": "^1.5.6"
+    "typescript": "^5"
   }
 }

@@ -67,7 +67,7 @@ test("TEST Supabase exposes QueueDrop core schema", { skip: !adminEnabled }, asy
 
 test("invalid terminal token does not reveal terminal data", { skip: !adminEnabled }, async () => {
   const supabase = await adminClient();
-  const { data, error } = await supabase.rpc("get_stub_terminal", { target_device_token: `invalid-e2e-${Date.now()}` });
+  const { data, error } = await supabase.rpc("get_stub_terminal", { target_device_token: `00000000-0000-4000-8000-${String(Date.now()).padStart(12,"0").slice(-12)}` });
   assert.equal(error, null, error?.message);
   assert.equal(data, null);
 });
@@ -83,3 +83,4 @@ test("authenticated owner cannot read an explicitly foreign business", { skip: !
   assert.deepEqual(data, []);
   await client.auth.signOut();
 });
+
