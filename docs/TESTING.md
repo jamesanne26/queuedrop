@@ -13,7 +13,7 @@ Current foundation covers dashboard access calculation, queue position calculati
 `tests/integration/` validates TEST Supabase schema/RPC contracts. These tests intentionally skip cloud checks when isolated TEST credentials are not configured. Never point them at production.
 
 ### Deployment smoke
-`tests/e2e/smoke/` verifies the deployed TEST instance is alive, public routes do not return 5xx, and protected routes fail safely. This is deliberately small and should run after every TEST deployment.
+`tests/e2e/smoke/` verifies the deployed TEST instance is alive, the homepage/login/pricing routes return real HTML with HTTP 200, the health payload is valid, and unauthenticated dashboard access redirects to login. Requests use a timeout so a hung deployment fails clearly. This suite should run after every TEST deployment.
 
 ### Browser regression
 The long-term Playwright suite belongs in `tests/e2e/regression/`. Existing external QueueDrop automation should be migrated incrementally rather than discarded. Every scenario must own its data through a unique run id and must not depend on another scenario.

@@ -1,33 +1,65 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const base = (process.env.QUEUEDROP_TEST_BASE_URL || "").replace(/\/$/, "");
+const rawBase = process.env.QUEUEDROP_TEST_BASE_URL || "";
+const base = rawBase.replace(/\/$/, "");
 const enabled = Boolean(base);
 const required = process.env.QUEUEDROP_REQUIRE_SMOKE === "1";
+const timeoutMs = 15_000;
+
+function validateBaseUrl() {
+  if (!base) return;
+  const parsed = new URL(base);
+  assert.ok(["http:", "https:"].includes(parsed.protocol), "QUEUEDROP_TEST_BASE_URL must use HTTP or HTTPS");
+}
 
 if (required) {
   test("smoke environment is configured", () => {
     assert.ok(base, "QUEUEDROP_TEST_BASE_URL is required for smoke tests");
+    validateBaseUrl();
   });
 }
 
-async function expectHealthy(path) {
-  const response = await fetch(`${base}${path}`, { redirect: "manual" });
-  assert.ok(response.status < 500, `${path} returned ${response.status}`);
-  return response;
+async function fetchWithTimeout(path, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(`${base}${path}`, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      assert.fail(`${path} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function expectPublicPage(path) {
+  const response = await fetchWithTimeout(path, { redirect: "manual" });
+  assert.equal(response.status, 200, `${path} returned ${response.status}`);
+  const contentType = response.headers.get("content-type") || "";
+  assert.match(contentType, /text\/html/i, `${path} did not return HTML`);
 }
 
 test("health endpoint is healthy", { skip: !enabled }, async () => {
-  const response = await fetch(`${base}/api/health`);
-  assert.equal(response.ok, true, `health returned ${response.status}`);
+  validateBaseUrl();
+  const response = await fetchWithTimeout("/api/health");
+  assert.equal(response.status, 200, `health returned ${response.status}`);
+  const body = await response.json();
+  assert.equal(body.status, "ok");
+  assert.equal(body.service, "queuedrop-web");
 });
 
-test("public login and pricing pages do not return server errors", { skip: !enabled }, async () => {
-  await expectHealthy("/auth/login");
-  await expectHealthy("/pricing");
+test("public homepage, login, and pricing pages load", { skip: !enabled }, async () => {
+  await expectPublicPage("/");
+  await expectPublicPage("/auth/login");
+  await expectPublicPage("/pricing");
 });
 
-test("dashboard protects unauthenticated access without server failure", { skip: !enabled }, async () => {
-  const response = await expectHealthy("/dashboard");
-  assert.ok([200, 302, 303, 307, 308].includes(response.status));
+test("dashboard redirects unauthenticated users to login", { skip: !enabled }, async () => {
+  const response = await fetchWithTimeout("/dashboard", { redirect: "manual" });
+  assert.ok([302, 303, 307, 308].includes(response.status), `/dashboard returned ${response.status} instead of redirecting`);
+  const location = response.headers.get("location") || "";
+  assert.match(location, /\/auth\/login(?:\?|$)/, `unexpected dashboard redirect: ${location}`);
 });

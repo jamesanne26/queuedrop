@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// Pricing reads live plan data from Supabase at request time.
+// Keeping this route dynamic prevents CI/build-time prerendering from requiring
+// the server-only Supabase admin key.
+export const dynamic = "force-dynamic";
+
 function branchLabel(min: number | null, max: number | null) {
   if (max === null) return `${min ?? 1}+ branches / custom`;
   if (max === 1) return "1 branch";
