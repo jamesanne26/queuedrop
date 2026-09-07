@@ -273,6 +273,7 @@ export default async function SettingsPage({ searchParams }: Props) {
           </div>
           <TerminalAppearanceForm
             action={updateTerminalAppearance}
+            businessId={membership.business_id}
             businessName={business?.name ?? "Your Business"}
             appearance={business ?? {}}
           />

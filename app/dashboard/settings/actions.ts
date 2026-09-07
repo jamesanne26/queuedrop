@@ -183,14 +183,6 @@ export async function updateQueueSettings(formData: FormData) {
 
 const TERMINAL_THEMES = new Set(["classic","ocean","midnight","sunset","rose","violet","cafe","clean","tropical","dark"]);
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
-const TERMINAL_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-
-function imageExtension(type: string) {
-  if (type === "image/png") return "png";
-  if (type === "image/webp") return "webp";
-  return "jpg";
-}
-
 export async function updateTerminalAppearance(formData: FormData) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -230,23 +222,20 @@ export async function updateTerminalAppearance(formData: FormData) {
   if (field(formData, "remove_terminal_logo") === "1") logoUrl = null;
   if (field(formData, "remove_terminal_background") === "1") backgroundUrl = null;
 
-  async function uploadAsset(inputName: string, kind: "logo" | "background") {
-    const value = formData.get(inputName);
-    if (!(value instanceof File) || value.size === 0) return null;
-    if (value.size > 5 * 1024 * 1024) throw new Error(`${kind === "logo" ? "Logo" : "Background"} image must be 5 MB or smaller.`);
-    if (!TERMINAL_IMAGE_TYPES.has(value.type)) throw new Error(`${kind === "logo" ? "Logo" : "Background"} must be PNG, JPG, or WebP.`);
-    const path = `${businessId}/${kind}-${Date.now()}.${imageExtension(value.type)}`;
-    const { error } = await supabase.storage.from("terminal-assets").upload(path, value, { contentType: value.type, upsert: false });
-    if (error) throw new Error(error.message);
+  const logoPath = field(formData, "terminal_logo_path");
+  const backgroundPath = field(formData, "terminal_background_path");
+
+  function publicAssetUrl(path: string, kind: "logo" | "background") {
+    if (!path) return null;
+    const expectedPrefix = `${businessId}/${kind}-`;
+    if (!path.startsWith(expectedPrefix) || path.includes("..")) {
+      redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal image path.")}#terminal-appearance`);
+    }
     return supabase.storage.from("terminal-assets").getPublicUrl(path).data.publicUrl;
   }
 
-  try {
-    logoUrl = (await uploadAsset("terminal_logo", "logo")) ?? logoUrl;
-    backgroundUrl = (await uploadAsset("terminal_background", "background")) ?? backgroundUrl;
-  } catch (error) {
-    redirect(`/dashboard/settings?error=${encodeURIComponent(error instanceof Error ? error.message : "Unable to upload terminal image.")}#terminal-appearance`);
-  }
+  logoUrl = publicAssetUrl(logoPath, "logo") ?? logoUrl;
+  backgroundUrl = publicAssetUrl(backgroundPath, "background") ?? backgroundUrl;
 
   const { error } = await supabase.from("businesses").update({
     terminal_theme: theme,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { CSSProperties } from "react";
 
 type Appearance = {
@@ -15,7 +16,7 @@ type Appearance = {
   terminal_background_overlay?: number | null;
 };
 
-type Props = { action: (formData: FormData) => void | Promise<void>; businessName: string; appearance: Appearance };
+type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; appearance: Appearance };
 
 const THEMES = {
   classic: { name: "QueueDrop Classic", note: "Fresh green and clean cards", page: "#f4fbf7", press: "#11915f", accent: "#0d6b49", text: "#10231a", muted: "#5b7166" },
@@ -34,7 +35,7 @@ type ThemeKey = keyof typeof THEMES;
 
 function safeTheme(value?: string | null): ThemeKey { return value && value in THEMES ? value as ThemeKey : "classic"; }
 
-export function TerminalAppearanceForm({ action, businessName, appearance }: Props) {
+export function TerminalAppearanceForm({ action, businessId, businessName, appearance }: Props) {
   const initialTheme = safeTheme(appearance.terminal_theme);
   const [theme, setTheme] = useState<ThemeKey>(initialTheme);
   const [page, setPage] = useState(appearance.terminal_page_bg_color || THEMES[initialTheme].page);
@@ -45,6 +46,8 @@ export function TerminalAppearanceForm({ action, businessName, appearance }: Pro
   const [overlay, setOverlay] = useState(appearance.terminal_background_overlay ?? 18);
   const [backgroundPreview, setBackgroundPreview] = useState(appearance.terminal_background_image_url || "");
   const [logoPreview, setLogoPreview] = useState(appearance.terminal_logo_url || "");
+  const [saving, setSaving] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const previewStyle = useMemo(() => ({
     "--terminal-page": page,
@@ -66,7 +69,41 @@ export function TerminalAppearanceForm({ action, businessName, appearance }: Pro
     setter(URL.createObjectURL(file));
   }
 
-  return <form action={action} className="terminal-appearance-settings" encType="multipart/form-data">
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
+    setUploadError("");
+
+    try {
+      const formData = new FormData(event.currentTarget);
+      const supabase = createClient();
+
+      async function uploadDirect(inputName: string, kind: "logo" | "background") {
+        const value = formData.get(inputName);
+        formData.delete(inputName);
+        if (!(value instanceof File) || value.size === 0) return;
+        if (value.size > 5 * 1024 * 1024) throw new Error(`${kind === "logo" ? "Logo" : "Background"} image must be 5 MB or smaller.`);
+        if (!["image/png", "image/jpeg", "image/webp"].includes(value.type)) throw new Error(`${kind === "logo" ? "Logo" : "Background"} must be PNG, JPG, or WebP.`);
+
+        const extension = value.type === "image/png" ? "png" : value.type === "image/webp" ? "webp" : "jpg";
+        const path = `${businessId}/${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+        const { error } = await supabase.storage.from("terminal-assets").upload(path, value, { contentType: value.type, upsert: false });
+        if (error) throw new Error(error.message);
+        formData.set(kind === "logo" ? "terminal_logo_path" : "terminal_background_path", path);
+      }
+
+      await uploadDirect("terminal_logo", "logo");
+      await uploadDirect("terminal_background", "background");
+      await action(formData);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Unable to save terminal appearance.");
+      setSaving(false);
+    }
+  }
+
+  return <form onSubmit={handleSubmit} className="terminal-appearance-settings">
     <div className="terminal-theme-grid" role="radiogroup" aria-label="Terminal themes">
       {(Object.entries(THEMES) as [ThemeKey, typeof THEMES[ThemeKey]][]).map(([key, preset]) => (
         <label key={key} className={`terminal-theme-option ${theme === key ? "is-selected" : ""}`}>
@@ -96,7 +133,8 @@ export function TerminalAppearanceForm({ action, businessName, appearance }: Pro
           <label><input type="checkbox" name="remove_terminal_logo" value="1" onChange={e=>{if(e.target.checked)setLogoPreview("")}} /> Remove saved logo</label>
           <label><input type="checkbox" name="remove_terminal_background" value="1" onChange={e=>{if(e.target.checked)setBackgroundPreview("")}} /> Remove saved background</label>
         </div>
-        <button className="button button-primary" type="submit">Save terminal appearance</button>
+        {uploadError ? <p className="form-error" role="alert">{uploadError}</p> : null}
+        <button className="button button-primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save terminal appearance"}</button>
       </div>
 
       <div className="terminal-preview-wrap">
