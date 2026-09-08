@@ -82,7 +82,7 @@ export default function Home() {
 
       <footer className="footer">
         <div><strong>QueueDrop</strong><p>Modern queue management for service businesses.</p></div>
-        <span>Development foundation - 2026</span>
+        <span><Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/refunds">Refunds</Link></span>
       </footer>
     </main>
   );
