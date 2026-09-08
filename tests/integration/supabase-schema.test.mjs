@@ -58,7 +58,11 @@ test("TEST Supabase exposes QueueDrop core schema", { skip: !adminEnabled }, asy
     supabase.from("businesses").select("id,name,status,terminal_theme,terminal_logo_url,terminal_background_image_url").limit(1),
     supabase.from("branches").select("id,business_id,name,status").limit(1),
     supabase.from("services").select("id,branch_id,name,queue_prefix,is_active").limit(1),
-    supabase.from("tickets").select("id,branch_id,service_id,status,ticket_number").limit(1),
+    supabase.from("tickets").select("id,branch_id,service_id,status,ticket_number,sms_phone,sms_opted_in_at").limit(1),
+    supabase.from("notifications").select("id,channel,status,attempt_count,next_attempt_at,processing_started_at,last_error,provider_message_id").limit(1),
+    supabase.from("sms_delivery_methods").select("id,name,method_type,provider_code,country_code,is_enabled").limit(1),
+    supabase.from("sms_routing_rules").select("id,scope_type,country_code,retry_limit,is_enabled").limit(1),
+    supabase.from("sms_delivery_attempts").select("id,notification_id,status,attempt_number").limit(1),
     supabase.from("business_users").select("business_id,user_id,role,is_active").limit(1),
   ];
   const results = await Promise.all(checks);

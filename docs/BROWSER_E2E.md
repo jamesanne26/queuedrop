@@ -4,13 +4,23 @@ This suite uses Playwright and exercises QueueDrop through a real Chromium brows
 
 ## Coverage in this patch
 
-- Public homepage/login/pricing rendering.
-- Protected dashboard redirect when signed out.
-- Owner login and sign out.
-- Owner navigation through Overview, Branches, Services, Team, History & Reports, Terminals, Queues, and Settings.
-- Scenario 1: create/delete a unique branch through the UI and verify persistence through TEST Supabase.
-- Scenario 2: create a unique branch and service through the UI and verify persisted state.
-- Scenario-owned data is unique and cleanup is scoped to the branch created by that scenario.
+- Public homepage/login/pricing rendering and protected dashboard redirect.
+- Owner login, sign out, health endpoint, and owner navigation through all main dashboard destinations.
+- Scenario 1: create/delete a unique branch and verify TEST Supabase persistence.
+- Scenario 2: create a unique branch + service and verify TEST Supabase persistence.
+- Scenario 3: branch lifecycle — create, edit, inactive/active status transitions, delete, and DB verification.
+- Scenario 4: service lifecycle — create, edit, deactivate/reactivate, delete, and DB verification.
+- Scenario 5: invalid short branch-name validation; verifies the browser blocks submission and no branch row is created.
+- Scenario 6: terminal lifecycle — PIN configuration, create, reassign default service, open kiosk, issue a real stub, protected exit, and remove.
+- Scenario 7: full happy-path queue workflow — waiting → pending/called → serving → completed → history.
+- Scenario 8: waiting-stub cancellation with verification code.
+- Scenario 9: return a serving stub to the end of the waiting queue.
+- Scenario 10: customer status page and SMS number persistence.
+- Scenario 11: branch settings save/reload with DB verification.
+- Scenario 12: completed queue record in filtered Reports plus authenticated CSV export.
+- Scenario 13: custom role create/update with branch-scope persistence.
+- Scenario 14: team member create, update, deactivate/reactivate, and permanent delete.
+- Scenario-owned branches, services, terminals, tickets, roles, and auth users use unique data and scoped cleanup so tests remain independent.
 - Screenshot, trace, and video are retained on browser failure.
 
 ## Required environment variables
@@ -58,9 +68,9 @@ Interactive debugging:
 npm run test:e2e:ui
 ```
 
-## Expansion plan
+## Expansion rule
 
-Keep each regression scenario independent. The next scenarios should cover Team/Roles, Terminals, Get Stub, Live Queue operations, customer status recovery, Settings, Reports/export, SMS routing, and role/permission boundaries. Add them one scenario at a time without modifying working scenario data contracts.
+Keep every regression scenario independent. New scenarios must add their own fixtures and cleanup instead of changing working scenario data contracts. Role/permission boundary matrices and provider-specific SMS delivery can be expanded further when dedicated non-owner test accounts/gateways are configured.
 
 ## Local server stability
 

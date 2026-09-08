@@ -43,6 +43,8 @@ export async function findBranchByName(admin, businessId, name) {
     .select("id, name, business_id")
     .eq("business_id", businessId)
     .eq("name", name)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return data ?? null;
@@ -60,19 +62,131 @@ export async function findServiceByName(admin, branchId, name) {
 }
 
 export async function cleanupOwnedBranch(admin, businessId, branchName) {
-  const branch = await findBranchByName(admin, businessId, branchName);
-  if (!branch) return;
-
-  // All branch-owned QueueDrop records use ON DELETE CASCADE. Deleting the
-  // scenario-owned branch directly keeps cleanup independent from UI state and
-  // avoids stale fixtures if a test aborts midway.
+  // Delete every matching scenario fixture, not just one row. This also repairs
+  // stale duplicate fixtures left behind by an interrupted/failed test run.
   const { error } = await admin
     .from("branches")
     .delete()
-    .eq("id", branch.id)
-    .eq("business_id", businessId);
+    .eq("business_id", businessId)
+    .eq("name", branchName);
   if (error) throw error;
 
-  const leftover = await findBranchByName(admin, businessId, branchName);
-  if (leftover) throw new Error(`E2E cleanup failed for branch: ${branchName}`);
+  const { count, error: countError } = await admin
+    .from("branches")
+    .select("id", { count: "exact", head: true })
+    .eq("business_id", businessId)
+    .eq("name", branchName);
+  if (countError) throw countError;
+  if ((count ?? 0) !== 0) throw new Error(`E2E cleanup failed for branch: ${branchName}`);
+}
+
+export async function getBranchById(admin, branchId) {
+  const { data, error } = await admin.from("branches").select("id,name,business_id,status,address,phone,timezone").eq("id", branchId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getServiceById(admin, serviceId) {
+  const { data, error } = await admin.from("services").select("id,name,branch_id,description,queue_prefix,estimated_minutes,is_active").eq("id", serviceId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function findTerminalByName(admin, branchId, name) {
+  const { data, error } = await admin.from("devices")
+    .select("id,name,device_token,branch_id,service_id,is_active,device_type")
+    .eq("branch_id", branchId).eq("name", name).eq("device_type", "ticket_terminal").maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function latestTicketForService(admin, branchId, serviceId) {
+  const { data, error } = await admin.from("tickets")
+    .select("id,display_number,status,branch_id,service_id,ticket_number,sms_phone,joined_at,called_at,serving_at,completed_at,cancelled_at")
+    .eq("branch_id", branchId).eq("service_id", serviceId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getTicketById(admin, ticketId) {
+  const { data, error } = await admin.from("tickets")
+    .select("id,display_number,status,branch_id,service_id,ticket_number,sms_phone,joined_at,called_at,serving_at,completed_at,cancelled_at")
+    .eq("id", ticketId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getCustomerSessionForTicket(admin, ticketId) {
+  const { data: ticket, error: ticketError } = await admin
+    .from("tickets")
+    .select("customer_session_id")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (ticketError) throw ticketError;
+  if (!ticket?.customer_session_id) return null;
+
+  const { data, error } = await admin
+    .from("customer_sessions")
+    .select("id,session_token")
+    .eq("id", ticket.customer_session_id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getQueueConfiguration(admin, branchId) {
+  const { data, error } = await admin.from("queue_configurations")
+    .select("branch_id,customer_refresh_seconds,sms_notifications_enabled,sms_start_position")
+    .eq("branch_id", branchId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function findRoleByName(admin, businessId, name) {
+  const { data, error } = await admin.from("roles")
+    .select("id,business_id,name,description,base_role,branch_scope,is_system,is_protected")
+    .eq("business_id", businessId).eq("name", name).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function cleanupRoleByName(admin, businessId, name) {
+  const role = await findRoleByName(admin, businessId, name);
+  if (!role) return;
+  const { error } = await admin.from("roles").delete().eq("id", role.id).eq("business_id", businessId);
+  if (error) throw error;
+}
+
+export async function findAuthUserByEmail(admin, email) {
+  let page = 1;
+  while (page <= 10) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+    if (error) throw error;
+    const user = data.users.find((item) => item.email?.toLowerCase() === email.toLowerCase());
+    if (user) return user;
+    if (data.users.length < 100) return null;
+    page += 1;
+  }
+  return null;
+}
+
+export async function cleanupAuthUserByEmail(admin, email) {
+  const user = await findAuthUserByEmail(admin, email);
+  if (!user) return;
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) throw error;
+}
+
+export async function getProfile(admin, userId) {
+  const { data, error } = await admin.from("profiles").select("id,full_name,email,phone").eq("id", userId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getBusinessMembership(admin, businessId, userId) {
+  const { data, error } = await admin.from("business_users")
+    .select("id,business_id,user_id,role,role_id,custom_role_name,is_active")
+    .eq("business_id", businessId).eq("user_id", userId).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
 }

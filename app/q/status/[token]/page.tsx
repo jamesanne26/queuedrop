@@ -5,6 +5,7 @@ import { LiveStatus } from "./live-status";
 import { updateSmsNumber } from "./actions";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { StickyPositionIndicator } from "./sticky-position-indicator";
+import { SMS_COUNTRIES, splitSmsRecipient } from "@/lib/notifications/phone";
 
 type Props = { params: Promise<{ token: string }>; searchParams: Promise<{ message?: string; error?: string }> };
 type QueueListItem = { display_number: string; position: number; is_you: boolean };
@@ -48,6 +49,7 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
   if (error || !data) notFound();
   const ticket = data as TicketStatus;
   const active = ["waiting", "called"].includes(ticket.status);
+  const smsInput = splitSmsRecipient(ticket.sms_phone);
 
   return <main className="ticket-status-shell customer-ticket-page">
     <section className="ticket-status-card customer-ticket-hero">
@@ -68,7 +70,7 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
         <div><dt>Business</dt><dd>{ticket.business_name}</dd></div>
       </dl>
       {active ? <details className="ticket-edit-panel" open={!ticket.sms_phone}><summary>{ticket.sms_phone ? "SMS notification number" : "Notify me by SMS"}</summary>
-        <form action={updateSmsNumber} className="form-stack compact-form"><input type="hidden" name="token" value={token}/><label>Mobile number<DigitsOnlyInput name="phone" required maxLength={20} defaultValue={ticket.sms_phone ?? ""} placeholder="09171234567"/></label><p className="muted">Optional. Add a number only if you want queue-position text alerts.</p><button className="button button-secondary" type="submit">{ticket.sms_phone ? "Update SMS number" : "Enable SMS alerts"}</button></form>
+        <form action={updateSmsNumber} className="form-stack compact-form"><input type="hidden" name="token" value={token}/><label>Country code<select name="country_dial_code" defaultValue={smsInput.country.dialCode}>{SMS_COUNTRIES.map((country) => <option key={country.code} value={country.dialCode}>{country.flag} {country.name} (+{country.dialCode})</option>)}</select></label><label>Mobile number<DigitsOnlyInput name="phone" required maxLength={15} defaultValue={smsInput.local} placeholder={smsInput.country.code === "PH" ? "9171234567" : "Mobile number"}/></label><p className="muted">Optional. QueueDrop stores the number with its country code and uses it only for queue-position SMS alerts for this stub.</p><button className="button button-secondary" type="submit">{ticket.sms_phone ? "Update SMS number" : "Enable SMS alerts"}</button></form>
       </details> : null}
     </section>
     <section className="ticket-status-card customer-queue-list-card customer-queue-below"><div><p className="eyebrow">Current queue</p><h2>{ticket.service_name}</h2><p className="muted">Queue numbers only. Your queue number is highlighted.</p></div><div className="customer-queue-list"><div className="customer-queue-list-head"><span>Queue</span><span>Position</span></div>{(ticket.queue_list ?? []).map((item) => <div className={item.is_you ? "customer-queue-list-row customer-queue-list-row-you" : "customer-queue-list-row"} key={item.display_number}><div><strong>{item.display_number}</strong><small>{item.is_you ? "Your queue" : "Waiting"}</small></div><strong className="customer-queue-position">{item.position}</strong></div>)}</div></section>

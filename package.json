@@ -12,6 +12,7 @@
     "test:unit": "node scripts/run-tests.mjs unit",
     "test:unit:watch": "node scripts/run-tests.mjs unit --watch",
     "test:unit:coverage": "node scripts/run-tests.mjs unit --coverage",
+    "test:sms": "node scripts/run-tests.mjs sms",
     "test:integration": "node scripts/run-tests.mjs integration",
     "test:smoke": "node scripts/run-tests.mjs e2e/smoke",
     "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run security:secrets",
@@ -22,7 +23,9 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "setup:sms:test": "powershell -ExecutionPolicy Bypass -File scripts/setup-sms-test-env.ps1",
+    "sms:dispatch": "node scripts/dispatch-sms.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
