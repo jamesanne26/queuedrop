@@ -49,3 +49,7 @@ Expected CI standard after this patch:
 - 0 flaky
 - no committed `test.only()`
 
+
+## Scenario 6 terminal removal CI hardening
+
+A later strict-CI run exposed a separate retry-only flake in Scenario 6. The terminal delete had already committed in Supabase, but Playwright sometimes timed out waiting for the server-action redirect query string on the hosted runner. The regression now synchronizes on the durable database deletion, then reloads the terminals page and verifies the terminal card is absent. This avoids treating transient Next.js RSC/navigation timing as product correctness while still validating both persistence and UI state.

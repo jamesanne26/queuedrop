@@ -148,9 +148,20 @@ test.describe("owner terminals and queue operations", () => {
 
       card = page.locator("article.terminal-card", { hasText: terminalEditedName });
       await card.getByRole("button", { name: "Remove", exact: true }).click();
-      await page.waitForURL(/\/dashboard\/terminals\?message=/, { timeout: 20_000 });
-      await expectNotice(page, "Terminal removed.");
-      expect(await findTerminalByName(admin, branch.id, terminalEditedName)).toBeNull();
+
+      // Deletion is a Next.js server action. In hosted CI the database commit can
+      // complete before the redirect/RSC response stream finishes, so waiting on
+      // the query-string redirect made this otherwise-successful scenario flaky.
+      // Verify the durable side effect first, then render a fresh terminals page
+      // and assert the deleted terminal is gone from the UI. This tests the actual
+      // removal without coupling correctness to transient navigation timing.
+      await expect.poll(
+        async () => await findTerminalByName(admin, branch.id, terminalEditedName),
+        { timeout: 20_000 },
+      ).toBeNull();
+      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
+      await expect(page.locator("article.terminal-card", { hasText: terminalEditedName })).toHaveCount(0);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
