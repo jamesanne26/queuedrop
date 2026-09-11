@@ -19,3 +19,22 @@ Still requires external configuration / human verification before public sale:
 6. Have the legal/privacy pages reviewed and replace placeholder support/privacy contact details before public launch.
 7. Decide recurring billing policy. The current checkout is a one-month purchase/renewal flow; it does not claim automatic card charging.
 8. Run production acceptance: signup → trial → setup → queue → SMS → reports → checkout → webhook activation → limits → expiry/renewal.
+
+## Billing cadence and renewal mode (2026-09-11)
+
+QueueDrop now supports client-selected monthly or annual billing and manual or automatic renewal.
+
+- Manual renewal keeps Hosted Checkout and supports card/GCash.
+- Annual manual checkout uses the System Owner's `price_yearly` and extends access by one calendar year.
+- Auto-renew uses PayMongo Subscriptions and card authorization; it is gated by `PAYMONGO_SUBSCRIPTIONS_ENABLED=true` and `NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY` so existing manual checkout is unaffected until PayMongo enables the merchant capability.
+- Auto-renew webhook handling covers paid subscription invoices and subscription status changes (`active`, `past_due`/`unpaid`, `cancelled`).
+- System Owner can allow/disable auto-renew per plan.
+
+PayMongo dashboard webhook configuration must include subscription events before auto-renew is enabled: `subscription.invoice.paid`, `subscription.updated`, `subscription.past_due`, and `subscription.unpaid`.
+
+## Configurable plan tax (2026-09-11)
+- System Owner can mark each plan Non-VAT or VAT.
+- VAT rate is configurable from 0-100% (not hard-coded).
+- VAT plans can be price-inclusive or price-exclusive.
+- Every subscription order snapshots subtotal, tax mode, VAT rate, tax amount, and total so historical billing does not change when plan tax settings change later.
+- PayMongo is charged the snapshotted total; billing history shows the tax treatment.

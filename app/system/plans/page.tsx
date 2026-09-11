@@ -13,7 +13,7 @@ export default async function SystemPlansPage({ searchParams }: Props) {
   const admin = createAdminClient();
   const { data: plans } = await admin
     .from("plans")
-    .select("id,name,description,price_monthly,price_yearly,currency,min_branches,max_branches,max_active_queues_per_branch,max_services_per_branch,trial_days,is_active,is_public,accepts_new_subscriptions,sort_order")
+    .select("id,name,description,price_monthly,price_yearly,currency,min_branches,max_branches,max_active_queues_per_branch,max_services_per_branch,trial_days,is_active,is_public,accepts_new_subscriptions,allow_auto_renew,tax_mode,vat_rate,tax_price_mode,sort_order")
     .order("sort_order")
     .order("name");
 
@@ -50,7 +50,7 @@ type Plan = {
   id: string; name: string; description: string | null; price_monthly: number | string; price_yearly: number | string | null;
   currency: string; min_branches: number; max_branches: number | null; max_active_queues_per_branch: number | null;
   max_services_per_branch: number | null; trial_days: number; is_active: boolean; is_public: boolean;
-  accepts_new_subscriptions: boolean; sort_order: number;
+  accepts_new_subscriptions: boolean; allow_auto_renew: boolean; tax_mode: "non_vat" | "vat"; vat_rate: number | string; tax_price_mode: "inclusive" | "exclusive"; sort_order: number;
 };
 
 function PlanForm({ plan }: { plan?: Plan }) {
@@ -61,6 +61,9 @@ function PlanForm({ plan }: { plan?: Plan }) {
       <label>Currency<input name="currency" defaultValue={plan?.currency ?? "PHP"} required maxLength={3} /></label>
       <label>Monthly price<input name="price_monthly" type="number" min="0" step="0.01" defaultValue={plan?.price_monthly ?? ""} required /></label>
       <label>Annual price <span className="muted">(blank = not offered)</span><input name="price_yearly" type="number" min="0" step="0.01" defaultValue={plan?.price_yearly ?? ""} /></label>
+      <label>Tax treatment<select name="tax_mode" defaultValue={plan?.tax_mode ?? "non_vat"}><option value="non_vat">Non-VAT</option><option value="vat">VAT</option></select></label>
+      <label>VAT rate (%)<input name="vat_rate" type="number" min="0" max="100" step="0.01" defaultValue={plan?.vat_rate ?? 0} /></label>
+      <label>Plan price is<select name="tax_price_mode" defaultValue={plan?.tax_price_mode ?? "inclusive"}><option value="inclusive">VAT inclusive</option><option value="exclusive">VAT exclusive (add VAT at checkout)</option></select></label>
       <label>Minimum branches<input name="min_branches" type="number" min="0" step="1" defaultValue={plan?.min_branches ?? 1} required /></label>
       <label>Maximum branches <span className="muted">(blank = unlimited/custom)</span><input name="max_branches" type="number" min="1" step="1" defaultValue={plan?.max_branches ?? ""} /></label>
       <label>Active queues / branch <span className="muted">(blank = unlimited)</span><input name="max_active_queues_per_branch" type="number" min="1" step="1" defaultValue={plan?.max_active_queues_per_branch ?? ""} /></label>
@@ -72,7 +75,8 @@ function PlanForm({ plan }: { plan?: Plan }) {
         <label><input type="checkbox" name="is_active" defaultChecked={plan?.is_active ?? true} /> Active</label>
         <label><input type="checkbox" name="is_public" defaultChecked={plan?.is_public ?? true} /> Show on public pricing</label>
         <label><input type="checkbox" name="accepts_new_subscriptions" defaultChecked={plan?.accepts_new_subscriptions ?? true} /> Accept new subscriptions</label>
-        {plan ? <label><input type="checkbox" name="apply_existing_price" /> Apply new monthly price to existing active subscribers</label> : null}
+        <label><input type="checkbox" name="allow_auto_renew" defaultChecked={plan?.allow_auto_renew ?? true} /> Allow client auto-renew</label>
+        {plan ? <label><input type="checkbox" name="apply_existing_price" /> Apply new monthly/annual prices to existing active subscribers</label> : null}
       </div>
       <div className="system-form-wide system-plan-form-actions"><button className="button button-primary" type="submit">{plan ? "Save plan changes" : "Create plan"}</button></div>
     </form>

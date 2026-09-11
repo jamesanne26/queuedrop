@@ -37,6 +37,8 @@ export async function savePlan(formData: FormData) {
   const description = text(formData, "description");
   const currency = (text(formData, "currency") || "PHP").toUpperCase();
   const applyExisting = formData.get("apply_existing_price") === "on";
+  const taxMode = text(formData, "tax_mode") === "vat" ? "vat" : "non_vat";
+  const taxPriceMode = text(formData, "tax_price_mode") === "exclusive" ? "exclusive" : "inclusive";
 
   try {
     if (name.length < 2 || name.length > 80) throw new Error("Plan name must be 2-80 characters.");
@@ -50,6 +52,8 @@ export async function savePlan(formData: FormData) {
     const maxServices = nullableInt(formData, "max_services_per_branch");
     const trialDays = nullableInt(formData, "trial_days") ?? 14;
     const sortOrder = nullableInt(formData, "sort_order") ?? 0;
+    const vatRate = nullableMoney(formData, "vat_rate") ?? 0;
+    if (vatRate > 100) throw new Error("VAT rate must be between 0 and 100.");
     if (maxBranches !== null && maxBranches < minBranches) throw new Error("Maximum branches cannot be lower than minimum branches.");
 
     const payload = {
@@ -67,6 +71,10 @@ export async function savePlan(formData: FormData) {
       is_active: formData.get("is_active") === "on",
       is_public: formData.get("is_public") === "on",
       accepts_new_subscriptions: formData.get("accepts_new_subscriptions") === "on",
+      allow_auto_renew: formData.get("allow_auto_renew") === "on",
+      tax_mode: taxMode,
+      vat_rate: taxMode === "vat" ? vatRate : 0,
+      tax_price_mode: taxPriceMode,
       updated_at: new Date().toISOString(),
     };
 
@@ -83,7 +91,7 @@ export async function savePlan(formData: FormData) {
     if (applyExisting && planId) {
       const { error } = await admin
         .from("business_subscriptions")
-        .update({ billing_price_monthly: priceMonthly, billing_currency: currency, updated_at: new Date().toISOString() })
+        .update({ billing_price_monthly: priceMonthly, billing_price_yearly: priceYearly, billing_currency: currency, updated_at: new Date().toISOString() })
         .eq("plan_id", planId)
         .in("status", ["active", "trialing"]);
       if (error) throw error;
@@ -92,7 +100,7 @@ export async function savePlan(formData: FormData) {
     if (planId) {
       await admin.from("system_audit_logs").insert({
         actor_user_id: actor.id, action: id ? "plan.updated" : "plan.created", entity_type: "plan", entity_id: planId,
-        details: { name, price_monthly: priceMonthly, currency, max_branches: maxBranches, max_active_queues_per_branch: maxActiveQueues, max_services_per_branch: maxServices, apply_existing_price: applyExisting },
+        details: { name, price_monthly: priceMonthly, price_yearly: priceYearly, allow_auto_renew: payload.allow_auto_renew, tax_mode: taxMode, vat_rate: taxMode === "vat" ? vatRate : 0, tax_price_mode: taxPriceMode, currency, max_branches: maxBranches, max_active_queues_per_branch: maxActiveQueues, max_services_per_branch: maxServices, apply_existing_price: applyExisting },
       });
     }
   } catch (error) {

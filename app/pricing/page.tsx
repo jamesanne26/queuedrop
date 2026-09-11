@@ -16,7 +16,7 @@ export default async function PricingPage() {
   const admin = createAdminClient();
   const { data: plans } = await admin
     .from("plans")
-    .select("id,name,description,min_branches,max_branches,price_monthly,price_yearly,currency,max_active_queues_per_branch,max_services_per_branch,trial_days")
+    .select("id,name,description,min_branches,max_branches,price_monthly,price_yearly,currency,max_active_queues_per_branch,max_services_per_branch,trial_days,tax_mode,vat_rate,tax_price_mode")
     .eq("is_active", true)
     .eq("is_public", true)
     .eq("accepts_new_subscriptions", true)
@@ -32,6 +32,7 @@ export default async function PricingPage() {
           <h2>{plan.name}</h2>
           <div className="pricing-price">₱{Number(plan.price_monthly).toLocaleString()}<span>/month</span></div>
           {plan.price_yearly ? <p className="pricing-annual">₱{Number(plan.price_yearly).toLocaleString()}/year</p> : null}
+          <p className="muted">{plan.tax_mode === "vat" ? `VAT ${Number(plan.vat_rate)}% · ${plan.tax_price_mode === "exclusive" ? "added at checkout" : "included"}` : "Non-VAT"}</p>
           <p>{plan.description}</p>
           <ul>
             <li>{plan.max_active_queues_per_branch ? `Up to ${plan.max_active_queues_per_branch} active queues` : "Custom active queue allowance"}</li>
