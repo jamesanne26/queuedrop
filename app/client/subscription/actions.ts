@@ -87,6 +87,7 @@ export async function startSubscriptionCheckout(formData: FormData) {
           payment_method_types: ["card", "gcash"],
           line_items: [{ amount: Math.round(amount * 100), quantity: 1, name: `QueueDrop ${plan.name}`, description: plan.description ?? "Monthly QueueDrop subscription", currency }],
           reference_number: order.id,
+          metadata: { reference_number: order.id, business_id: membership.business_id },
           send_email_receipt: true,
           show_description: true,
           show_line_items: true,
