@@ -5,13 +5,17 @@ export async function expectNoAppError(page) {
 }
 
 export async function dismissDashboardResultModal(page, expectedMessage) {
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible({ timeout: 15_000 });
+  // Dashboard pages can already have another dialog open (for example the
+  // Team member edit modal) when a server-action result arrives. Target the
+  // dedicated result modal instead of the first generic role=dialog so the
+  // helper cannot accidentally assert against the underlying editor.
+  const dialog = page.locator(".qd-result-modal-backdrop").getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 25_000 });
   if (expectedMessage) {
-    await expect(dialog).toContainText(expectedMessage);
+    await expect(dialog).toContainText(expectedMessage, { timeout: 15_000 });
   }
   await dialog.getByRole("button", { name: "OK", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await expect(dialog).toBeHidden({ timeout: 15_000 });
 }
 
 export async function openDashboardDestination(page, label, path) {

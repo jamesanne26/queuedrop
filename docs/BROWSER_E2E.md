@@ -79,3 +79,12 @@ Local `npm run test:e2e` now runs against a production-like Next.js server by de
 For intentional local HMR debugging only, set `QUEUEDROP_E2E_SERVER_MODE=dev` before running Playwright. The normal regression command should keep the production-like default.
 
 The public/auth regression group also validates `/api/health` and fails on uncaught browser `pageerror` events, so a green run means more than an HTTP status check.
+
+## CI flake hardening (2026-09-11)
+
+Two timing-sensitive paths were hardened after GitHub-hosted runs exposed retry-only passes:
+
+- Dashboard result assertions now target the dedicated result modal instead of the first generic `role="dialog"`. This prevents an already-open editor modal (such as Team member Edit details) from being mistaken for the server-action success modal.
+- Queue History now exposes an explicit loading state, prevents duplicate history requests, handles load failures visibly, and the Scenario 7 assertion allows the deployed server action enough time to return before validating the completed ticket row.
+
+Do not solve future flakes with arbitrary sleeps. Prefer a stable UI state, a specific accessible locator, a database/API state transition, or a bounded application-level loading state.

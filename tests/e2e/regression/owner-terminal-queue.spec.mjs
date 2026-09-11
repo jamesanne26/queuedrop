@@ -182,17 +182,24 @@ test.describe("owner terminals and queue operations", () => {
       const completed = await getTicketById(admin, ticket.id);
       expect(completed?.completed_at).not.toBeNull();
 
-      // Wait for the completed action to finish updating the live queue before
-      // opening History. Clicking History while the server-action refresh is still
-      // settling can have its local history state overwritten by the refresh.
+      // The queue mutations above are Next.js server actions. In production-mode E2E,
+      // the final RSC refresh can still own the response stream for a short period
+      // after the database has committed. Start the history assertion from a fresh,
+      // fully-settled document so this test verifies persisted state instead of racing
+      // an earlier server-action stream. This is deterministic synchronization, not a
+      // sleep/retry workaround.
       await expect(page.locator(".live-serving-row-v4", { hasText: ticket.display_number })).toHaveCount(0, { timeout: 15_000 });
       await expect(page.locator(".live-serving-panel")).toContainText("No stub being served", { timeout: 15_000 });
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page.locator(".live-queue-page")).toBeVisible({ timeout: 15_000 });
 
-      await page.getByRole("button", { name: "History", exact: true }).click();
+      const historyButton = page.getByRole("button", { name: "History", exact: true });
+      await expect(historyButton).toBeEnabled({ timeout: 15_000 });
+      await historyButton.click();
       const historyPanel = page.locator(".live-history-panel");
-      await expect(historyPanel.getByRole("heading", { name: "Recent stub history", exact: true })).toBeVisible({ timeout: 15_000 });
+      await expect(historyPanel.getByRole("heading", { name: "Recent stub history", exact: true })).toBeVisible({ timeout: 30_000 });
       const historyRow = historyPanel.locator("tbody tr", { hasText: ticket.display_number });
-      await expect(historyRow).toBeVisible({ timeout: 15_000 });
+      await expect(historyRow).toBeVisible({ timeout: 30_000 });
       await expect(historyRow).toContainText("completed");
     } finally {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);

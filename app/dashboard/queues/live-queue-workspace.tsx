@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
@@ -58,6 +58,9 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
   const defaultServiceId = initialServiceId && services.some((s) => s.id === initialServiceId) ? initialServiceId : services[0]?.id ?? "";
   const [serviceId, setServiceId] = useState(defaultServiceId);
   const [history, setHistory] = useState<ServiceHistoryTicket[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const historyRequestId = useRef(0);
   const [previewTicket, setPreviewTicket] = useState<Ticket | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [confirmInput, setConfirmInput] = useState("");
@@ -268,7 +271,22 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
     startBranchTransition(() => router.replace(`/dashboard/queues?branch=${encodeURIComponent(branchId)}`, { scroll: false }));
   }
 
-  async function showHistory() { setHistory(await loadServiceHistoryAction(selectedBranchId)); }
+  async function showHistory() {
+    if (historyLoading) return;
+    const requestId = ++historyRequestId.current;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const rows = await loadServiceHistoryAction(selectedBranchId);
+      if (historyRequestId.current === requestId) setHistory(rows);
+    } catch {
+      if (historyRequestId.current === requestId) {
+        setHistoryError("Unable to load recent stub history. Please try again.");
+      }
+    } finally {
+      if (historyRequestId.current === requestId) setHistoryLoading(false);
+    }
+  }
 
   function openConfirm(ticket: Ticket, action: ConfirmAction) {
     const values = new Uint32Array(1);
@@ -335,7 +353,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
         {canSimulateStub ? <form action={simulateGetStubAction} className="live-test-stub-form-v2" data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button live-get-stub-button-v2" disabled={!selectedService}>＋ Get test stub</ActionButton><span>DEV / CLIENT ADMIN</span></form> : null}
         <form action={callNextAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button button-primary live-primary-action" disabled={!selectedService}>Call next</ActionButton></form>
         <a className="button button-secondary" href="/dashboard">Dashboard</a>
-        <button className="button button-secondary" type="button" onClick={showHistory}>History</button>
+        <button className="button button-secondary" type="button" onClick={showHistory} disabled={historyLoading} aria-busy={historyLoading}>{historyLoading ? "Loading history…" : "History"}</button>
         <a className="button button-secondary" href="/dashboard/terminals">Terminals</a>
       </div>
     </section>
@@ -347,7 +365,8 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
 
     <section className="dashboard-section live-waiting-panel"><div className="live-waiting-header"><div><p className="eyebrow">Up next</p><h2>Waiting queue</h2><span>{selectedService?.name ?? "Service"}</span></div><div className="live-waiting-count"><strong>{waiting.length}</strong><span>waiting</span></div></div>{waiting.length ? <div className="live-waiting-grid">{waiting.map((t) => <WaitingRow ticket={t} key={t.id}/>)}</div> : <div className="live-empty-state live-empty-state-large"><strong>No one is waiting</strong><span>New terminal stubs will appear here automatically.</span></div>}</section>
 
-    {history ? <section className="dashboard-section live-history-panel"><div className="live-column-head"><h2>Recent stub history</h2><button className="text-link" type="button" onClick={() => setHistory(null)}>Close</button></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Queue</th><th>Branch</th><th>Service</th><th>Status</th><th>Joined</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td><strong>{row.display_number}</strong></td><td>{row.branch_name}</td><td>{row.service_name}</td><td>{row.status}</td><td>{new Date(row.joined_at).toLocaleString()}</td></tr>)}</tbody></table></div></section> : null}
+    {historyError ? <div className="notice notice-error live-history-error" role="alert">{historyError}</div> : null}
+    {history ? <section className="dashboard-section live-history-panel" aria-live="polite"><div className="live-column-head"><h2>Recent stub history</h2><button className="text-link" type="button" onClick={() => setHistory(null)}>Close</button></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Queue</th><th>Branch</th><th>Service</th><th>Status</th><th>Joined</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td><strong>{row.display_number}</strong></td><td>{row.branch_name}</td><td>{row.service_name}</td><td>{row.status}</td><td>{new Date(row.joined_at).toLocaleString()}</td></tr>)}</tbody></table></div></section> : null}
 
     {previewTicket ? <div className="live-confirm-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewTicket(null); }}><section className="live-phone-preview-dialog" role="dialog" aria-modal="true" aria-label={`Customer view for ${previewTicket.display_number}`}><div className="live-phone-preview-heading"><div><p className="eyebrow">Customer phone view</p><h2>{previewTicket.display_number}{previewTicket.sms_enabled ? <span className="live-mobile-icon">📱</span> : null}</h2><p>{previewTicket.sms_phone ? `Mobile: ${previewTicket.sms_phone}` : "No mobile number added"}</p></div><button type="button" className="live-confirm-close" onClick={() => setPreviewTicket(null)} aria-label="Close">×</button></div>{previewTicket.session_token ? <div className="live-phone-shell"><div className="live-phone-speaker"/><iframe title={`Customer status ${previewTicket.display_number}`} src={`/q/status/${previewTicket.session_token}`}/></div> : <div className="live-empty-state live-phone-unavailable"><strong>Customer link unavailable</strong><span>This stub has no active status token.</span></div>}</section></div> : null}
 
