@@ -40,8 +40,19 @@ async function waitForTicketStatus(admin, ticketId, status) {
 async function issueTestStub(page, admin, branch, service) {
   await page.goto(`/dashboard/queues?branch=${branch.id}&service=${service.id}`, { waitUntil: "domcontentloaded" });
   await expectNoAppError(page);
-  await page.getByRole("button", { name: /Get test stub/i }).click();
+
+  const getStubButton = page.getByRole("button", { name: /Get test stub/i });
+  await getStubButton.click();
+
+  // The ticket can reach Supabase/Realtime before the server action finishes its
+  // redirect/revalidation. If a test opens the customer preview in that gap, the
+  // late action navigation remounts the queue page and destroys the iframe. Wait
+  // for both persistence and the form action to settle before interacting with
+  // the newly-created ticket. This synchronizes on real UI state, not a sleep.
   await expect.poll(async () => Boolean(await latestTicketForService(admin, branch.id, service.id)), { timeout: 15_000 }).toBe(true);
+  await expect(page.getByRole("button", { name: /Get test stub/i })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: /Get test stub/i })).toBeEnabled({ timeout: 20_000 });
+
   const ticket = await latestTicketForService(admin, branch.id, service.id);
   expect(ticket?.status).toBe("waiting");
   return ticket;
