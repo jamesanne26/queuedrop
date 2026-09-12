@@ -14,6 +14,7 @@ import {
 } from "../helpers/admin-db.mjs";
 import { createBranchFromUi, createServiceFromUi, expectNotice, scenarioId } from "../helpers/scenario-fixtures.mjs";
 import { expectNoAppError } from "../helpers/ui.mjs";
+import { expectResponsivePage, responsiveViewports } from "../helpers/responsive.mjs";
 
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
@@ -135,6 +136,16 @@ test.describe("owner terminals and queue operations", () => {
       await page.waitForURL(/\/kiosk\//, { timeout: 20_000 });
       await expect(page.getByRole("button", { name: "Press here to get stub" })).toBeVisible();
       await expect(page.locator("body")).toContainText(serviceBName);
+
+      // Kiosk/terminal mode is commonly used on tablets, but it must also remain
+      // usable on a phone-sized fallback screen and on desktop hardware.
+      for (const viewport of responsiveViewports) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await expect(page.getByRole("button", { name: "Press here to get stub" })).toBeVisible();
+        await expectResponsivePage(page, `kiosk at ${viewport.name}`);
+      }
+
+      await page.setViewportSize({ width: 1440, height: 900 });
       await page.getByRole("button", { name: "Press here to get stub" }).click();
       await expect.poll(async () => Boolean(await latestTicketForService(admin, branch.id, serviceB.id)), { timeout: 15_000 }).toBe(true);
 
@@ -285,10 +296,37 @@ test.describe("owner terminals and queue operations", () => {
       const session = await getCustomerSessionForTicket(admin, ticket.id);
       expect(session?.session_token).toBeTruthy();
 
+      // The live queue opens the real customer status route in a same-origin iframe.
+      // This catches security-header regressions such as X-Frame-Options: DENY or
+      // CSP frame-ancestors 'none', which otherwise render a blank phone preview.
+      for (const viewport of responsiveViewports) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        const ticketButton = page.getByRole("button", { name: ticket.display_number, exact: true });
+        await expect(ticketButton).toBeVisible();
+        await ticketButton.click();
+        const previewDialog = page.getByRole("dialog", { name: `Customer view for ${ticket.display_number}` });
+        await expect(previewDialog).toBeVisible();
+        const previewFrame = previewDialog.frameLocator(`iframe[title="Customer status ${ticket.display_number}"]`);
+        await expect(previewFrame.locator("body")).toContainText(ticket.display_number, { timeout: 15_000 });
+        await expect(previewFrame.locator("body")).toContainText(setup.serviceName);
+        await expectResponsivePage(page, `customer preview modal at ${viewport.name}`);
+        await previewDialog.getByRole("button", { name: "Close", exact: true }).click();
+        await expect(previewDialog).toBeHidden();
+      }
+
       await page.goto(`/q/status/${session.session_token}`, { waitUntil: "domcontentloaded" });
       await expect(page.locator("body")).toContainText(ticket.display_number);
       await expect(page.locator("body")).toContainText(setup.serviceName);
       await expect(page.locator("body")).toContainText(setup.branchName);
+
+      // Guard the QR/customer page at representative phone, tablet, and desktop widths.
+      for (const viewport of responsiveViewports) {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await expect(page.locator(".customer-ticket-hero")).toBeVisible();
+        await expect(page.locator(".customer-queue-list-card")).toBeVisible();
+        await expectResponsivePage(page, `customer QR/status page at ${viewport.name}`);
+      }
+
       const smsForm = page.locator("form.compact-form");
       await smsForm.locator('input[name="phone"]').fill("09171234567");
       await smsForm.getByRole("button", { name: "Enable SMS alerts", exact: true }).click();

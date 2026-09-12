@@ -21,12 +21,14 @@
     "test:integration:required": "node scripts/run-tests.mjs integration --required",
     "test:smoke:required": "node scripts/run-tests.mjs e2e/smoke --required",
     "test:e2e": "playwright test",
+    "test:responsive": "playwright test tests/e2e/regression/responsive-layout.spec.mjs tests/e2e/regression/owner-terminal-queue.spec.mjs -g \"responsive layout coverage|Scenario 6|Scenario 10\"",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "setup:sms:test": "powershell -ExecutionPolicy Bypass -File scripts/setup-sms-test-env.ps1",
     "sms:dispatch": "node scripts/dispatch-sms.mjs",
-    "production:check": "node scripts/check-production-readiness.mjs"
+    "production:check": "node scripts/check-production-readiness.mjs",
+    "test:all": "npm run lint && npm run typecheck && npm run test:unit && npm run test:sms && npm run security:secrets && npm run test:integration:required && npm run build && npm run test:e2e"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

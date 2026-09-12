@@ -27,7 +27,7 @@ export default async function TerminalsPage({ searchParams }: Props) {
     .select("id,name,device_token,is_active,last_seen_at,branch_id,service_id,branches(name),services(name)")
     .in("branch_id", branchIds).eq("device_type", "ticket_terminal").order("created_at") : { data: [] as never[] };
 
-  return <div className="dashboard-content">
+  return <div className="dashboard-content terminals-page">
     <div className="page-heading"><div><p className="eyebrow">Hardware & browser kiosk</p><h1>QueueDrop Terminals</h1><p className="muted">Each terminal belongs to one branch and has a default service. Multiple terminals may use the same default service, and Get Stub customers can choose another active service in that branch.</p></div></div>
     {notices.message ? <div className="notice notice-success">{notices.message}</div> : null}
     {notices.error ? <div className="notice notice-error">{notices.error}</div> : null}
