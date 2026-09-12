@@ -77,9 +77,12 @@ export async function callNextAction(formData: FormData) {
   const { error } = await supabase.rpc("staff_call_next", { target_branch_id: branchId, target_service_id: serviceId });
   if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
+  // Live Queue is realtime-first. Do not redirect/reload the workspace after a
+  // successful high-frequency operator action: a navigation keeps the command
+  // bar pending even after the ticket has already moved on screen. Realtime
+  // applies the database change immediately and the 2.5s reconciliation loop
+  // remains as a safety net for dropped websocket events.
   after(() => dispatchSmsAfterQueueChange(branchId));
-  revalidatePath("/dashboard/queues");
-  redirect(queueRedirectUrl(branchId, serviceId, "success", "Next stub moved to pending"));
 }
 
 export async function returnLastCustomerAction(formData: FormData) {
@@ -92,8 +95,6 @@ export async function returnLastCustomerAction(formData: FormData) {
   if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
   after(() => dispatchSmsAfterQueueChange(branchId));
-  revalidatePath("/dashboard/queues");
-  redirect(queueRedirectUrl(branchId, serviceId, "success", "Last serving stub returned to queue"));
 }
 
 export async function updateTicketAction(formData: FormData) {
@@ -121,8 +122,6 @@ export async function updateTicketAction(formData: FormData) {
   }
 
   after(() => dispatchSmsAfterQueueChange(branchId));
-  revalidatePath("/dashboard/queues");
-  redirect(queueRedirectUrl(branchId, serviceId, "success", "Queue updated"));
 }
 
 export type ServiceHistoryTicket = {
