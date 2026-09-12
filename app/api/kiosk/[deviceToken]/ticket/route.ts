@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { enforceDeviceRateLimits } from "@/lib/security/rate-limit";
+
+function limited(retryAfter: number) {
+  return NextResponse.json(
+    { error: "Too many queue requests. Please wait a moment and try again." },
+    { status: 429, headers: { "Retry-After": String(retryAfter), "Cache-Control": "no-store" } },
+  );
+}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ deviceToken: string }> }) {
   const { deviceToken } = await params;
+  const limit = await enforceDeviceRateLimits(request.headers, deviceToken, "kiosk_ticket", 30, 120);
+  if (!limit.allowed) return limited(limit.retryAfter);
+
   const body = await request.json().catch(() => ({}));
   const serviceId = String(body?.serviceId ?? "").trim();
   if (!serviceId) return NextResponse.json({ error: "Choose a service first." }, { status: 400 });
@@ -14,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (error || !data) return NextResponse.json({ error: error?.message || "Unable to issue stub." }, { status: 400 });
   const ticket = data as Record<string, unknown> & { session_token: string };
   const origin = request.nextUrl.origin;
-  return NextResponse.json({ ...ticket, status_url: `${origin}/q/status/${ticket.session_token}` });
+  return NextResponse.json({ ...ticket, status_url: `${origin}/q/status/${ticket.session_token}` }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ deviceToken: string }> }) {
@@ -36,5 +47,5 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     target_error: null,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: Boolean(data) });
+  return NextResponse.json({ ok: Boolean(data) }, { headers: { "Cache-Control": "no-store" } });
 }

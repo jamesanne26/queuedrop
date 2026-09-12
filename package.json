@@ -25,7 +25,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "setup:sms:test": "powershell -ExecutionPolicy Bypass -File scripts/setup-sms-test-env.ps1",
-    "sms:dispatch": "node scripts/dispatch-sms.mjs"
+    "sms:dispatch": "node scripts/dispatch-sms.mjs",
+    "production:check": "node scripts/check-production-readiness.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

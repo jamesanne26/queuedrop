@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
+import { consumeRateLimit, requestClientIp } from "@/lib/security/rate-limit";
 import { isValidSmsRecipient, normalizeSmsRecipient } from "@/lib/notifications/phone";
 import { processPendingSmsNotifications } from "@/lib/notifications/sms";
 
@@ -12,6 +14,13 @@ export async function updateSmsNumber(formData: FormData) {
   const rawPhone = String(formData.get("phone") ?? "").trim();
   const dialCode = String(formData.get("country_dial_code") ?? "63").trim();
   if (!token) redirect("/");
+
+  const requestHeaders = await headers();
+  const ip = requestClientIp(requestHeaders);
+  const smsLimit = await consumeRateLimit({ name: "public_sms_opt_in", limit: 6, windowSeconds: 600 }, `${token}:${ip}`);
+  if (!smsLimit.allowed) {
+    redirect(`/q/status/${encodeURIComponent(token)}?error=${encodeURIComponent("Too many SMS update attempts. Please wait and try again.")}`);
+  }
 
   const phone = normalizeSmsRecipient(rawPhone, dialCode);
   if (!isValidSmsRecipient(phone)) {

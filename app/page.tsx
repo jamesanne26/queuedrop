@@ -42,7 +42,7 @@ export default function Home() {
               <div className="position-number">5th</div>
               <h2>position in queue</h2>
               <div className="demo-person">
-                <div><strong>Maria Clara</strong><span>Queue A-023</span></div>
+                <div><strong>Stub A-023</strong><span>No customer name required</span></div>
                 <span className="live-badge">Live</span>
               </div>
             </div>
@@ -70,13 +70,13 @@ export default function Home() {
         <div className="flow-copy">
           <p className="eyebrow">Stub flow</p>
           <h2>Join in seconds.</h2>
-          <p>Choose a service, enter basic details, receive a queue number, and monitor your position from any phone browser.</p>
+          <p>Choose a service and get a printed stub instantly. Scan the QR code for live status, and add a mobile number only if you want SMS alerts.</p>
         </div>
         <ol className="flow-steps">
           <li><span>1</span>Choose service</li>
-          <li><span>2</span>Enter name & mobile</li>
-          <li><span>3</span>Receive queue number</li>
-          <li><span>4</span>Track live position</li>
+          <li><span>2</span>Get printed stub</li>
+          <li><span>3</span>Scan QR for live status</li>
+          <li><span>4</span>Optional SMS alerts</li>
         </ol>
       </section>
 
