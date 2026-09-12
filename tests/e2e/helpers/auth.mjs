@@ -15,7 +15,10 @@ export async function loginAsOwner(page, credentials) {
 
   await signInButton.click();
   await page.waitForURL(/\/dashboard(?:\?.*)?$/, { timeout: 20_000 });
-  await expect(page.locator("h1").first()).toBeVisible();
+  // The hosted Next.js dashboard can stream its page body after the authenticated
+  // shell is already usable. Treat the persistent authenticated navigation as the
+  // login-ready signal instead of coupling every scenario to the dashboard h1.
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
 }
 

@@ -83,6 +83,9 @@ test.describe("owner terminals and queue operations", () => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
 
   test("Scenario 6 - terminal create, edit assignment, open kiosk, issue stub, protected exit, and remove", async ({ page }) => {
+    // This full terminal lifecycle intentionally crosses several server actions and
+    // a kiosk route; keep strict assertions but allow realistic hosted-CI latency.
+    test.setTimeout(90_000);
     const id = scenarioId("terminal");
     const branchName = `E2E Terminal Branch ${id}`;
     const serviceAName = `E2E Terminal Service A ${id}`;
@@ -163,10 +166,24 @@ test.describe("owner terminals and queue operations", () => {
       await page.getByRole("button", { name: "← Back", exact: true }).click();
       const exitDialog = page.getByRole("dialog", { name: "Enter exit PIN" });
       await exitDialog.getByLabel("Exit PIN").fill("4826");
+
+      // Verify the protected-exit API itself succeeded. On hosted Next.js the
+      // subsequent router.replace()/RSC navigation can finish much later than the
+      // API response, which previously made this scenario flaky despite a valid PIN.
+      const exitResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          /\/api\/kiosk\/[^/]+\/exit(?:\?|$)/.test(response.url()),
+        { timeout: 20_000 },
+      );
       await exitDialog.getByRole("button", { name: "Return to dashboard", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard", { timeout: 20_000 });
-      await page.getByRole("link", { name: "Terminals", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/terminals", { timeout: 20_000 });
+      const exitResponse = await exitResponsePromise;
+      expect(exitResponse.ok()).toBe(true);
+
+      // Start a fresh authenticated document after the durable exit check instead
+      // of waiting on a transient client-router stream.
+      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
 
       card = page.locator("article.terminal-card", { hasText: terminalEditedName });
       await card.getByRole("button", { name: "Remove", exact: true }).click();

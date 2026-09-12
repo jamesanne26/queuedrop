@@ -76,6 +76,9 @@ test.describe("owner team and role management", () => {
   });
 
   test("Scenario 14 - team member create, update, deactivate/reactivate, and delete", async ({ page }) => {
+    // This is a deliberately long lifecycle scenario with several server actions.
+    // Give hosted CI enough budget without weakening any individual assertion.
+    test.setTimeout(90_000);
     const id = scenarioId("team");
     const branchName = `E2E Team Branch ${id}`;
     const roleName = `E2E Staff Role ${id}`;
