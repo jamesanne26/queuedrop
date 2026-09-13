@@ -87,155 +87,107 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
 
   return (
     <>
-      <section className="dashboard-section team-branch-tabs-card">
+      <section className="dashboard-section team-branch-tabs-card team-users-toolbar">
         <label className="responsive-branch-select">
           <span>Branch</span>
           <select value={selectedBranchId} onChange={(event) => selectBranch(event.target.value)} aria-label="Select branch">
-            <option value="all">View all team</option>
+            <option value="all">All branches</option>
             {branches.map((branch) => (
-              <option value={branch.id} key={branch.id}>
-                {branch.name} - {memberCountByBranch.get(branch.id) ?? 0} people
-              </option>
+              <option value={branch.id} key={branch.id}>{branch.name} - {memberCountByBranch.get(branch.id) ?? 0} users</option>
             ))}
           </select>
         </label>
-
-        <div className="service-branch-tabs service-branch-tabs-desktop">
-          <button
-            type="button"
-            onClick={() => selectBranch("all")}
-            className={selectedBranchId === "all" ? "service-branch-tab service-branch-tab-active" : "service-branch-tab"}
-          >
-            <strong>View all team</strong>
-            <span>{members.length} total</span>
-          </button>
-          {branches.map((branch) => (
-            <button
-              type="button"
-              key={branch.id}
-              onClick={() => selectBranch(branch.id)}
-              className={selectedBranchId === branch.id ? "service-branch-tab service-branch-tab-active" : "service-branch-tab"}
-            >
-              <strong>{branch.name}</strong>
-              <span>{memberCountByBranch.get(branch.id) ?? 0} people</span>
-            </button>
-          ))}
+        <div className="team-users-toolbar-copy">
+          <strong>{displayedMembers.length} user{displayedMembers.length === 1 ? "" : "s"}</strong>
+          <span>{selectedBranchId === "all" ? "Business-wide user list" : branchById.get(selectedBranchId)?.name ?? "Branch users"}</span>
         </div>
       </section>
 
-      <div className="team-layout">
-        <section className="dashboard-section dashboard-section-stack management-list-card">
-          <div className="section-row">
-            <div>
-              <p className="eyebrow">{isManager ? "Team in your branches" : "Business users"}</p>
-              <h2>{displayedMembers.length} team member{displayedMembers.length === 1 ? "" : "s"}</h2>
-            </div>
-          </div>
-
-          <div className="team-list">
-            {displayedMembers.map((member) => {
-              const profile = profileById.get(member.user_id);
-              const assignedIds = branchesByUser.get(member.user_id) ?? [];
-              const assignedNames = assignedIds.map((id) => branchById.get(id)?.name).filter(Boolean);
-              const editable = canManageMember(member.role);
-              const protectedRole = member.role === "owner" || member.role === "admin";
-
-              return (
-                <article className="team-card" key={member.id}>
-                  <div className="team-card-header">
-                    <div className="team-identity">
-                      <div className={`team-avatar team-avatar-${member.role}`} aria-hidden="true">
-                        {(profile?.full_name ?? "T").slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="team-identity-copy">
-                        <strong>{profile?.full_name ?? "Team member"}</strong>
-                        <span>
-                          {visibleEmail(profile?.email ?? null) ?? "No email"}
-                          {profile?.phone ? ` - ${profile.phone}` : ""}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="team-chip-row">
-                      <span className="status-chip">{member.custom_role_name || member.role}</span>
-                      <span className={member.is_active ? "status-chip" : "status-chip status-chip-off"}>
-                        {member.is_active ? "active" : "inactive"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {protectedRole || !editable ? (
-                    <div className="team-owner-note">
-                      {member.role === "owner"
-                        ? "Business owner - protected"
-                        : member.role === "admin"
-                          ? "Business admin - protected"
-                          : "You cannot manage this account"}
-                    </div>
-                  ) : (
-                    <div className="team-card-summary">
-                      <div>
-                        <span className="field-label">Assigned branches</span>
-                        <span className="team-assigned-summary">{assignedNames.length ? assignedNames.join(", ") : "No branch assigned"}</span>
-                      </div>
-                      {!isManager ? (
-                        <form action={assignBusinessRoleToEmployee} className="team-role-assignment-form">
-                          <input type="hidden" name="business_user_id" value={member.id} />
-                          <input type="hidden" name="view_branch" value={selectedBranchId} />
-                          <select name="role_id" defaultValue={member.role_id ?? ""} aria-label={`Role for ${profile?.full_name ?? "team member"}`} required>
-                            <option value="" disabled>Assign role</option>
-                            {businessRoles.map((businessRole) => (
-                              <option value={businessRole.id} key={businessRole.id}>{businessRole.name}</option>
-                            ))}
-                          </select>
-                          <button className="button button-secondary button-small" type="submit">Assign role</button>
-                        </form>
-                      ) : null}
-                      <TeamMemberEditModal
-                        userId={member.user_id}
-                        memberName={profile?.full_name ?? "Team member"}
-                        email={visibleEmail(profile?.email ?? null) ?? ""}
-                        phone={profile?.phone ?? ""}
-                        role={member.role as "manager" | "staff"}
-                        businessRoleId={member.role_id ?? ""}
-                        businessRoleName={member.custom_role_name ?? member.role}
-                        branchScope={businessRoles.find((item) => item.id === member.role_id)?.branch_scope ?? (member.role === "staff" ? "own_branch_only" : "selected_branches")}
-                        isActive={member.is_active}
-                        assignedBranchIds={assignedIds}
-                        branches={activeBranches.map((branch) => ({ id: branch.id, name: branch.name }))}
-                        viewBranch={selectedBranchId}
-                      />
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-            {!displayedMembers.length ? (
-              <div className="mini-empty">
-                <strong>Set up your team.</strong>
-                <span>No employee is assigned here yet. Create a team member on this page, or manage Team & Roles from Settings.</span>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="dashboard-section dashboard-section-stack management-form-card">
+      <section className="dashboard-section dashboard-section-stack team-user-directory">
+        <div className="section-row">
           <div>
-            <p className="eyebrow">Add team member</p>
-            <h2>{isManager ? "Create team account" : "Create team account"}</h2>
-            <p className="muted">
-              {isManager
-                ? "Create a team member using one of the declared roles available to you. Mobile is required; email follows the selected role access profile."
-                : "Choose any declared business role below. Access and branch scope follow that role's configuration."}
-            </p>
+            <p className="eyebrow">Users & access</p>
+            <h2>User setup</h2>
+            <p className="muted">Default role controls the user&apos;s baseline access. The permission columns give a quick view; use the gear to edit details, password, branch assignments, status, or delete the user.</p>
+          </div>
+        </div>
+
+        <div className="team-user-table" role="table" aria-label="Business users">
+          <div className="team-user-table-head" role="row">
+            <span role="columnheader">Name</span>
+            <span role="columnheader">Email</span>
+            <span role="columnheader">Default role</span>
+            <span role="columnheader">Queue edit</span>
+            <span role="columnheader">Call</span>
+            <span role="columnheader">Complete</span>
+            <span role="columnheader" aria-label="Actions" />
           </div>
 
+          {displayedMembers.map((member) => {
+            const profile = profileById.get(member.user_id);
+            const assignedIds = branchesByUser.get(member.user_id) ?? [];
+            const editable = canManageMember(member.role);
+            const protectedRole = member.role === "owner" || member.role === "admin";
+            const roleName = member.custom_role_name || member.role;
+
+            return (
+              <article className="team-user-row" role="row" key={member.id}>
+                <div className="team-user-primary" role="cell" data-label="Name">
+                  <span className={`team-avatar team-avatar-${member.role}`} aria-hidden="true">{(profile?.full_name ?? "T").slice(0, 1).toUpperCase()}</span>
+                  <span><strong>{profile?.full_name ?? "Team member"}</strong><small>{member.is_active ? "Active" : "Inactive"}</small></span>
+                </div>
+                <div role="cell" data-label="Email" className="team-user-email">{visibleEmail(profile?.email ?? null) ?? "No email"}</div>
+                <div role="cell" data-label="Default role">
+                  {!isManager && editable && !protectedRole ? (
+                    <form action={assignBusinessRoleToEmployee} className="team-inline-role-form">
+                      <input type="hidden" name="business_user_id" value={member.id} />
+                      <input type="hidden" name="view_branch" value={selectedBranchId} />
+                      <select name="role_id" defaultValue={member.role_id ?? ""} aria-label={`Default role for ${profile?.full_name ?? "team member"}`} required onChange={(event) => event.currentTarget.form?.requestSubmit()}>
+                        <option value="" disabled>Choose role</option>
+                        {businessRoles.map((businessRole) => <option value={businessRole.id} key={businessRole.id}>{businessRole.name}</option>)}
+                      </select>
+                    </form>
+                  ) : <span className="status-chip">{roleName}</span>}
+                </div>
+                <div className="team-permission-cell" role="cell" data-label="Queue edit"><input type="checkbox" checked={member.can_view_queue_information_editing} readOnly aria-label={`${profile?.full_name ?? "User"} can edit queue`} /></div>
+                <div className="team-permission-cell" role="cell" data-label="Call"><input type="checkbox" checked={member.can_call_customer} readOnly aria-label={`${profile?.full_name ?? "User"} can call customer`} /></div>
+                <div className="team-permission-cell" role="cell" data-label="Complete"><input type="checkbox" checked={member.can_complete_ticket} readOnly aria-label={`${profile?.full_name ?? "User"} can complete ticket`} /></div>
+                <div className="team-user-actions" role="cell" data-label="Actions">
+                  {protectedRole || !editable ? <span className="team-protected-mark" title="Protected account">Protected</span> : (
+                    <TeamMemberEditModal
+                      userId={member.user_id}
+                      memberName={profile?.full_name ?? "Team member"}
+                      email={visibleEmail(profile?.email ?? null) ?? ""}
+                      phone={profile?.phone ?? ""}
+                      role={member.role as "manager" | "staff"}
+                      businessRoleId={member.role_id ?? ""}
+                      businessRoleName={member.custom_role_name ?? member.role}
+                      branchScope={businessRoles.find((item) => item.id === member.role_id)?.branch_scope ?? (member.role === "staff" ? "own_branch_only" : "selected_branches")}
+                      isActive={member.is_active}
+                      assignedBranchIds={assignedIds}
+                      branches={activeBranches.map((branch) => ({ id: branch.id, name: branch.name }))}
+                      viewBranch={selectedBranchId}
+                    />
+                  )}
+                </div>
+              </article>
+            );
+          })}
+
+          {!displayedMembers.length ? <div className="mini-empty"><strong>No users here yet.</strong><span>Add a user or choose another branch.</span></div> : null}
+        </div>
+      </section>
+
+      <details className="dashboard-section team-add-user-panel">
+        <summary><span><strong>Add User</strong><small>Create a new QueueDrop user and assign a default role and branch scope.</small></span><span aria-hidden="true">＋</span></summary>
+        <div className="team-add-user-content">
           <form action={createTeamMember} className="form-stack management-form" autoComplete="off" data-no-global-loading="true" data-lpignore="true" data-1p-ignore="true">
             <input type="hidden" name="view_branch" value={selectedBranchId} />
             <TeamCreateFields branches={activeBranches} managerMode={isManager} businessRoles={businessRoles} selectedBranchId={selectedBranchId} />
-            <button className="button button-primary" type="submit">Create team member</button>
+            <button className="button button-primary" type="submit">Create user</button>
           </form>
-        </section>
-      </div>
+        </div>
+      </details>
     </>
   );
 }

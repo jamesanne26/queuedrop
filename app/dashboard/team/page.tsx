@@ -138,15 +138,15 @@ export default async function TeamPage({ searchParams }: Props) {
       <section className={`dashboard-content ${accessStyles.page}`}>
         <header className="dashboard-header team-page-header">
           <div>
-            <p className="eyebrow">Settings · {business?.name ?? "QueueDrop"}</p>
-            <h1>Team & Roles</h1>
-            <p className="muted page-lead">Manage employees separately from reusable business roles. Assign a role to an employee; permissions on that role determine the employee&apos;s authority.</p>
+            <p className="eyebrow">Settings · Users & Access · {business?.name ?? "QueueDrop"}</p>
+            <h1>Users & Access</h1>
+            <p className="muted page-lead">Manage users separately from reusable business roles. Assign a role to an employee; permissions on that role determine the employee&apos;s authority.</p>
           </div>
           <span className="env-badge">TEST</span>
         </header>
 
         <nav className={accessStyles.tabs} aria-label="Team and roles sections">
-          <Link className={`${accessStyles.tab} ${activeTab === "employees" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=employees">Employees</Link>
+          <Link className={`${accessStyles.tab} ${activeTab === "employees" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=employees">Users</Link>
           {canManageRoles ? <Link className={`${accessStyles.tab} ${activeTab === "roles" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=roles">Roles</Link> : null}
           {canManageRoles ? <Link className={`${accessStyles.tab} ${activeTab === "permissions" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=permissions">Permissions</Link> : null}
         </nav>

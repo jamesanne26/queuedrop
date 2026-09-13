@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { loginAsOwner, signOut } from "../helpers/auth.mjs";
 import { ownerCredentials } from "../helpers/env.mjs";
-import { openDashboardDestination } from "../helpers/ui.mjs";
+import { expectNoAppError, openDashboardDestination } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
 
@@ -13,18 +13,34 @@ test.describe("owner dashboard navigation", () => {
   });
 
   const destinations = [
-    ["Branches", "/dashboard/branches"],
-    ["Services", "/dashboard/services"],
-    ["Team", "/dashboard/team"],
-    ["History & Reports", "/dashboard/reports"],
-    ["Terminals", "/dashboard/terminals"],
     ["Queues", "/dashboard/queues"],
+    ["History & Reports", "/dashboard/reports"],
+    ["TV Queue Display", "/dashboard/tv"],
     ["Settings", "/dashboard/settings"],
   ];
 
   for (const [label, path] of destinations) {
     test(`owner can open ${label}`, async ({ page }) => {
       await openDashboardDestination(page, label, path);
+    });
+  }
+
+  const settingsDestinations = [
+    ["Branches", "/dashboard/branches"],
+    ["Services", "/dashboard/services"],
+    ["Users & Access", "/dashboard/team"],
+    ["Branch terminals", "/dashboard/terminals"],
+  ];
+
+  for (const [label, path] of settingsDestinations) {
+    test(`owner can open ${label} from Settings`, async ({ page }) => {
+      await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
+      const link = page.getByRole("link", { name: label, exact: true }).first();
+      await expect(link).toBeVisible();
+      await link.click();
+      await page.waitForURL((url) => url.pathname === path, { timeout: 15_000 });
+      await expectNoAppError(page);
     });
   }
 

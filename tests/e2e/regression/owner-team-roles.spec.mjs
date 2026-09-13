@@ -112,14 +112,18 @@ test.describe("owner team and role management", () => {
       expect(role).not.toBeNull();
 
       await page.goto(`/dashboard/team?branch=${branch.id}`, { waitUntil: "domcontentloaded" });
-      const createForm = page.locator('form.management-form').filter({ has: page.locator('input[name="full_name"]') }).first();
+      const addUserPanel = page.locator("details.team-add-user-panel");
+      await expect(addUserPanel).toBeVisible();
+      await addUserPanel.locator("summary").click();
+      await expect(addUserPanel).toHaveAttribute("open", "");
+      const createForm = addUserPanel.locator('form.management-form').filter({ has: page.locator('input[name="full_name"]') }).first();
       await createForm.locator('input[name="full_name"]').fill(fullName);
       await createForm.locator('input[name="email"]').fill(email);
       await createForm.locator('input[name="phone"]').fill(phone);
       await createForm.getByLabel("Assigned Role").selectOption({ label: roleName });
       await createForm.locator('select[name="branch_ids"]').selectOption(branch.id);
       await createForm.locator('input[name="temporary_password"]').fill("E2Epass123!");
-      await createForm.getByRole("button", { name: "Create team member", exact: true }).click();
+      await createForm.getByRole("button", { name: "Create user", exact: true }).click();
       await page.waitForURL((url) => url.pathname === "/dashboard/team" && url.searchParams.get("message")?.startsWith("Team member created successfully."), { timeout: 25_000 });
       await dismissDashboardResultModal(page, "Team member created successfully.");
 
@@ -132,8 +136,9 @@ test.describe("owner team and role management", () => {
       expect(membership?.role_id).toBe(role.id);
       expect(membership?.is_active).toBe(true);
 
-      let memberCard = page.locator("article.team-card", { hasText: fullName });
-      await memberCard.getByRole("button", { name: "Edit details", exact: true }).click();
+      let memberCard = page.locator("article.team-user-row", { hasText: fullName });
+      await expect(memberCard).toBeVisible();
+      await memberCard.getByRole("button", { name: `Edit ${fullName}`, exact: true }).click();
       let editDialog = page.getByRole("dialog", { name: "Edit details" });
       await editDialog.locator('input[name="full_name"]').fill(updatedName);
       await editDialog.locator('select').filter({ has: page.locator('option[value="true"]') }).selectOption("false");
@@ -150,8 +155,9 @@ test.describe("owner team and role management", () => {
       expect(membership?.is_active).toBe(false);
 
       // Reactivate using the same edit flow so both access states are covered.
-      memberCard = page.locator("article.team-card", { hasText: updatedName });
-      await memberCard.getByRole("button", { name: "Edit details", exact: true }).click();
+      memberCard = page.locator("article.team-user-row", { hasText: updatedName });
+      await expect(memberCard).toBeVisible();
+      await memberCard.getByRole("button", { name: `Edit ${updatedName}`, exact: true }).click();
       editDialog = page.getByRole("dialog", { name: "Edit details" });
       await editDialog.locator('select').filter({ has: page.locator('option[value="true"]') }).selectOption("true");
       await editDialog.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -161,8 +167,9 @@ test.describe("owner team and role management", () => {
       membership = await getBusinessMembership(admin, owner.businessId, authUser.id);
       expect(membership?.is_active).toBe(true);
 
-      memberCard = page.locator("article.team-card", { hasText: updatedName });
-      await memberCard.getByRole("button", { name: "Edit details", exact: true }).click();
+      memberCard = page.locator("article.team-user-row", { hasText: updatedName });
+      await expect(memberCard).toBeVisible();
+      await memberCard.getByRole("button", { name: `Edit ${updatedName}`, exact: true }).click();
       editDialog = page.getByRole("dialog", { name: "Edit details" });
       await editDialog.getByRole("button", { name: "Delete team member", exact: true }).click();
       const nameDialog = page.getByRole("dialog").filter({ hasText: "Please type" });

@@ -22,6 +22,7 @@ export async function expectResponsivePage(page, label = "page") {
       .filter((element) => {
         const style = getComputedStyle(element);
         const rect = element.getBoundingClientRect();
+        if (element.closest("details:not([open])")) return false;
         if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false;
         if (rect.width <= 0 || rect.height <= 0) return false;
         // Ignore controls intentionally positioned off-canvas (for example the closed mobile sidebar).

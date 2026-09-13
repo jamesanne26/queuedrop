@@ -47,7 +47,7 @@ function SettingsOverviewCard({ icon, title, description, children, href }: { ic
       {href ? <span className="settings-overview-arrow" aria-hidden="true">›</span> : null}
     </div>
   );
-  return <article className="settings-overview-card">{href ? <Link href={href} className="settings-overview-main-link">{heading}</Link> : heading}<div className="settings-overview-rows">{children}</div></article>;
+  return <article className="settings-overview-card">{href ? <Link href={href} className="settings-overview-main-link" aria-label={title}>{heading}</Link> : heading}<div className="settings-overview-rows">{children}</div></article>;
 }
 
 function SettingsOverviewRow({ href, children, muted }: { href?: string; children: ReactNode; muted?: boolean }) {
@@ -82,7 +82,6 @@ export default async function SettingsPage({ searchParams }: Props) {
   const canManageBranches = businessWide || Boolean(membership.can_set_branch_status) || canManageOperatingHours || Boolean(membership.can_manage_kiosk_display);
   const canManageServices = businessWide || Boolean(membership.can_manage_services);
   const canManageTeam = businessWide || Boolean(membership.can_manage_team);
-  const canViewReports = businessWide || Boolean(membership.can_view_reports) || Boolean(membership.can_export_reports);
 
   if (
     !canViewQueueInformationEditing &&
@@ -108,7 +107,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   let branchQuery = supabase
     .from("branches")
-    .select("id, name, slug, status, timezone, address")
+    .select("id, name, slug, status, timezone, address, terminal_theme, terminal_page_bg_color, terminal_press_bg_color, terminal_accent_color, terminal_text_color, terminal_muted_text_color, terminal_background_image_url, terminal_logo_url, terminal_background_overlay")
     .eq("business_id", membership.business_id)
     .order("created_at", { ascending: true });
 
@@ -190,100 +189,53 @@ export default async function SettingsPage({ searchParams }: Props) {
           <span className="env-badge">TEST</span>
         </header>
 
-        <section className="settings-overview" aria-label="Settings overview">
-          <div className="settings-overview-grid">
-            {businessWide ? <SettingsOverviewCard icon="business" title="Business" description="Profile, contact details, and business information.">
-              <SettingsOverviewRow>Business information</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/branches">Business locations</SettingsOverviewRow>
-              <SettingsOverviewRow>Contact details</SettingsOverviewRow>
-            </SettingsOverviewCard> : null}
-
-            {canManageBranches ? <SettingsOverviewCard icon="branches" title="Branches" description="Manage branches and their operating setup." href="/dashboard/branches">
+        <section className="settings-overview settings-hierarchy-overview" aria-label="Settings overview">
+          <div className="settings-hierarchy-intro">
+            <div>
+              <p className="eyebrow">Configuration hierarchy</p>
+              <h2>Everything has one clear place</h2>
+              <p className="muted">Business-wide setup lives here. Branch-specific setup is grouped under the selected branch below.</p>
+            </div>
+          </div>
+          <div className="settings-overview-grid settings-overview-grid-primary">
+            {canManageBranches ? <SettingsOverviewCard icon="branches" title="Branches" description="Locations and branch-specific setup." href="/dashboard/branches">
               <SettingsOverviewRow href="/dashboard/branches">Branch list & status</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/branches">Operating hours</SettingsOverviewRow>
-              {canManageTeam ? <SettingsOverviewRow href="/dashboard/team">Branch access</SettingsOverviewRow> : <SettingsOverviewRow>Branch access</SettingsOverviewRow>}
+              <SettingsOverviewRow href="#branch-settings">Selected branch settings</SettingsOverviewRow>
+              {businessWide ? <SettingsOverviewRow href="/dashboard/terminals">Branch terminals</SettingsOverviewRow> : null}
             </SettingsOverviewCard> : null}
 
-            {canManageServices ? <SettingsOverviewCard icon="services" title="Services" description="Manage offered services and queue behavior." href="/dashboard/services">
+            {canManageServices ? <SettingsOverviewCard icon="services" title="Services" description="Master service list used by your branches." href="/dashboard/services">
               <SettingsOverviewRow href="/dashboard/services">Service list</SettingsOverviewRow>
               <SettingsOverviewRow href="/dashboard/services">Queue prefix & duration</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/services">Service availability</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/services">Branch availability</SettingsOverviewRow>
             </SettingsOverviewCard> : null}
 
-            {canManageTeam ? <SettingsOverviewCard icon="team" title="Team & Roles" description="Employees, role names, permissions, and access." href="/dashboard/team?tab=roles">
-              <SettingsOverviewRow href="/dashboard/team?tab=employees">Employees</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/team?tab=roles">Roles & branch scope</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/team?tab=permissions">Permissions</SettingsOverviewRow>
+            {canManageTeam ? <SettingsOverviewCard icon="team" title="Users & Access" description="Users, default roles, custom roles, and permissions." href="/dashboard/team?tab=employees">
+              <SettingsOverviewRow href="/dashboard/team?tab=employees">Users</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/team?tab=roles">Default & custom roles</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/team?tab=permissions">Permission library</SettingsOverviewRow>
             </SettingsOverviewCard> : null}
 
-            <SettingsOverviewCard icon="queue" title="Queue Configuration" description="Configure how each branch queue works." href="#queue-configuration">
-              <SettingsOverviewRow href="#queue-configuration">Branch queue settings</SettingsOverviewRow>
-              <SettingsOverviewRow href="#customer-experience">Stub status refresh</SettingsOverviewRow>
-              <SettingsOverviewRow href="#notifications">Position notifications</SettingsOverviewRow>
-            </SettingsOverviewCard>
-
-            <SettingsOverviewCard icon="customer" title="Stub Experience" description="Control the printed-stub status experience." href="#customer-experience">
-              <SettingsOverviewRow href="#customer-experience">Queue status refresh</SettingsOverviewRow>
-              
-              {canManageBranches ? <SettingsOverviewRow href="/dashboard/branches">Branch contact visibility</SettingsOverviewRow> : <SettingsOverviewRow>Branch contact visibility</SettingsOverviewRow>}
-            </SettingsOverviewCard>
-
-            <SettingsOverviewCard icon="notifications" title="Notifications" description="Choose when queue-position alerts are sent." href="#notifications">
-              <SettingsOverviewRow href="#notifications">Position triggers</SettingsOverviewRow>
-              <SettingsOverviewRow href="#notifications">SMS notification rules</SettingsOverviewRow>
-              <SettingsOverviewRow href="#notifications">Browser notifications</SettingsOverviewRow>
-            </SettingsOverviewCard>
-
-            {canManageTeam ? <SettingsOverviewCard icon="security" title="Security & Access" description="Control employee access and sensitive data." href="/dashboard/team?tab=permissions">
-              <SettingsOverviewRow href="/dashboard/team?tab=permissions">Role permissions</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/team?tab=employees">Employee branch access</SettingsOverviewRow>
-              {businessWide ? <SettingsOverviewRow href="/dashboard/terminals#kiosk-security">Terminal PIN security</SettingsOverviewRow> : <SettingsOverviewRow>Configuration access</SettingsOverviewRow>}
+            {businessWide ? <SettingsOverviewCard icon="business" title="Business" description="Business-level information and configuration.">
+              <SettingsOverviewRow>Business information</SettingsOverviewRow>
+              <SettingsOverviewRow href="/client/configurations">Account configuration</SettingsOverviewRow>
+              <SettingsOverviewRow href="/dashboard/branches">Business locations</SettingsOverviewRow>
             </SettingsOverviewCard> : null}
 
-            {canViewReports ? <SettingsOverviewCard icon="reports" title="Reports" description="Report access, exports, and operational visibility." href="/dashboard/reports">
-              <SettingsOverviewRow href="/dashboard/reports">Report dashboard</SettingsOverviewRow>
-              <SettingsOverviewRow href="/dashboard/reports">Export reports</SettingsOverviewRow>
-              {canManageTeam ? <SettingsOverviewRow href="/dashboard/team?tab=roles">Report permissions by role</SettingsOverviewRow> : <SettingsOverviewRow>Report permissions</SettingsOverviewRow>}
-            </SettingsOverviewCard> : null}
-
-            {businessWide ? <SettingsOverviewCard icon="security" title="Account & Configuration Access" description="Manage client-level users, branch assignments, and configuration access." href="/client/configurations">
-              <SettingsOverviewRow href="/client/configurations">Business users</SettingsOverviewRow>
-              <SettingsOverviewRow href="/client/configurations">Branch assignments</SettingsOverviewRow>
-              <SettingsOverviewRow href="/client/configurations">Configuration access</SettingsOverviewRow>
-            </SettingsOverviewCard> : null}
-
-            {businessWide ? <SettingsOverviewCard icon="billing" title="Billing & Subscription" description="Plan, limits, checkout, and billing history." href="/client/subscription">
+            {businessWide ? <SettingsOverviewCard icon="billing" title="Billing & Subscription" description="Plan, limits, billing, and usage." href="/client/subscription">
               <SettingsOverviewRow href="/client/subscription">Current plan</SettingsOverviewRow>
               <SettingsOverviewRow href="/client/subscription">Usage & limits</SettingsOverviewRow>
               <SettingsOverviewRow href="/client/subscription">Billing history</SettingsOverviewRow>
             </SettingsOverviewCard> : null}
-
-            {businessWide ? <SettingsOverviewCard icon="business" title="Terminal Appearance" description="Theme, colors, logo, and background picture for customer terminals." href="#terminal-appearance">
-              <SettingsOverviewRow href="#terminal-appearance">Theme gallery</SettingsOverviewRow>
-              <SettingsOverviewRow href="#terminal-appearance">PRESS HERE & label colors</SettingsOverviewRow>
-              <SettingsOverviewRow href="#terminal-appearance">Logo & background image</SettingsOverviewRow>
-            </SettingsOverviewCard> : null}
           </div>
         </section>
 
-        {businessWide ? <section id="terminal-appearance" className="dashboard-section dashboard-section-stack terminal-appearance-section">
-          <div className="terminal-appearance-heading">
-            <div><p className="eyebrow">Customer terminal design</p><h2>Terminal Appearance</h2><p className="muted">Customize the Get Stub terminal without changing its queue behavior. Pick a ready-made design or fine-tune colors, logo, and background picture.</p></div>
-            <span className="terminal-appearance-badge">Business-wide</span>
-          </div>
-          <TerminalAppearanceForm
-            action={updateTerminalAppearance}
-            businessId={membership.business_id}
-            businessName={business?.name ?? "Your Business"}
-            appearance={business ?? {}}
-          />
-        </section> : null}
-
-        <div className="settings-section-divider" id="queue-configuration">
-          <div><p className="eyebrow">Branch settings</p><h2>Queue Configuration</h2><p className="muted">Select a branch and update its stub queue behavior.</p></div>
+        <div className="settings-section-divider" id="branch-settings">
+          <div><p className="eyebrow">Branches</p><h2>Branch Settings</h2><p className="muted">Choose a branch, then manage only the settings that belong to that location.</p></div>
         </div>
 
         {selectedBranchId && selectedBranch ? (
+          <>
           <form
             key={settingsFormKey}
             action={updateQueueSettings}
@@ -384,6 +336,17 @@ export default async function SettingsPage({ searchParams }: Props) {
               <SettingsSaveGuard branchName={selectedBranch.name} />
             </div>
 
+            <nav className="branch-settings-nav" aria-label={`${selectedBranch.name} settings sections`}>
+              <Link href="/dashboard/branches">General</Link>
+              {canManageServices ? <Link href={`/dashboard/services?branch=${selectedBranchId}`}>Services</Link> : null}
+              {canManageTeam ? <Link href={`/dashboard/team?tab=employees&branch=${selectedBranchId}`}>Branch Users</Link> : null}
+              {canManageOperatingHours ? <a href="#operating-hours">Operating Hours</a> : null}
+              <a href="#queue-rules">Queue Settings</a>
+              {canViewPositionNotifications ? <a href="#notifications">Notifications</a> : null}
+              {businessWide ? <a href="#terminal-appearance">Appearance</a> : null}
+              {businessWide ? <Link href={`/dashboard/terminals?branch=${selectedBranchId}`}>Terminals</Link> : null}
+            </nav>
+
             {/* Queue rules are intentionally hidden from the Settings UI for now.
                 Keep their current values in the form so unrelated saves do not reset them. */}
             <input type="hidden" name="starting_number" value={config?.starting_number ?? 1} />
@@ -392,7 +355,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             {config?.is_active ?? true ? <input type="hidden" name="is_active" value="on" /> : null}
                         {config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null}
 
-            <section id="customer-experience" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
+            <section id="queue-rules" className="dashboard-section dashboard-section-stack settings-card settings-feature-card">
               <div>
                 <p className="eyebrow">Stub status</p>
                 <h2>Automatic refresh</h2>
@@ -468,7 +431,7 @@ export default async function SettingsPage({ searchParams }: Props) {
             )}
 
             {canManageOperatingHours ? (
-            <section className="dashboard-section dashboard-section-stack settings-card">
+            <section id="operating-hours" className="dashboard-section dashboard-section-stack settings-card">
               <div>
                 <p className="eyebrow">Operating rules</p>
                 <h2>Weekly hours</h2>
@@ -532,6 +495,32 @@ export default async function SettingsPage({ searchParams }: Props) {
               </div>
             )}
           </form>
+
+          {businessWide ? <section id="terminal-appearance" className="dashboard-section dashboard-section-stack terminal-appearance-section branch-appearance-section">
+            <div className="terminal-appearance-heading">
+              <div><p className="eyebrow">Branch appearance</p><h2>{selectedBranch.name} · Terminal Appearance</h2><p className="muted">This theme applies to terminals in this branch. You can copy the same appearance to every branch when saving.</p></div>
+              <span className="terminal-appearance-badge">Per branch</span>
+            </div>
+            <TerminalAppearanceForm
+              action={updateTerminalAppearance}
+              businessId={membership.business_id}
+              businessName={business?.name ?? "Your Business"}
+              branchId={selectedBranchId}
+              branchName={selectedBranch.name}
+              appearance={{
+                terminal_theme: selectedBranch.terminal_theme ?? business?.terminal_theme,
+                terminal_page_bg_color: selectedBranch.terminal_page_bg_color ?? business?.terminal_page_bg_color,
+                terminal_press_bg_color: selectedBranch.terminal_press_bg_color ?? business?.terminal_press_bg_color,
+                terminal_accent_color: selectedBranch.terminal_accent_color ?? business?.terminal_accent_color,
+                terminal_text_color: selectedBranch.terminal_text_color ?? business?.terminal_text_color,
+                terminal_muted_text_color: selectedBranch.terminal_muted_text_color ?? business?.terminal_muted_text_color,
+                terminal_background_image_url: selectedBranch.terminal_background_image_url ?? business?.terminal_background_image_url,
+                terminal_logo_url: selectedBranch.terminal_logo_url ?? business?.terminal_logo_url,
+                terminal_background_overlay: selectedBranch.terminal_background_overlay ?? business?.terminal_background_overlay,
+              }}
+            />
+          </section> : null}
+          </>
         ) : (
           <section className="mini-empty">
             <strong>No branch available.</strong>

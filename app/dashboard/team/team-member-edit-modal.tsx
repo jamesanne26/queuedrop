@@ -196,8 +196,8 @@ export function TeamMemberEditModal({
 
   return (
     <>
-      <button className="button button-primary button-small" type="button" onClick={openModal}>
-        Edit details
+      <button className="team-user-gear" type="button" onClick={openModal} aria-label={`Edit ${memberName}`} title="Edit user">
+        ⚙
       </button>
 
       {open ? (

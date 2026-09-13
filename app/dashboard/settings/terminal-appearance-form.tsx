@@ -18,9 +18,9 @@ type Appearance = {
   terminal_background_overlay?: number | null;
 };
 
-type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; appearance: Appearance };
+type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; branchId: string; branchName: string; appearance: Appearance };
 
-export function TerminalAppearanceForm({ action, businessId, businessName, appearance }: Props) {
+export function TerminalAppearanceForm({ action, businessId, businessName, branchId, branchName, appearance }: Props) {
   const initialTheme = safeTerminalTheme(appearance.terminal_theme);
   const [theme, setTheme] = useState<TerminalThemeKey>(initialTheme);
   const [page, setPage] = useState(appearance.terminal_page_bg_color || TERMINAL_THEMES[initialTheme].page);
@@ -89,6 +89,11 @@ export function TerminalAppearanceForm({ action, businessId, businessName, appea
   }
 
   return <form onSubmit={handleSubmit} className="terminal-appearance-settings">
+    <input type="hidden" name="branch_id" value={branchId} />
+    <div className="terminal-appearance-scope">
+      <div><strong>{branchName}</strong><small>Appearance is saved for this branch.</small></div>
+      <label className="compact-check"><input type="checkbox" name="apply_all_branches" /><span>Apply this appearance to all branches</span></label>
+    </div>
     <div className="terminal-theme-grid" role="radiogroup" aria-label="Terminal themes">
       {(Object.entries(TERMINAL_THEMES) as [TerminalThemeKey, typeof TERMINAL_THEMES[TerminalThemeKey]][]).map(([key, preset]) => (
         <label key={key} className={`terminal-theme-option ${theme === key ? "is-selected" : ""}`}>

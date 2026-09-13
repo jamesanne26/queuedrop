@@ -198,6 +198,17 @@ export async function updateTerminalAppearance(formData: FormData) {
     redirect(`/dashboard/settings?error=${encodeURIComponent("Only an owner or admin can change terminal appearance.")}#terminal-appearance`);
   }
 
+  const branchId = field(formData, "branch_id");
+  const applyAllBranches = checked(formData, "apply_all_branches");
+  if (!branchId) redirect(`/dashboard/settings?error=${encodeURIComponent("Choose a branch before saving terminal appearance.")}#terminal-appearance`);
+
+  const { data: branch } = await supabase.from("branches")
+    .select("id,terminal_background_image_url,terminal_logo_url")
+    .eq("id", branchId)
+    .eq("business_id", membership.business_id)
+    .maybeSingle();
+  if (!branch) redirect(`/dashboard/settings?error=${encodeURIComponent("The selected branch is not available.")}#terminal-appearance`);
+
   const theme = field(formData, "terminal_theme");
   const pageColor = field(formData, "terminal_page_bg_color");
   const pressColor = field(formData, "terminal_press_bg_color");
@@ -206,21 +217,21 @@ export async function updateTerminalAppearance(formData: FormData) {
   const mutedColor = field(formData, "terminal_muted_text_color");
   const overlay = Number(field(formData, "terminal_background_overlay") || "18");
 
-  if (!(theme in TERMINAL_THEMES)) redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal theme.")}#terminal-appearance`);
+  if (!(theme in TERMINAL_THEMES)) redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Invalid terminal theme.")}#terminal-appearance`);
   if (![pageColor, pressColor, accentColor, textColor, mutedColor].every((color) => isHexColor(color))) {
-    redirect(`/dashboard/settings?error=${encodeURIComponent("Terminal colors must be valid 6-digit hex colors.")}#terminal-appearance`);
+    redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Terminal colors must be valid 6-digit hex colors.")}#terminal-appearance`);
   }
   if (!isValidTerminalOverlay(overlay)) {
-    redirect(`/dashboard/settings?error=${encodeURIComponent("Background overlay must be between 0 and 90.")}#terminal-appearance`);
+    redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Background overlay must be between 0 and 90.")}#terminal-appearance`);
   }
 
   const businessId = membership.business_id;
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
-  let logoUrl = (business as { terminal_logo_url?: string | null } | null)?.terminal_logo_url ?? null;
-  let backgroundUrl = (business as { terminal_background_image_url?: string | null } | null)?.terminal_background_image_url ?? null;
+  let logoUrl = branch.terminal_logo_url ?? (business as { terminal_logo_url?: string | null } | null)?.terminal_logo_url ?? null;
+  let backgroundUrl = branch.terminal_background_image_url ?? (business as { terminal_background_image_url?: string | null } | null)?.terminal_background_image_url ?? null;
 
-  if (field(formData, "remove_terminal_logo") === "1") logoUrl = null;
-  if (field(formData, "remove_terminal_background") === "1") backgroundUrl = null;
+  if (field(formData, "remove_terminal_logo") === "1") logoUrl = "";
+  if (field(formData, "remove_terminal_background") === "1") backgroundUrl = "";
 
   const logoPath = field(formData, "terminal_logo_path");
   const backgroundPath = field(formData, "terminal_background_path");
@@ -228,7 +239,7 @@ export async function updateTerminalAppearance(formData: FormData) {
   function publicAssetUrl(path: string, kind: "logo" | "background") {
     if (!path) return null;
     if (!isSafeTerminalAssetPath(path, businessId, kind)) {
-      redirect(`/dashboard/settings?error=${encodeURIComponent("Invalid terminal image path.")}#terminal-appearance`);
+      redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Invalid terminal image path.")}#terminal-appearance`);
     }
     return supabase.storage.from(TERMINAL_ASSET_BUCKET).getPublicUrl(path).data.publicUrl;
   }
@@ -236,7 +247,7 @@ export async function updateTerminalAppearance(formData: FormData) {
   logoUrl = publicAssetUrl(logoPath, "logo") ?? logoUrl;
   backgroundUrl = publicAssetUrl(backgroundPath, "background") ?? backgroundUrl;
 
-  const { error } = await supabase.from("businesses").update({
+  const appearance = {
     terminal_theme: theme,
     terminal_page_bg_color: pageColor,
     terminal_press_bg_color: pressColor,
@@ -246,10 +257,22 @@ export async function updateTerminalAppearance(formData: FormData) {
     terminal_background_overlay: overlay,
     terminal_logo_url: logoUrl,
     terminal_background_image_url: backgroundUrl,
-  }).eq("id", membership.business_id);
+  };
 
-  if (error) redirect(`/dashboard/settings?error=${encodeURIComponent(error.message)}#terminal-appearance`);
+  const branchUpdate = applyAllBranches
+    ? supabase.from("branches").update(appearance).eq("business_id", businessId)
+    : supabase.from("branches").update(appearance).eq("id", branchId).eq("business_id", businessId);
+  const { error } = await branchUpdate;
+  if (error) redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent(error.message)}#terminal-appearance`);
+
+  // Keep business defaults aligned when applying to all so newly-created branches inherit the same look.
+  if (applyAllBranches) {
+    const { error: businessError } = await supabase.from("businesses").update(appearance).eq("id", businessId);
+    if (businessError) redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent(businessError.message)}#terminal-appearance`);
+  }
+
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/terminals");
-  redirect(`/dashboard/settings?message=${encodeURIComponent("Terminal appearance updated.")}#terminal-appearance`);
+  revalidatePath("/kiosk/[deviceToken]", "page");
+  redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&message=${encodeURIComponent(applyAllBranches ? "Terminal appearance applied to all branches." : "Branch terminal appearance updated.")}#terminal-appearance`);
 }

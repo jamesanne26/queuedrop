@@ -25,6 +25,7 @@ const ownerRoutes = [
   "/dashboard/reports",
   "/dashboard/terminals",
   "/dashboard/queues",
+  "/dashboard/tv",
   "/dashboard/settings",
   "/client/configurations",
   "/client/subscription",
