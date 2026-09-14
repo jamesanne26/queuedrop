@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { createBusinessRole, deleteBusinessRole, updateBusinessRole } from "./actions";
 import { ConfirmDeleteSubmit } from "@/app/dashboard/_components/confirm-delete-submit";
 import styles from "./team-access.module.css";
+import { recommendedBranchScopeForRole, recommendedPermissionsForRole, type RecommendedRolePreset } from "./role-presets";
 
 type BusinessRole = {
   id: string;
@@ -98,7 +99,7 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
             <RoleEditor
               mode="create"
               permissions={groupedPermissions}
-              checkedPermissions={new Set(["view_live_queue", "call_next_customer"])}
+              checkedPermissions={new Set(recommendedPermissionsForRole("staff"))}
               onCancel={() => setCreating(false)}
             />
           ) : activeRole ? (
@@ -133,7 +134,25 @@ function RoleEditor({
 }) {
   const protectedRole = Boolean(role?.is_protected);
   const action = mode === "create" ? createBusinessRole : updateBusinessRole;
-  const [selectAll, setSelectAll] = useState(false);
+  const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(() => new Set(checkedPermissions));
+  const [branchScope, setBranchScope] = useState<BusinessRole["branch_scope"]>(role?.branch_scope ?? "own_branch_only");
+
+  const allPermissionCodes = permissions.flatMap(([, items]) => items.map((item) => item.code));
+  const selectAll = allPermissionCodes.length > 0 && allPermissionCodes.every((code) => selectedPermissions.has(code));
+
+  function applyPreset(preset: RecommendedRolePreset) {
+    setSelectedPermissions(new Set(recommendedPermissionsForRole(preset)));
+    setBranchScope(recommendedBranchScopeForRole(preset));
+  }
+
+  function togglePermission(code: string, checked: boolean) {
+    setSelectedPermissions((current) => {
+      const next = new Set(current);
+      if (checked) next.add(code);
+      else next.delete(code);
+      return next;
+    });
+  }
 
   return (
     <form id={role ? `role-editor-${role.id}` : "role-editor-create"} action={action} className={styles.form}>
@@ -145,6 +164,17 @@ function RoleEditor({
         </div>
         {protectedRole ? <span className={styles.protectedChip}>Protected</span> : null}
       </div>
+
+      {mode === "create" ? (
+        <div className={styles.protectedNote}>
+          <strong>Recommended permission preset</strong>
+          <span>Start with QueueDrop&apos;s recommended access, then adjust any permission before saving.</span>
+          <div className={styles.toolbarActions}>
+            <button type="button" className={styles.secondaryButton} onClick={() => applyPreset("staff")}>Staff preset</button>
+            <button type="button" className={styles.secondaryButton} onClick={() => applyPreset("manager")}>Manager preset</button>
+          </div>
+        </div>
+      ) : null}
 
       <div className={styles.basicGrid}>
         <label className={styles.field}>
@@ -164,7 +194,7 @@ function RoleEditor({
         </label>
         <label className={styles.field}>
           Branch Access Scope
-          <select name="branch_scope" defaultValue={role?.branch_scope ?? "selected_branches"} disabled={protectedRole}>
+          <select name="branch_scope" value={branchScope} onChange={(event) => setBranchScope(event.target.value as BusinessRole["branch_scope"])} disabled={protectedRole}>
             <option value="own_branch_only">Own Branch Only</option>
             <option value="selected_branches">Selected Branches</option>
             <option value="all_branches">All Branches</option>
@@ -176,7 +206,7 @@ function RoleEditor({
       <div className={styles.permissionsHeader}>
         <div><strong>Permissions</strong><small>Choose exactly what employees assigned to this role can do.</small></div>
         {!protectedRole ? (
-          <label className={styles.selectAll}><input type="checkbox" checked={selectAll} onChange={(event) => setSelectAll(event.target.checked)} /><span>Select All</span></label>
+          <label className={styles.selectAll}><input type="checkbox" checked={selectAll} onChange={(event) => setSelectedPermissions(event.target.checked ? new Set(allPermissionCodes) : new Set())} /><span>Select All</span></label>
         ) : null}
       </div>
 
@@ -191,8 +221,8 @@ function RoleEditor({
                     type="checkbox"
                     name="permissions"
                     value={permission.code}
-                    defaultChecked={selectAll || checkedPermissions.has(permission.code)}
-                    key={`${permission.code}-${selectAll ? "all" : "default"}`}
+                    checked={selectedPermissions.has(permission.code)}
+                    onChange={(event) => togglePermission(permission.code, event.target.checked)}
                   />
                   <span>{permission.label}</span>
                 </label>

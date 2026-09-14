@@ -159,7 +159,7 @@ export function TeamMemberEditModal({
                   {permissionBranches.map((branchId) => <input key={branchId} type="hidden" name="branch_ids" value={branchId} />)}
 
                   <label className="team-field">Full name<input name="full_name" defaultValue={memberName} minLength={2} maxLength={100} required /></label>
-                  <label className="team-field">Email <em>{selectedBaseRole === "staff" ? "optional" : "required"}</em><input name="email" type="email" defaultValue={email} required={selectedBaseRole === "manager"} maxLength={254} spellCheck={false} /></label>
+                  <label className="team-field">Email <em>required</em><input name="email" type="email" defaultValue={email} required maxLength={254} spellCheck={false} /><small>Email is this user&apos;s QueueDrop login ID.</small></label>
                   <label className="team-field">Mobile <em>required</em><DigitsOnlyInput name="phone" defaultValue={phone} placeholder="09171234567" required /></label>
                   <label className="team-field">User role<select name="business_role_id" value={selectedRoleId} onChange={(event) => changeRole(event.target.value)} required><option value="" disabled>Choose role</option>{businessRoles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>The selected role controls this user’s access and branch scope.</small></label>
                   <label className="team-field">Access<select value={active ? "true" : "false"} onChange={(event) => setActive(event.target.value === "true")}><option value="true">Active</option><option value="false">Inactive</option></select></label>

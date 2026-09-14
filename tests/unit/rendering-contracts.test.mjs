@@ -18,3 +18,21 @@ test("global submit loader remains a client component before using navigation ho
 test("root layout does not call useSearchParams directly", () => {
   assert.doesNotMatch(layout, /useSearchParams\s*\(/);
 });
+
+
+const teamForms = await readFile(new URL("../../app/dashboard/team/team-forms.tsx", import.meta.url), "utf8");
+const teamActions = await readFile(new URL("../../app/dashboard/team/actions.ts", import.meta.url), "utf8");
+
+test("team creation requires email for every role", () => {
+  assert.match(teamForms, /Email <em>required<\/em>/);
+  assert.match(teamForms, /name="email"[\s\S]*?required/);
+  assert.doesNotMatch(teamForms, /Email\{?[^\n]*optional/);
+});
+
+test("team server actions reject missing email and no longer create phone-only auth identities", () => {
+  const requiredEmailGuards = teamActions.match(/Email is required for every QueueDrop user\./g) ?? [];
+  assert.equal(requiredEmailGuards.length, 2);
+  assert.doesNotMatch(teamActions, /phoneLoginEmail/);
+  assert.doesNotMatch(teamActions, /login_method:\s*email\s*\?/);
+  assert.match(teamActions, /login_method:\s*"email"/);
+});

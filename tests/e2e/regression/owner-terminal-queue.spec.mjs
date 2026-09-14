@@ -341,6 +341,10 @@ test.describe("owner terminals and queue operations", () => {
   });
 
   test("Scenario 10 - customer status link renders and SMS number persists", async ({ page }) => {
+    // This scenario deliberately reloads the customer experience across phone,
+    // tablet and desktop widths, including an iframe route. Keep those assertions
+    // instead of racing the suite-wide 45s timeout.
+    test.setTimeout(120_000);
     const id = scenarioId("customer-status");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);

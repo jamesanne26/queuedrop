@@ -1,6 +1,5 @@
 "use server";
 
-import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,19 +19,8 @@ function validateMobile(raw: string) {
   return phone;
 }
 
-function phoneLoginEmail(phone: string) {
-  const digest = createHash("sha256").update(phone).digest("hex");
-  return `phone-${digest}@auth.queuedrop.invalid`;
-}
 
-function isPhoneLoginEmail(email: string) {
-  return email.startsWith("phone-") && email.endsWith("@auth.queuedrop.invalid");
-}
 
-function displayEmail(email: string | null | undefined) {
-  const value = String(email ?? "").trim().toLowerCase();
-  return isPhoneLoginEmail(value) ? null : value || null;
-}
 
 function validateTeamPassword(password: string) {
   return password.length >= 6 && password.length <= 72;
@@ -183,8 +171,8 @@ export async function createTeamMember(formData: FormData) {
     fail("Employee role name must be between 2 and 60 characters.", viewBranch);
   }
 
-  if (role === "manager" && !email) {
-    fail("Manager accounts require an email address.", viewBranch);
+  if (!email) {
+    fail("Email is required for every QueueDrop user.", viewBranch);
   }
 
   if (!phone) {
@@ -197,8 +185,7 @@ export async function createTeamMember(formData: FormData) {
   }
 
   if (
-    email &&
-    (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
   ) {
     fail("Enter a valid email address.", viewBranch);
   }
@@ -256,11 +243,8 @@ export async function createTeamMember(formData: FormData) {
     }
   }
 
-  // Supabase Auth requires phone identifiers to be E.164. QueueDrop stores
-  // the business's mobile value independently and uses a private synthetic
-  // Auth email for staff who choose mobile-only login, so local formats such
-  // as 09171234567 are accepted without forcing E.164 formatting.
-  const authEmail = email || (phone ? phoneLoginEmail(phone) : "");
+  // QueueDrop uses email as the login identity for every team member.
+  const authEmail = email;
 
   const { data: created, error: createError } =
     await admin.auth.admin.createUser({
@@ -270,7 +254,7 @@ export async function createTeamMember(formData: FormData) {
       user_metadata: {
         full_name: fullName,
         phone: phone || null,
-        login_method: email ? "email" : "phone",
+        login_method: "email",
       },
     });
 
@@ -309,11 +293,8 @@ export async function createTeamMember(formData: FormData) {
     );
   }
 
-  // Supabase requires a real Auth identifier. Phone-only staff use a private
-  // synthetic Auth email, but QueueDrop must never expose that internal value
-  // as the team member's actual email. Keep only the real email in profiles.
   const [{ error: profileEmailError }, { error: customRoleError }] = await Promise.all([
-    admin.from("profiles").update({ email: email || null }).eq("id", created.user.id),
+    admin.from("profiles").update({ email }).eq("id", created.user.id),
     businessRoleId
       ? Promise.resolve({ error: null })
       : admin.from("business_users").update({ custom_role_name: customRoleName }).eq("business_id", membership.business_id).eq("user_id", created.user.id),
@@ -333,7 +314,7 @@ export async function createTeamMember(formData: FormData) {
     teamUrl(
       viewBranch,
       "message",
-      "Team member created successfully. Share the temporary password securely.",
+      "Team member created successfully. They can sign in with their email and temporary password.",
     ),
   );
 }
@@ -357,8 +338,8 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail("Full name must be between 2 and 100 characters.", viewBranch);
   }
 
-  if (role === "manager" && !email) {
-    fail("Manager accounts require an email address.", viewBranch);
+  if (!email) {
+    fail("Email is required for every QueueDrop user.", viewBranch);
   }
 
   if (!phone) {
@@ -371,8 +352,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
   }
 
   if (
-    email &&
-    (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
   ) {
     fail("Enter a valid email address.", viewBranch);
   }
@@ -468,18 +448,15 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail("Unable to find the team member login account.", viewBranch);
   }
 
-  const previousAuthEmail = authResult.user.email ?? "";
   const previousMetadata = authResult.user.user_metadata ?? {};
   const previousProfile = profileLookup.data;
   const previousBranchIds = (targetAssignmentsResult.data ?? []).map(
     (row) => row.branch_id,
   );
 
-  const previousProfileEmail = displayEmail(previousProfile?.email);
-  // For staff, blank means remove that optional contact method. For managers,
-  // email has already been validated as required. Never persist QueueDrop's
-  // private synthetic phone-login email as a visible profile email.
-  const effectiveEmail = email || (role === "manager" ? previousProfileEmail ?? previousAuthEmail : "");
+  // Email is the canonical QueueDrop login identity for every role. Legacy
+  // phone-only accounts are converted to a real email login when edited.
+  const effectiveEmail = email;
   const effectivePhone = phone || "";
 
   if (phone && phone !== previousProfile?.phone) {
@@ -529,7 +506,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
       .update({
         full_name: fullName,
         phone: phone || null,
-        email: effectiveEmail || null,
+        email: effectiveEmail,
       })
       .eq("id", userId),
     businessRoleId
@@ -559,7 +536,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
     fail(message, viewBranch);
   }
 
-  const authEmail = effectiveEmail || (effectivePhone ? phoneLoginEmail(effectivePhone) : "");
+  const authEmail = effectiveEmail;
 
   const authUpdatePayload = {
     email: authEmail,
@@ -569,7 +546,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
       ...previousMetadata,
       full_name: fullName,
       phone: effectivePhone || null,
-      login_method: effectiveEmail ? "email" : "phone",
+      login_method: "email",
     },
   };
 

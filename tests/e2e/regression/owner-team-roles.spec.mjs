@@ -37,6 +37,15 @@ test.describe("owner team and role management", () => {
       await expectNoAppError(page);
       await page.getByRole("button", { name: "+ Create Custom Role", exact: true }).click();
       const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Create Role", exact: true }) }).first();
+
+      // Recommended presets should fill the common permission choices while
+      // still leaving every checkbox editable before the role is saved.
+      await form.getByRole("button", { name: "Manager preset", exact: true }).click();
+      await expect(form.locator('select[name="branch_scope"]')).toHaveValue("selected_branches");
+      await expect(form.locator('input[name="permissions"][value="manage_employees"]')).toBeChecked();
+      await form.getByRole("button", { name: "Staff preset", exact: true }).click();
+      await expect(form.locator('select[name="branch_scope"]')).toHaveValue("own_branch_only");
+      await expect(form.locator('input[name="permissions"][value="manage_employees"]')).not.toBeChecked();
       await form.locator('input[name="name"]').fill(roleName);
       await form.locator('input[name="description"]').fill("E2E role for queue regression testing");
       await form.locator('select[name="branch_scope"]').selectOption("own_branch_only");
@@ -127,6 +136,7 @@ test.describe("owner team and role management", () => {
       await expect(addUserPanel).toBeVisible();
       const createForm = addUserPanel.locator('form.management-form').filter({ has: page.locator('input[name="full_name"]') }).first();
       await createForm.locator('input[name="full_name"]').fill(fullName);
+      await expect(createForm.locator('input[name="email"]')).toHaveAttribute("required", "");
       await createForm.locator('input[name="email"]').fill(email);
       await createForm.locator('input[name="phone"]').fill(phone);
       await createForm.getByLabel("Assigned Role").selectOption({ label: roleName });

@@ -91,6 +91,9 @@ test.describe("owner settings and reports", () => {
   });
 
   test("Scenario 12 - completed queue record appears in filtered reports and CSV export", async ({ page }) => {
+    // Queue lifecycle + reports render + export is a multi-action integration flow.
+    // Give it the same realistic budget as the dedicated queue happy-path test.
+    test.setTimeout(90_000);
     const id = scenarioId("reports");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
@@ -99,13 +102,21 @@ test.describe("owner settings and reports", () => {
       const data = await setupReportWorkspace(page, admin, owner, id);
       branchName = data.branchName;
       await page.goto(`/dashboard/queues?branch=${data.branch.id}&service=${data.service.id}`, { waitUntil: "domcontentloaded" });
-      await page.getByRole("button", { name: /Get test stub/i }).click();
-      await expect.poll(async () => Boolean(await latestTicketForService(admin, data.branch.id, data.service.id)), { timeout: 15_000 }).toBe(true);
+      const getStubButton = page.getByRole("button", { name: /Get test stub/i });
+      await getStubButton.click();
+      await expect(page.getByText(/Test stub .* issued|Test stub issued/i).first()).toBeVisible({ timeout: 20_000 });
+      await expect.poll(async () => Boolean(await latestTicketForService(admin, data.branch.id, data.service.id)), { timeout: 30_000 }).toBe(true);
       const ticket = await latestTicketForService(admin, data.branch.id, data.service.id);
       expect(ticket).not.toBeNull();
+      expect(ticket.status).toBe("waiting");
+      await expect(page.locator(".live-waiting-panel")).toContainText(ticket.display_number, { timeout: 20_000 });
+      await expect(getStubButton).toBeEnabled({ timeout: 20_000 });
 
-      await page.getByRole("button", { name: "Call next", exact: true }).click();
-      await expect.poll(async () => (await getTicketById(admin, ticket.id))?.status, { timeout: 15_000 }).toBe("called");
+      const callNext = page.getByRole("button", { name: "Call next", exact: true });
+      await expect(callNext).toBeEnabled();
+      await callNext.click();
+      await expect.poll(async () => (await getTicketById(admin, ticket.id))?.status, { timeout: 20_000 }).toBe("called");
+      await expect(page.locator(".live-pending-panel")).toContainText(ticket.display_number, { timeout: 20_000 });
       await page.locator(".live-pending-row-v4", { hasText: ticket.display_number }).getByRole("button", { name: "Move to serving", exact: true }).click();
       await expect.poll(async () => (await getTicketById(admin, ticket.id))?.status, { timeout: 15_000 }).toBe("serving");
       await page.locator(".live-serving-row-v4", { hasText: ticket.display_number }).getByRole("button", { name: "Complete", exact: true }).click();

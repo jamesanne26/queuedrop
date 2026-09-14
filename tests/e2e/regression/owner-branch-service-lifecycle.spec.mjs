@@ -36,6 +36,10 @@ test.describe("owner branch and service lifecycle", () => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
 
   test("Scenario 3 - branch create, edit, status toggle, and delete", async ({ page }) => {
+    // This lifecycle crosses several hosted server actions plus DB verification.
+    // Keep the global suite strict while giving this intentionally long flow a
+    // realistic per-scenario budget.
+    test.setTimeout(90_000);
     const id = scenarioId("branch-life");
     const branchName = `E2E Lifecycle Branch ${id}`;
     const editedName = `${branchName} Edited`;
@@ -96,6 +100,9 @@ test.describe("owner branch and service lifecycle", () => {
   });
 
   test("Scenario 4 - service library create, assign, edit, and delete", async ({ page }) => {
+    // Service-library create/assign/edit/delete spans multiple server actions and
+    // catalog renders. A per-test budget prevents false timeouts on hosted CI.
+    test.setTimeout(90_000);
     const id = scenarioId("service-life");
     const branchName = `E2E Service Lifecycle Branch ${id}`;
     const serviceName = `E2E Service Lifecycle ${id}`;

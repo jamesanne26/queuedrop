@@ -87,7 +87,6 @@ export function TeamCreateFields({
   const selectedBusinessRole = availableRoles.find((item) => item.id === businessRoleId) ?? initialBusinessRole;
   const role = (selectedBusinessRole?.base_role === "manager" ? "manager" : "staff") as Role;
 
-  const isStaff = role === "staff";
   const passwordMin = 6;
 
   return (
@@ -121,12 +120,11 @@ export function TeamCreateFields({
       </label>
 
       <label>
-        Email{" "}
-        <em>{isStaff ? "optional" : "required"}</em>
+        Email <em>required</em>
         <input
           name="email"
           type="email"
-          required={!isStaff}
+          required
           maxLength={254}
           placeholder="maria@example.com"
           autoComplete="off"
@@ -158,7 +156,7 @@ export function TeamCreateFields({
         <small>Roles and their permissions are configured under Team & Roles → Roles.</small>
       </label>
 
-      <small className="team-login-identifier-note">Role access follows the declared role selected above. Passwords use the same 6+ character rule for every team role.</small>
+      <small className="team-login-identifier-note">Email is the login ID for every QueueDrop user. Role access follows the selected role; the temporary password uses the same 6+ character rule for every team role.</small>
 
       <PasswordField
         minLength={passwordMin}

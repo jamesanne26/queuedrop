@@ -61,7 +61,60 @@ export async function findServiceByName(admin, branchId, name) {
   return data ?? null;
 }
 
+
+export async function cleanupOrphanedE2EBusinessServices(admin, businessId) {
+  const { data: services, error: serviceError } = await admin
+    .from("business_services")
+    .select("id,name")
+    .eq("business_id", businessId)
+    .ilike("name", "E2E %");
+  if (serviceError) throw serviceError;
+
+  const ids = (services ?? []).map((service) => service.id);
+  if (!ids.length) return;
+
+  const { data: assignedRows, error: assignmentError } = await admin
+    .from("branch_service_catalog")
+    .select("business_service_id")
+    .in("business_service_id", ids);
+  if (assignmentError) throw assignmentError;
+
+  const assigned = new Set((assignedRows ?? []).map((row) => row.business_service_id));
+  const orphanIds = ids.filter((id) => !assigned.has(id));
+  if (!orphanIds.length) return;
+
+  const { error: deleteError } = await admin
+    .from("business_services")
+    .delete()
+    .eq("business_id", businessId)
+    .in("id", orphanIds);
+  if (deleteError) throw deleteError;
+}
+
 export async function cleanupOwnedBranch(admin, businessId, branchName) {
+  // Capture catalog rows before deleting the branch. Since services are now
+  // business-wide, deleting a branch removes branch_service_catalog mappings but
+  // intentionally leaves business_services behind. Without explicit fixture
+  // cleanup, repeated E2E runs make the Settings service library grow forever
+  // and progressively slow down otherwise-correct scenarios.
+  const { data: branches, error: branchLookupError } = await admin
+    .from("branches")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("name", branchName);
+  if (branchLookupError) throw branchLookupError;
+
+  const branchIds = (branches ?? []).map((branch) => branch.id);
+  let businessServiceIds = [];
+  if (branchIds.length) {
+    const { data: catalogRows, error: catalogError } = await admin
+      .from("branch_service_catalog")
+      .select("business_service_id")
+      .in("branch_id", branchIds);
+    if (catalogError) throw catalogError;
+    businessServiceIds = [...new Set((catalogRows ?? []).map((row) => row.business_service_id).filter(Boolean))];
+  }
+
   // Delete every matching scenario fixture, not just one row. This also repairs
   // stale duplicate fixtures left behind by an interrupted/failed test run.
   const { error } = await admin
@@ -78,6 +131,38 @@ export async function cleanupOwnedBranch(admin, businessId, branchName) {
     .eq("name", branchName);
   if (countError) throw countError;
   if ((count ?? 0) !== 0) throw new Error(`E2E cleanup failed for branch: ${branchName}`);
+
+  // Only remove orphaned E2E catalog services. Never delete a catalog service
+  // that is still assigned to another branch or is not clearly test-owned.
+  for (const businessServiceId of businessServiceIds) {
+    const { count: assignmentCount, error: assignmentError } = await admin
+      .from("branch_service_catalog")
+      .select("branch_id", { count: "exact", head: true })
+      .eq("business_service_id", businessServiceId);
+    if (assignmentError) throw assignmentError;
+    if ((assignmentCount ?? 0) !== 0) continue;
+
+    const { data: catalogService, error: serviceLookupError } = await admin
+      .from("business_services")
+      .select("id,name,business_id")
+      .eq("id", businessServiceId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+    if (serviceLookupError) throw serviceLookupError;
+    if (!catalogService?.name?.startsWith("E2E ")) continue;
+
+    const { error: catalogDeleteError } = await admin
+      .from("business_services")
+      .delete()
+      .eq("id", businessServiceId)
+      .eq("business_id", businessId);
+    if (catalogDeleteError) throw catalogDeleteError;
+  }
+
+  // Also repair orphaned E2E catalog rows left by older interrupted runs. This
+  // is intentionally limited to the TEST-owned `E2E ` prefix and never touches
+  // services that are still assigned to any branch.
+  await cleanupOrphanedE2EBusinessServices(admin, businessId);
 }
 
 export async function getBranchById(admin, branchId) {
