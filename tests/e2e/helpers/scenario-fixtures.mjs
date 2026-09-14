@@ -56,6 +56,38 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
   await dismissDashboardResultModal(page, "Branch created successfully.");
 }
 
+async function refreshOwnerSession(page) {
+  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
+  const email = process.env.E2E_OWNER_EMAIL;
+  const password = process.env.E2E_OWNER_PASSWORD;
+  if (!email || !password) throw new Error("Owner E2E credentials are required for service auth recovery.");
+  await page.locator('input[name="login_email"]').fill(email);
+  await page.locator('input[name="password"]').fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL((url) => url.pathname.startsWith("/dashboard"), { timeout: 20_000 });
+}
+
+async function openBranchServicePicker(page, branchId, serviceName) {
+  const target = `/dashboard/settings?view=branch-services&branch=${branchId}`;
+  const option = () => page.locator('form.settings-service-picker select[name="service_key"] option').filter({ hasText: serviceName });
+
+  // Hosted CI can occasionally render the next Settings request before the
+  // just-created catalog row is visible through the authenticated server context.
+  // Re-render once, then refresh the owner session once. This stays scoped to
+  // the exact newly-created service instead of adding a broad test retry.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(target, { waitUntil: "domcontentloaded" });
+    await expectNoAppError(page);
+    const assignForm = page.locator("form.settings-service-picker");
+    await expect(assignForm).toBeVisible();
+    if (await option().count()) return assignForm;
+    if (attempt === 1) await refreshOwnerSession(page);
+    else await page.waitForTimeout(750);
+  }
+  throw new Error(`New catalog service did not become available for branch assignment: ${serviceName}`);
+}
+
 export async function createServiceFromUi(page, branchId, serviceName, { description = "", queuePrefix = "E2E", estimatedMinutes = 15 } = {}) {
   await page.goto("/dashboard/settings?view=services", { waitUntil: "domcontentloaded" });
   await expectNoAppError(page);
@@ -72,14 +104,27 @@ export async function createServiceFromUi(page, branchId, serviceName, { descrip
   await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "services" && url.searchParams.get("message") === "Service added to the business service library.", { timeout: 20_000 });
   await dismissDashboardResultModal(page, "Service added to the business service library.");
 
-  await page.goto(`/dashboard/settings?view=branch-services&branch=${branchId}`, { waitUntil: "domcontentloaded" });
-  await expectNoAppError(page);
-  const assignForm = page.locator("form.settings-service-picker");
-  await expect(assignForm).toBeVisible();
-  await assignForm.locator('select[name="service_key"]').selectOption({ label: serviceName });
-  await assignForm.getByRole("button", { name: "Add to branch", exact: true }).click();
-  await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-services" && url.searchParams.get("message") === "Service added to this branch.", { timeout: 20_000 });
-  await dismissDashboardResultModal(page, "Service added to this branch.");
+  for (let assignmentAttempt = 0; assignmentAttempt < 2; assignmentAttempt += 1) {
+    const assignForm = await openBranchServicePicker(page, branchId, serviceName);
+    await assignForm.locator('select[name="service_key"]').selectOption({ label: serviceName });
+    await assignForm.getByRole("button", { name: "Add to branch", exact: true }).click();
+    await page.waitForURL((url) => {
+      if (url.pathname !== "/dashboard/settings" || url.searchParams.get("view") !== "branch-services") return false;
+      return url.searchParams.get("message") === "Service added to this branch." || url.searchParams.get("error") === "Service was not found in the library.";
+    }, { timeout: 20_000 });
+
+    const result = new URL(page.url());
+    if (result.searchParams.get("message") === "Service added to this branch.") {
+      await dismissDashboardResultModal(page, "Service added to this branch.");
+      return;
+    }
+    if (assignmentAttempt === 0) {
+      await dismissDashboardResultModal(page, "Service was not found in the library.");
+      await refreshOwnerSession(page);
+      continue;
+    }
+  }
+  throw new Error(`Service assignment failed after refreshing the owner session: ${serviceName}`);
 }
 
 export async function expectNotice(page, text) {
