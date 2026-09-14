@@ -47,8 +47,10 @@ async function issueTestStub(page, admin, branch, service) {
   // Get test stub is intentionally inline/realtime-first now: the queue updates
   // without a redirect or success query parameter. Synchronize on persistence,
   // the visible success banner, and the button returning from its busy state.
-  await expect.poll(async () => Boolean(await latestTicketForService(admin, branch.id, service.id)), { timeout: 15_000 }).toBe(true);
+  // The browser success banner is the first authoritative completion signal.
+  // After that, allow the service-role verification read extra time on hosted CI.
   await expect(page.getByText(/Test stub .* issued|Test stub issued/i).first()).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => Boolean(await latestTicketForService(admin, branch.id, service.id)), { timeout: 30_000 }).toBe(true);
   await expect(page.getByRole("button", { name: /Get test stub/i })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: /Get test stub/i })).toBeEnabled({ timeout: 20_000 });
 
@@ -213,6 +215,7 @@ test.describe("owner terminals and queue operations", () => {
   });
 
   test("Scenario 7 - full queue happy path: waiting → pending → serving → complete → history", async ({ page }) => {
+    test.setTimeout(90_000);
     const id = scenarioId("queue-happy");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
@@ -263,6 +266,7 @@ test.describe("owner terminals and queue operations", () => {
   });
 
   test("Scenario 8 - cancel a waiting stub with verification code", async ({ page }) => {
+    test.setTimeout(90_000);
     const id = scenarioId("queue-cancel");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);

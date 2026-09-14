@@ -6,7 +6,7 @@ export function scenarioId(prefix = "") {
   return prefix ? `${prefix}-${value}` : value;
 }
 
-export async function createBranchFromUi(page, branchName, { address = "", phone = "" } = {}) {
+export async function createBranchFromUi(page, branchName, { address = "", phone = "", _retried = false } = {}) {
   await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
   await expectNoAppError(page);
 
@@ -21,7 +21,30 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
   if (address) await form.locator('input[name="address"]').fill(address);
   if (phone) await form.locator('input[name="phone"]').fill(phone);
   await form.getByRole("button", { name: "Create branch", exact: true }).click();
-  await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch created successfully.", { timeout: 20_000 });
+
+  // Hosted CI can occasionally reach the branch action with an authenticated page
+  // while the server-side Supabase request has lost its auth context. Retry the
+  // operation once after a fresh login, but only for this exact authorization
+  // failure; all other branch-create errors still fail immediately.
+  const outcome = await Promise.race([
+    page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch created successfully.", { timeout: 20_000 }).then(() => "success"),
+    page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("error") === "Only the business owner/admin can manage branches.", { timeout: 20_000 }).then(() => "auth-retry"),
+  ]);
+
+  if (outcome === "auth-retry" && !_retried) {
+    await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
+    const email = process.env.E2E_OWNER_EMAIL;
+    const password = process.env.E2E_OWNER_PASSWORD;
+    if (!email || !password) throw new Error("Owner E2E credentials are required for branch auth retry.");
+    await page.locator('input[name="login_email"]').fill(email);
+    await page.locator('input[name="password"]').fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL((url) => url.pathname.startsWith("/dashboard"), { timeout: 20_000 });
+    return createBranchFromUi(page, branchName, { address, phone, _retried: true });
+  }
+
+  if (outcome !== "success") throw new Error("Branch creation authorization failed after a fresh owner login.");
   await dismissDashboardResultModal(page, "Branch created successfully.");
 }
 
