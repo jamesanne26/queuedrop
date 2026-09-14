@@ -67,6 +67,16 @@ test.describe("owner branch and service lifecycle", () => {
       expect(updated?.address).toBe("Updated E2E Address");
       expect(updated?.status).toBe("inactive");
 
+      // Inactive branches must be blocked in the live queue with a clear
+      // modal and an active-branch selector instead of exposing queue controls.
+      await page.goto(`/dashboard/queues?branch=${created.id}`, { waitUntil: "domcontentloaded" });
+      const inactiveDialog = page.getByRole("dialog", { name: "Inactive branch" });
+      await expect(inactiveDialog).toBeVisible();
+      await expect(inactiveDialog).toContainText(`${editedName} is inactive`);
+      await expect(inactiveDialog.getByText("Queue controls are disabled for inactive branches.")).toBeVisible();
+      await expect(inactiveDialog.locator("select")).toBeVisible();
+
+      await page.goto(`/dashboard/settings?view=branch-general&branch=${created.id}`, { waitUntil: "domcontentloaded" });
       const activeForm = page.locator("form.settings-general-form-v3");
       await activeForm.locator('select[name="status"]').selectOption("active");
       await activeForm.getByRole("button", { name: "Save Changes", exact: true }).click();

@@ -69,6 +69,16 @@ test.describe("owner team and role management", () => {
       expect(role).not.toBeNull();
       expect(role?.branch_scope).toBe("selected_branches");
       expect(role?.base_role).toBe("manager");
+
+      // Custom roles are deletable from the same role editor. Protected roles
+      // never expose this action, while an unused custom role should delete cleanly.
+      await page.getByRole("button", { name: "Delete Role", exact: true }).click();
+      const deleteDialog = page.getByRole("dialog").filter({ hasText: `Delete role ${updatedRoleName}?` });
+      await expect(deleteDialog).toBeVisible();
+      await deleteDialog.getByRole("button", { name: "Yes", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Custom role deleted successfully.", { timeout: 20_000 });
+      await dismissDashboardResultModal(page, "Custom role deleted successfully.");
+      expect(await findRoleByName(admin, owner.businessId, updatedRoleName)).toBeNull();
     } finally {
       await cleanupRoleByName(admin, owner.businessId, roleName);
       await cleanupRoleByName(admin, owner.businessId, updatedRoleName);

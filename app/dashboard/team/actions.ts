@@ -839,6 +839,35 @@ export async function updateBusinessRole(formData: FormData) {
   redirect(rolesUrl(roleId, "message", "Role permissions updated successfully."));
 }
 
+export async function deleteBusinessRole(formData: FormData) {
+  const roleId = text(formData, "role_id");
+  if (!roleId) redirect(rolesUrl(undefined, "error", "Missing role."));
+
+  const { membership } = await getRoleManagementContext();
+  const admin = createAdminClient();
+  const { data: role } = await admin.from("roles")
+    .select("id, name, business_id, is_protected")
+    .eq("id", roleId)
+    .eq("business_id", membership.business_id)
+    .maybeSingle();
+  if (!role) redirect(rolesUrl(undefined, "error", "Role was not found."));
+  if (role.is_protected) redirect(rolesUrl(roleId, "error", "This system role is protected."));
+
+  const { count } = await admin.from("business_users")
+    .select("id", { count: "exact", head: true })
+    .eq("business_id", membership.business_id)
+    .eq("role_id", roleId);
+  if ((count ?? 0) > 0) redirect(rolesUrl(roleId, "error", "Reassign users from this role before deleting it."));
+
+  await admin.from("role_permissions").delete().eq("role_id", roleId);
+  const { error } = await admin.from("roles").delete().eq("id", roleId).eq("business_id", membership.business_id);
+  if (error) redirect(rolesUrl(roleId, "error", error.message || "Unable to delete role."));
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/team");
+  redirect(rolesUrl(undefined, "message", "Custom role deleted successfully."));
+}
+
 export async function assignBusinessRoleToEmployee(formData: FormData) {
   const businessUserId = text(formData, "business_user_id");
   const roleId = text(formData, "role_id");

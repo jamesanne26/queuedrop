@@ -377,6 +377,19 @@ test.describe("owner terminals and queue operations", () => {
         await expect(page.locator(".customer-ticket-hero")).toBeVisible();
         await expect(page.locator(".customer-queue-list-card")).toBeVisible();
         await expectResponsivePage(page, `customer QR/status page at ${viewport.name}`);
+
+        if (viewport.width <= 390) {
+          const country = page.getByLabel("Country code");
+          const mobile = page.getByLabel("Mobile number");
+          await expect(country).toBeVisible();
+          await expect(mobile).toBeVisible();
+          await expect(country.locator("option").first()).toContainText(/\+\d+/);
+          const [countryBox, mobileBox] = await Promise.all([country.boundingBox(), mobile.boundingBox()]);
+          expect(countryBox).not.toBeNull();
+          expect(mobileBox).not.toBeNull();
+          expect(Math.abs(countryBox.y - mobileBox.y)).toBeLessThanOrEqual(4);
+          expect(countryBox.width).toBeLessThan(mobileBox.width);
+        }
       }
 
       const smsForm = page.locator("form.compact-form");

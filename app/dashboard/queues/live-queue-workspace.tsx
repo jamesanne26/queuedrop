@@ -8,7 +8,7 @@ import { recalculateQueuePositions } from "@/lib/queue/positions";
 import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubInlineAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
-type Branch = { id: string; name: string; address: string | null };
+type Branch = { id: string; name: string; address: string | null; status?: string | null };
 type Service = { id: string; name: string };
 type Ticket = {
   id: string;
@@ -55,6 +55,7 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
   const router = useRouter();
   const [liveTickets, setLiveTickets] = useState<Ticket[]>(tickets);
   const [isBranchSwitching, startBranchTransition] = useTransition();
+  const inactiveBranch = selectedBranch.status !== "active";
   const defaultServiceId = initialServiceId && services.some((s) => s.id === initialServiceId) ? initialServiceId : services[0]?.id ?? "";
   const [serviceId, setServiceId] = useState(defaultServiceId);
   const [history, setHistory] = useState<ServiceHistoryTicket[] | null>(null);
@@ -363,12 +364,14 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <label className="live-business-branch-picker">
         <span>Branch</span>
         <select value={selectedBranchId} onChange={(e) => navigateBranch(e.target.value)} disabled={isBranchSwitching}>
-          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.status === "active" ? "" : " (Inactive)"}</option>)}
         </select>
       </label>
     </header>
 
     {flash ? <div className={`notice ${flash.type === "success" ? "notice-success" : "notice-error"} live-queue-flash`} role="status">{flash.message}</div> : null}
+
+    {inactiveBranch ? <div className="live-confirm-backdrop" role="presentation"><section className="live-confirm-dialog" role="dialog" aria-modal="true" aria-label="Inactive branch"><div className="live-confirm-heading"><div><p className="eyebrow">Branch unavailable</p><h2>{selectedBranch.name} is inactive</h2></div></div><p className="live-confirm-copy">Queue controls are disabled for inactive branches. Select an active branch to continue.</p><label className="live-service-picker-v2"><span>Select active branch</span><select defaultValue="" onChange={(event) => { if (event.target.value) navigateBranch(event.target.value); }}><option value="" disabled>Choose a branch</option>{branches.filter((branch) => branch.status === "active").map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label></section></div> : null}
 
     <section className="dashboard-section live-command-bar live-command-bar-v4">
       <label className="live-service-picker-v2"><span>Queue service</span><select value={serviceId} onChange={(e) => setServiceId(e.target.value)} aria-label="Queue service">{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>

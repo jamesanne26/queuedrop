@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 
 type Listener = () => void;
 
@@ -42,6 +42,9 @@ function getServerSnapshot() {
 
 export function GlobalSubmitLoading() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
+  const previousSearchKey = useRef(searchKey);
   const isLoading = useSyncExternalStore(
     subscribe,
     getSnapshot,
@@ -57,6 +60,23 @@ export function GlobalSubmitLoading() {
       timeoutId = undefined;
     }
   }, [pathname]);
+
+  useEffect(() => {
+    // Server-action redirects often stay on the same pathname and only change
+    // search params. Only react to an actual query-string change; do not clear
+    // ordinary submissions just because loading became true.
+    if (previousSearchKey.current === searchKey) return;
+    previousSearchKey.current = searchKey;
+    if (!isLoading) return;
+    const timer = window.setTimeout(() => {
+      setGlobalLoading(false);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [searchKey, isLoading]);
 
   useEffect(() => {
     if (!isLoading) return;

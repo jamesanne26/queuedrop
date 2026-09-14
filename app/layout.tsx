@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { GlobalSubmitLoading } from "./_components/global-submit-loading";
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}<GlobalSubmitLoading /></body>
+      <body>{children}<Suspense fallback={null}><GlobalSubmitLoading /></Suspense></body>
     </html>
   );
 }

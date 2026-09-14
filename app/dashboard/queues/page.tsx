@@ -111,8 +111,8 @@ export default async function QueuesPage({ searchParams }: Props) {
       canSimulateStub={developer || role === "owner" || role === "admin"}
       businessName={business.name}
       selectedBranchId={selectedBranchId}
-      selectedBranch={{ id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address }}
-      branches={branches.map((b) => ({ id: b.id, name: b.name, address: b.address }))}
+      selectedBranch={{ id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address, status: selectedBranch.status }}
+      branches={branches.map((b) => ({ id: b.id, name: b.name, address: b.address, status: b.status }))}
       services={services.map((s) => ({ id: s.id, name: s.name }))}
       initialServiceId={params.service ?? null}
       tickets={clientTickets}

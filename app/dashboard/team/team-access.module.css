@@ -340,7 +340,7 @@
 /* Round 11: toolbar actions are visually identical and align as one control group. */
 .toolbarActions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(184px, 1fr));
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
   align-items: stretch;
   gap: 10px;
 }
@@ -373,3 +373,8 @@
 .detailPanel { padding-right: 0; }
 .permissionSection { border: 0; border-radius: 0; padding: 10px 0 12px; background: transparent; border-bottom: 1px solid #e7eeea; }
 .permissionSection:last-child { border-bottom: 0; }
+
+.deleteRoleForm { margin: 0; }
+.deleteRoleButton { width:100%; min-width:150px; min-height:42px; height:42px; padding:0 16px; border:1px solid #d84b4b; border-radius:9px; background:#fff; color:#b42318; font-size:13px; font-weight:800; cursor:pointer; }
+.deleteRoleButton:hover { background:#fff5f5; }
+@media (max-width: 760px) { .deleteRoleButton { min-width:0; } }

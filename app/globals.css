@@ -7617,3 +7617,26 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
   .customer-sms-phone-row select, .customer-sms-phone-row input { min-width: 0; width: 100%; }
   .customer-ticket-branch-name { font-size: 16px; }
 }
+
+
+/* 2026-09-14 mobile customer view density + country-code fix */
+@media (max-width: 680px) {
+  .customer-ticket-page { padding: 4px; gap: 8px; }
+  .customer-ticket-browserbar { min-height: 42px; padding: 0 12px; }
+  .customer-position-block { padding: 16px 14px 12px; }
+  .customer-position-block h1,.customer-position-block h2 { margin: 16px 0 14px; }
+  .customer-ticket-person { padding-top: 14px; }
+  .customer-ticket-hero > .ticket-live-row,
+  .customer-ticket-hero > .notice,
+  .customer-ticket-hero > .ticket-details,
+  .customer-ticket-hero > .ticket-edit-panel,
+  .customer-ticket-hero > .button-danger-outline,
+  .customer-ticket-hero > .public-contact { margin-left: 14px; margin-right: 14px; }
+  .customer-ticket-details { margin-bottom: 12px; }
+  .customer-ticket-details > div { padding-top: 12px; padding-bottom: 12px; }
+  .customer-ticket-identity { margin-bottom: 4px; }
+  .customer-sms-phone-row { grid-template-columns: 108px minmax(0,1fr); gap: 8px; }
+  .customer-sms-phone-row select { padding-left: 8px; padding-right: 24px; white-space: nowrap; text-overflow: clip; }
+  .ticket-edit-panel { padding-top: 8px; padding-bottom: 8px; }
+  .compact-form { gap: 10px; }
+}

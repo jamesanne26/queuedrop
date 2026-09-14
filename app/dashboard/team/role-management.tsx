@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createBusinessRole, updateBusinessRole } from "./actions";
+import { createBusinessRole, deleteBusinessRole, updateBusinessRole } from "./actions";
+import { ConfirmDeleteSubmit } from "@/app/dashboard/_components/confirm-delete-submit";
 import styles from "./team-access.module.css";
 
 type BusinessRole = {
@@ -71,6 +72,7 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
         </div>
         <div className={styles.toolbarActions}>
           {!creating && activeRole && !activeRole.is_protected ? <button className={styles.saveTopButton} type="submit" form={`role-editor-${activeRole.id}`}>Save Role & Permissions</button> : null}
+          {!creating && activeRole && !activeRole.is_protected ? <form action={deleteBusinessRole} className={styles.deleteRoleForm}><input type="hidden" name="role_id" value={activeRole.id}/><ConfirmDeleteSubmit className={styles.deleteRoleButton} message={`Delete role ${activeRole.name}? Users assigned to this role must be reassigned first.`} title="Delete role">Delete Role</ConfirmDeleteSubmit></form> : null}
           {!creating ? <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button> : null}
         </div>
       </div>
