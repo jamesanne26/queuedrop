@@ -7088,7 +7088,7 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
 /* Sidebar bottom navigation refinement */
 .sidebar-footer-account-settings { display: grid; gap: 8px; }
 .sidebar-bottom-nav-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-.sidebar-bottom-nav-item { display: flex; align-items: center; justify-content: center; min-width: 0; text-align: center; font-size: .82rem; }
+.sidebar-bottom-nav-item { display: flex; align-items: center; justify-content: center; min-width: 0; text-align: center; font-size: .92rem; }
 .sidebar-signout-button { width: 100%; text-align: left; }
 @media (max-width: 1100px) {
   .sidebar-bottom-nav-row { display: flex; }

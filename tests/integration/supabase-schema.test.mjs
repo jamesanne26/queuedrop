@@ -88,3 +88,99 @@ test("authenticated owner cannot read an explicitly foreign business", { skip: !
   await client.auth.signOut();
 });
 
+
+test("fresh authenticated account can atomically create first workspace with Starter trial", { skip: !(adminEnabled && anonKey) }, async () => {
+  assertSafeTestUrl();
+  const { createClient } = await import("@supabase/supabase-js");
+  const admin = await adminClient();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `queuedrop-onboarding-${suffix}@example.com`;
+  const password = `Qd!${suffix}Aa9`;
+  let createdUserId = null;
+  let createdBusinessId = null;
+
+  try {
+    const { data: createdAuth, error: createAuthError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: "QueueDrop Onboarding Test" },
+    });
+    assert.equal(createAuthError, null, createAuthError?.message);
+    createdUserId = createdAuth.user?.id ?? null;
+    assert.ok(createdUserId, "temporary onboarding user was not created");
+
+    const client = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { error: signInError } = await client.auth.signInWithPassword({ email, password });
+    assert.equal(signInError, null, signInError?.message);
+
+    const { data: created, error: workspaceError } = await client.rpc("create_initial_business_workspace", {
+      business_name: `Onboarding Test ${suffix}`,
+      branch_name: "First Branch",
+      branch_address: "Test Address",
+      branch_phone: "09171234567",
+    });
+    assert.equal(workspaceError, null, workspaceError?.message);
+    const workspace = Array.isArray(created) ? created[0] : created;
+    createdBusinessId = workspace?.business_id ?? null;
+    assert.ok(createdBusinessId, "workspace RPC did not return a business id");
+    assert.ok(workspace?.branch_id, "workspace RPC did not return a branch id");
+
+    const [{ data: membership, error: membershipError }, { data: subscription, error: subscriptionError }, { data: branch, error: branchError }] = await Promise.all([
+      admin.from("business_users").select("role,is_active").eq("business_id", createdBusinessId).eq("user_id", createdUserId).single(),
+      admin.from("business_subscriptions").select("status,plan_id,expires_at,plans(name)").eq("business_id", createdBusinessId).single(),
+      admin.from("branches").select("id,name").eq("id", workspace.branch_id).single(),
+    ]);
+
+    assert.equal(membershipError, null, membershipError?.message);
+    assert.equal(membership?.role, "owner");
+    assert.notEqual(membership?.is_active, false);
+    assert.equal(subscriptionError, null, subscriptionError?.message);
+    assert.equal(subscription?.status, "trialing");
+    const plan = Array.isArray(subscription?.plans) ? subscription.plans[0] : subscription?.plans;
+    assert.equal(plan?.name, "Starter");
+    assert.ok(subscription?.expires_at, "Starter trial must have an expiry");
+    assert.equal(branchError, null, branchError?.message);
+    assert.equal(branch?.name, "First Branch");
+
+    const { error: duplicateBranchError } = await client.rpc("create_branch_with_defaults", {
+      branch_name: "First Branch",
+      branch_address: "Duplicate attempt",
+      branch_phone: null,
+    });
+    assert.ok(duplicateBranchError, "duplicate branch creation must be rejected");
+
+    const { data: firstService, error: firstServiceError } = await client.rpc("create_initial_branch_service", {
+      target_branch_id: workspace.branch_id,
+      service_name: "First Service",
+      service_group: "Test",
+      service_description: "Onboarding first service",
+      service_queue_prefix: "FS",
+      service_estimated_minutes: 15,
+    });
+    assert.equal(firstServiceError, null, firstServiceError?.message);
+    const serviceSetup = Array.isArray(firstService) ? firstService[0] : firstService;
+    assert.ok(serviceSetup?.business_service_id, "first service must create a catalog record");
+    assert.ok(serviceSetup?.service_id, "first service must create the branch service");
+
+    const { data: serviceLink, error: serviceLinkError } = await admin
+      .from("branch_service_catalog")
+      .select("business_service_id,branch_id,service_id")
+      .eq("business_service_id", serviceSetup.business_service_id)
+      .eq("branch_id", workspace.branch_id)
+      .single();
+    assert.equal(serviceLinkError, null, serviceLinkError?.message);
+    assert.equal(serviceLink?.service_id, serviceSetup.service_id);
+
+    const { data: accessState, error: accessError } = await client.rpc("get_subscription_access_state", {
+      target_business_id: createdBusinessId,
+    });
+    assert.equal(accessError, null, accessError?.message);
+    assert.equal(accessState, "trialing");
+
+    await client.auth.signOut();
+  } finally {
+    if (createdBusinessId) await admin.from("businesses").delete().eq("id", createdBusinessId);
+    if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
+  }
+});

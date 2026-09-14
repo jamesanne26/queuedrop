@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createBusinessWorkspace } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
+import { OnboardingSubmitButton } from "./onboarding-submit-button";
 
 type Props = {
   searchParams: Promise<{ error?: string }>;
@@ -45,7 +46,7 @@ export default async function OnboardingPage({ searchParams }: Props) {
           <h1>Create your first workspace</h1>
           <p>
             {profile?.full_name ? `${profile.full_name}, ` : ""}
-            set up the business and first branch that your team will use for QueueDrop.
+            set up your business and first branch. After this saves, QueueDrop will guide you to create your first service.
           </p>
         </div>
 
@@ -113,17 +114,23 @@ export default async function OnboardingPage({ searchParams }: Props) {
             />
           </label>
 
-          <div className="onboarding-note">
-            <strong>Created together in one transaction:</strong>
-            <span>business • owner access • first branch • branch access • default queue settings</span>
+          <div className="form-section-title form-section-spaced">
+            <span>3</span>
+            <div>
+              <strong>Starter trial</strong>
+              <small>Your Starter trial is activated automatically. Then you’ll add your first service.</small>
+            </div>
           </div>
 
-          <button className="button button-primary button-large" type="submit">
-            Create QueueDrop workspace
-          </button>
+          <div className="onboarding-note">
+            <strong>Created safely in one transaction:</strong>
+            <span>business • owner access • Starter trial • first branch • branch access • queue defaults</span>
+          </div>
+
+          <OnboardingSubmitButton />
         </form>
 
-        <p className="auth-footer"><Link href="/dashboard">Back to dashboard</Link></p>
+        <p className="auth-footer"><Link href="/">Back to QueueDrop home</Link></p>
       </section>
     </main>
   );

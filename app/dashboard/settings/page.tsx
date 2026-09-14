@@ -4,6 +4,7 @@ import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-da
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { createClient } from "@/lib/supabase/server";
 import { createBranch, deleteBranch, updateBranch } from "@/app/dashboard/branches/actions";
+import { PendingSubmitButton } from "@/app/dashboard/_components/pending-submit-button";
 import { TeamWorkspace } from "@/app/dashboard/team/team-workspace";
 import { RoleManagement } from "@/app/dashboard/team/role-management";
 import accessStyles from "@/app/dashboard/team/team-access.module.css";
@@ -237,7 +238,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         <label>Address<input name="address" maxLength={300} placeholder="Branch address" /></label>
         <label>Contact number<DigitsOnlyInput name="phone" maxLength={20} placeholder="09XXXXXXXXX" /></label>
         <label className="settings-duplicate-select-v4"><span>Duplicate settings from</span><select name="source_branch_id" defaultValue=""><option value="">Start with default settings</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><small>Optional. Copies services, operating hours, queue rules, notifications and appearance. Users and terminals are not copied.</small></label>
-        <button className="button button-primary" type="submit">Create branch</button>
+        <PendingSubmitButton idle="Create branch" pending="Saving branch…" />
       </form>
     </details>
   ) : null;

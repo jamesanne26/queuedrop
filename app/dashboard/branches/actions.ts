@@ -49,7 +49,7 @@ export async function createBranch(formData: FormData) {
   validateBranchFields(name, address, phone);
 
   const { supabase, businessId } = await ownerAdminContext();
-  const { error } = await supabase.rpc("create_branch_with_defaults", {
+  const { data: createdBranchId, error } = await supabase.rpc("create_branch_with_defaults", {
     branch_name: name,
     branch_address: address || null,
     branch_phone: phone || null,
@@ -62,15 +62,8 @@ export async function createBranch(formData: FormData) {
     fail(error.message || "Unable to create branch.");
   }
 
-  const { data: createdBranch, error: createdError } = await supabase
-    .from("branches")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("name", name)
-    .limit(1)
-    .maybeSingle();
-
-  if (createdError || !createdBranch?.id) fail("Branch was created, but QueueDrop could not open it.");
+  const branchId = typeof createdBranchId === "string" ? createdBranchId : null;
+  if (!branchId) fail("Branch was created, but QueueDrop could not open it.");
 
   if (duplicateSettings && sourceBranchId) {
     const { data: sourceBranch } = await supabase
@@ -90,32 +83,32 @@ export async function createBranch(formData: FormData) {
 
       const branchSettings = { ...sourceBranch };
       delete (branchSettings as { id?: string }).id;
-      await supabase.from("branches").update(branchSettings).eq("id", createdBranch.id).eq("business_id", businessId);
+      await supabase.from("branches").update(branchSettings).eq("id", branchId).eq("business_id", businessId);
 
       if (configResult.data) {
-        await supabase.from("queue_configurations").upsert({ branch_id: createdBranch.id, ...configResult.data }, { onConflict: "branch_id" });
+        await supabase.from("queue_configurations").upsert({ branch_id: branchId, ...configResult.data }, { onConflict: "branch_id" });
       }
 
-      await supabase.from("operating_hours").delete().eq("branch_id", createdBranch.id);
+      await supabase.from("operating_hours").delete().eq("branch_id", branchId);
       if (hoursResult.data?.length) {
-        await supabase.from("operating_hours").insert(hoursResult.data.map((row: { day_of_week: number; is_open: boolean; open_time: string | null; close_time: string | null }) => ({ branch_id: createdBranch.id, ...row })));
+        await supabase.from("operating_hours").insert(hoursResult.data.map((row: { day_of_week: number; is_open: boolean; open_time: string | null; close_time: string | null }) => ({ branch_id: branchId, ...row })));
       }
 
-      await supabase.from("position_notification_rules").delete().eq("branch_id", createdBranch.id);
+      await supabase.from("position_notification_rules").delete().eq("branch_id", branchId);
       if (rulesResult.data?.length) {
-        await supabase.from("position_notification_rules").insert(rulesResult.data.map((row: { position: number; send_sms_once: boolean; browser_notification: boolean }) => ({ branch_id: createdBranch.id, ...row })));
+        await supabase.from("position_notification_rules").insert(rulesResult.data.map((row: { position: number; send_sms_once: boolean; browser_notification: boolean }) => ({ branch_id: branchId, ...row })));
       }
 
-      await supabase.from("services").delete().eq("branch_id", createdBranch.id);
+      await supabase.from("services").delete().eq("branch_id", branchId);
       if (servicesResult.data?.length) {
-        await supabase.from("services").insert(servicesResult.data.map((row: { name: string; description: string | null; queue_prefix: string | null; estimated_minutes: number | null; is_active: boolean }) => ({ branch_id: createdBranch.id, ...row })));
+        await supabase.from("services").insert(servicesResult.data.map((row: { name: string; description: string | null; queue_prefix: string | null; estimated_minutes: number | null; is_active: boolean }) => ({ branch_id: branchId, ...row })));
       }
     }
   }
 
   revalidatePath("/dashboard/branches");
   revalidatePath("/dashboard/settings");
-  redirect(`/dashboard/settings?branch=${createdBranch.id}&view=branch-general&message=${encodeURIComponent(duplicateSettings ? "Branch created and settings duplicated successfully." : "Branch created successfully.")}`);
+  redirect(`/dashboard/settings?branch=${branchId}&view=branch-general&message=${encodeURIComponent(duplicateSettings ? "Branch created and settings duplicated successfully." : "Branch created successfully.")}`);
 }
 
 export async function updateBranch(formData: FormData) {

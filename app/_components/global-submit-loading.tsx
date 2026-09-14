@@ -67,6 +67,18 @@ export function GlobalSubmitLoading() {
     const interval = window.setInterval(() => {
       if (window.location.href !== startHref) {
         window.clearInterval(interval);
+
+        // Result redirects carry their success/error message in the query
+        // string. Keep the loading layer mounted until DashboardResultModal
+        // actually opens so users never see a blank delay between
+        // “Please wait” and “Successfully saved”.
+        const nextUrl = new URL(window.location.href);
+        const hasResultMessage =
+          nextUrl.searchParams.has("message") ||
+          nextUrl.searchParams.has("error") ||
+          nextUrl.searchParams.has("success");
+        if (hasResultMessage) return;
+
         setGlobalLoading(false);
         if (timeoutId) {
           clearTimeout(timeoutId);

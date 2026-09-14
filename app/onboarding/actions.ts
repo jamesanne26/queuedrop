@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 function field(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -46,18 +45,25 @@ export async function createBusinessWorkspace(formData: FormData) {
     redirect("/auth/login?next=%2Fonboarding");
   }
 
-  const { data: existingMembership } = await supabase
+  const { data: existingMembership, error: membershipError } = await supabase
     .from("business_users")
     .select("business_id")
     .eq("user_id", userId)
     .limit(1)
     .maybeSingle();
 
+  if (membershipError) {
+    fail("Unable to verify your workspace access. Please try again.");
+  }
+
   if (existingMembership) {
     redirect("/dashboard");
   }
 
-  const { error } = await supabase.rpc("create_initial_business_workspace", {
+  // The RPC creates the business, owner membership, Starter trial, first branch,
+  // branch membership and queue defaults atomically. There is no second app-side
+  // subscription step that can fail and leave a half-created workspace.
+  const { data: created, error } = await supabase.rpc("create_initial_business_workspace", {
     business_name: businessName,
     branch_name: branchName,
     branch_address: branchAddress || null,
@@ -65,36 +71,19 @@ export async function createBusinessWorkspace(formData: FormData) {
   });
 
   if (error) {
+    console.error("QueueDrop onboarding failed", {
+      code: error.code,
+      message: error.message,
+      userId,
+    });
     fail(error.message || "Unable to create your QueueDrop workspace.");
   }
 
-  // Every self-service signup starts on the configurable Starter trial so plan
-  // limits apply immediately instead of leaving new workspaces unmetered.
-  const { data: businessId } = await supabase.rpc("get_current_admin_business_id");
-  if (businessId) {
-    const admin = createAdminClient();
-    const { data: starter } = await admin
-      .from("plans")
-      .select("id,price_monthly,currency,trial_days")
-      .eq("name", "Starter")
-      .eq("is_active", true)
-      .maybeSingle();
-    if (starter) {
-      const startedAt = new Date();
-      const expiresAt = new Date(startedAt);
-      expiresAt.setDate(expiresAt.getDate() + Number(starter.trial_days ?? 14));
-      await admin.from("business_subscriptions").upsert({
-        business_id: businessId,
-        plan_id: starter.id,
-        status: "trialing",
-        started_at: startedAt.toISOString(),
-        expires_at: expiresAt.toISOString(),
-        billing_price_monthly: starter.price_monthly,
-        billing_currency: starter.currency,
-        updated_at: startedAt.toISOString(),
-      }, { onConflict: "business_id" });
-    }
+  const workspace = Array.isArray(created) ? created[0] : created;
+  const branchId = workspace?.branch_id;
+  if (!branchId) {
+    fail("Workspace was created, but QueueDrop could not continue to first service setup.");
   }
 
-  redirect("/dashboard?message=Workspace%20created%20successfully.%20Your%20Starter%20trial%20is%20active.");
+  redirect(`/onboarding/service?branch=${encodeURIComponent(branchId)}`);
 }
