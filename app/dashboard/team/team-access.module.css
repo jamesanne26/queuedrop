@@ -365,3 +365,11 @@
   .toolbarActions .saveTopButton,
   .toolbarActions .createButton { min-width: 0; }
 }
+
+/* QueueDrop role editor simplification: avoid stacked card-within-card appearance. */
+.shell { border: 0; border-radius: 0; box-shadow: none; background: transparent; overflow: visible; }
+.toolbar { padding-left: 0; padding-right: 0; background: transparent; }
+.adminGrid { border: 0; background: transparent; }
+.detailPanel { padding-right: 0; }
+.permissionSection { border: 0; border-radius: 0; padding: 10px 0 12px; background: transparent; border-bottom: 1px solid #e7eeea; }
+.permissionSection:last-child { border-bottom: 0; }

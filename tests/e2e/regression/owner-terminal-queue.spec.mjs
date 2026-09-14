@@ -44,19 +44,11 @@ async function issueTestStub(page, admin, branch, service) {
   const getStubButton = page.getByRole("button", { name: /Get test stub/i });
   await getStubButton.click();
 
-  // Wait for the server-action redirect before polling Supabase. This prevents
-  // the next scenario from racing a still-pending issue_stub_ticket action.
-  await page.waitForURL(
-    (url) => url.pathname === "/dashboard/queues" && url.searchParams.get("branch") === branch.id && url.searchParams.get("service") === service.id && Boolean(url.searchParams.get("success")),
-    { timeout: 25_000 },
-  );
-
-  // The ticket can reach Supabase/Realtime before the server action finishes its
-  // redirect/revalidation. If a test opens the customer preview in that gap, the
-  // late action navigation remounts the queue page and destroys the iframe. Wait
-  // for both persistence and the form action to settle before interacting with
-  // the newly-created ticket. This synchronizes on real UI state, not a sleep.
+  // Get test stub is intentionally inline/realtime-first now: the queue updates
+  // without a redirect or success query parameter. Synchronize on persistence,
+  // the visible success banner, and the button returning from its busy state.
   await expect.poll(async () => Boolean(await latestTicketForService(admin, branch.id, service.id)), { timeout: 15_000 }).toBe(true);
+  await expect(page.getByText(/Test stub .* issued|Test stub issued/i).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: /Get test stub/i })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: /Get test stub/i })).toBeEnabled({ timeout: 20_000 });
 

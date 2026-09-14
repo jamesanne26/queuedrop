@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { recalculateQueuePositions } from "@/lib/queue/positions";
-import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubAction, type ServiceHistoryTicket } from "./actions";
+import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubInlineAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
 type Branch = { id: string; name: string; address: string | null };
@@ -51,7 +51,7 @@ function ActionButton({ children, className = "button button-secondary", disable
   return <button className={className} type="submit" disabled={disabled || pending}>{pending ? "Please wait…" : children}</button>;
 }
 
-export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBranch, branches, services, initialServiceId, tickets, currentSessionDate, canSimulateStub, successMessage, errorMessage }: Props) {
+export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches, services, initialServiceId, tickets, currentSessionDate, canSimulateStub, successMessage, errorMessage }: Props) {
   const router = useRouter();
   const [liveTickets, setLiveTickets] = useState<Ticket[]>(tickets);
   const [isBranchSwitching, startBranchTransition] = useTransition();
@@ -60,6 +60,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
   const [history, setHistory] = useState<ServiceHistoryTicket[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [stubBusy, setStubBusy] = useState(false);
   const historyRequestId = useRef(0);
   // Keep only the selected ticket id, then derive the preview from liveTickets.
   // A newly-created ticket can arrive over Realtime before its customer_sessions
@@ -278,6 +279,20 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
     startBranchTransition(() => router.replace(`/dashboard/queues?branch=${encodeURIComponent(branchId)}`, { scroll: false }));
   }
 
+  async function issueTestStub() {
+    if (!serviceId || stubBusy) return;
+    setStubBusy(true);
+    setFlash(null);
+    try {
+      const result = await simulateGetStubInlineAction(selectedBranchId, serviceId);
+      setFlash({ type: result.ok ? "success" : "error", message: result.message });
+    } catch (error) {
+      setFlash({ type: "error", message: error instanceof Error ? error.message : "Unable to issue test stub." });
+    } finally {
+      setStubBusy(false);
+    }
+  }
+
   async function showHistory() {
     if (historyLoading) return;
     const requestId = ++historyRequestId.current;
@@ -342,12 +357,13 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
   );
 
   return <section className="dashboard-content live-queue-page live-queue-page-v4">
+    {isBranchSwitching ? <div className="qd-loading-backdrop" role="status" aria-live="polite"><section className="qd-loading-modal"><div className="qd-loading-spinner" /><strong>Please wait</strong><small>Loading {selectedBranch.name} queue…</small></section></div> : null}
     <header className="dashboard-header live-queue-header-v4">
-      <div><p className="eyebrow">Live queue</p><h1>{businessName}</h1><p className="muted">{selectedBranch.name}{selectedBranch.address ? ` · ${selectedBranch.address}` : ""}</p></div>
+      <div><p className="eyebrow">Live queue</p><h1>{selectedBranch.name}</h1>{selectedBranch.address ? <p className="muted">{selectedBranch.address}</p> : null}</div>
       <label className="live-business-branch-picker">
-        <span>Business / branch</span>
+        <span>Branch</span>
         <select value={selectedBranchId} onChange={(e) => navigateBranch(e.target.value)} disabled={isBranchSwitching}>
-          {branches.map((branch) => <option key={branch.id} value={branch.id}>{businessName} — {branch.name}</option>)}
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
       </label>
     </header>
@@ -357,11 +373,11 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
     <section className="dashboard-section live-command-bar live-command-bar-v4">
       <label className="live-service-picker-v2"><span>Queue service</span><select value={serviceId} onChange={(e) => setServiceId(e.target.value)} aria-label="Queue service">{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <div className="live-command-actions">
-        {canSimulateStub ? <form action={simulateGetStubAction} className="live-test-stub-form-v2" data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button live-get-stub-button-v2" disabled={!selectedService}>＋ Get test stub</ActionButton><span>DEV / CLIENT ADMIN</span></form> : null}
+        {canSimulateStub ? <div className="live-test-stub-form-v2"><button className="button live-get-stub-button-v2" type="button" onClick={() => void issueTestStub()} disabled={!selectedService || stubBusy}>{stubBusy ? "Please wait…" : "＋ Get test stub"}</button><span>DEV / CLIENT ADMIN</span></div> : null}
         <form action={callNextAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button button-primary live-primary-action" disabled={!selectedService}>Call next</ActionButton></form>
         <a className="button button-secondary" href="/dashboard">Dashboard</a>
         <button className="button button-secondary" type="button" onClick={showHistory} disabled={historyLoading} aria-busy={historyLoading}>{historyLoading ? "Loading history…" : "History"}</button>
-        <a className="button button-secondary" href="/dashboard/terminals">Terminals</a>
+        <a className="button button-secondary" href={`/dashboard/settings?branch=${encodeURIComponent(selectedBranchId)}&view=branch-terminals`}>Terminals</a>
       </div>
     </section>
 
@@ -373,7 +389,7 @@ export function LiveQueueWorkspace({ businessName, selectedBranchId, selectedBra
     <section className="dashboard-section live-waiting-panel"><div className="live-waiting-header"><div><p className="eyebrow">Up next</p><h2>Waiting queue</h2><span>{selectedService?.name ?? "Service"}</span></div><div className="live-waiting-count"><strong>{waiting.length}</strong><span>waiting</span></div></div>{waiting.length ? <div className="live-waiting-grid">{waiting.map((t) => <WaitingRow ticket={t} key={t.id}/>)}</div> : <div className="live-empty-state live-empty-state-large"><strong>No one is waiting</strong><span>New terminal stubs will appear here automatically.</span></div>}</section>
 
     {historyError ? <div className="notice notice-error live-history-error" role="alert">{historyError}</div> : null}
-    {history ? <section className="dashboard-section live-history-panel" aria-live="polite"><div className="live-column-head"><h2>Recent stub history</h2><button className="text-link" type="button" onClick={() => setHistory(null)}>Close</button></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Queue</th><th>Branch</th><th>Service</th><th>Status</th><th>Joined</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td><strong>{row.display_number}</strong></td><td>{row.branch_name}</td><td>{row.service_name}</td><td>{row.status}</td><td>{new Date(row.joined_at).toLocaleString()}</td></tr>)}</tbody></table></div></section> : null}
+    {history ? <div className="live-confirm-backdrop live-history-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistory(null); }}><section className="dashboard-section live-history-panel live-history-modal" role="dialog" aria-modal="true" aria-label="Recent stub history"><div className="live-column-head"><h2>Recent stub history</h2><button className="live-confirm-close" type="button" onClick={() => setHistory(null)} aria-label="Close history">×</button></div><div className="reports-table-wrap"><table className="reports-table"><thead><tr><th>Queue</th><th>Branch</th><th>Service</th><th>Status</th><th>Joined</th></tr></thead><tbody>{history.map((row) => <tr key={row.id}><td><strong>{row.display_number}</strong></td><td>{row.branch_name}</td><td>{row.service_name}</td><td>{row.status}</td><td>{new Date(row.joined_at).toLocaleString()}</td></tr>)}</tbody></table></div></section></div> : null}
 
     {previewTicket ? <div className="live-confirm-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewTicketId(null); }}><section className="live-phone-preview-dialog" role="dialog" aria-modal="true" aria-label={`Customer view for ${previewTicket.display_number}`}><div className="live-phone-preview-heading"><div><p className="eyebrow">Customer phone view</p><h2>{previewTicket.display_number}{previewTicket.sms_enabled ? <span className="live-mobile-icon">📱</span> : null}</h2><p>{previewTicket.sms_phone ? `Mobile: ${previewTicket.sms_phone}` : "No mobile number added"}</p></div><button type="button" className="live-confirm-close" onClick={() => setPreviewTicketId(null)} aria-label="Close">×</button></div>{previewTicket.session_token ? <div className="live-phone-shell"><div className="live-phone-speaker"/><iframe title={`Customer status ${previewTicket.display_number}`} src={`/q/status/${previewTicket.session_token}`}/></div> : <div className="live-empty-state live-phone-unavailable"><strong>Customer link unavailable</strong><span>This stub has no active status token.</span></div>}</section></div> : null}
 

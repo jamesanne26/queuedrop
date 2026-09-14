@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type BranchNav = { id: string; name: string; address?: string | null; status?: string | null };
@@ -99,16 +99,7 @@ export function SettingsUnifiedConsole({
   const [activeBranchId, setActiveBranchId] = useState(initialBranchId ?? branches[0]?.id);
   const [isBranchSwitching, startBranchTransition] = useTransition();
   const selectedBranch = useMemo(() => branches.find((branch) => branch.id === activeBranchId) ?? branches[0], [branches, activeBranchId]);
-
-  useEffect(() => {
-    const currentView = normalizeView(initialView);
-    for (const branch of branches.slice(0, 20)) {
-      const url = new URL(window.location.href);
-      url.searchParams.set("branch", branch.id);
-      url.searchParams.set("view", branchViews.has(currentView) ? currentView : "branch-general");
-      router.prefetch(`${url.pathname}?${url.searchParams.toString()}`);
-    }
-  }, [branches, initialView, router]);
+  const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
 
   const getBranchUrl = (branchId: string, targetView: ViewKey = (branchViews.has(view) ? view : "branch-general")) => {
@@ -131,7 +122,6 @@ export function SettingsUnifiedConsole({
     setView(nextView);
     setBranchesOpen(true);
     const nextUrl = getBranchUrl(branchId, nextView);
-    router.prefetch(nextUrl);
     startBranchTransition(() => router.replace(nextUrl, { scroll: false }));
   };
 
@@ -151,6 +141,7 @@ export function SettingsUnifiedConsole({
 
   return (
     <div className="settings-console settings-console-unified">
+      {isBranchSwitching ? <div className="qd-loading-backdrop settings-switch-loading" role="status" aria-live="polite"><section className="qd-loading-modal"><div className="qd-loading-spinner" aria-hidden="true" /><strong>Please wait</strong><small>Loading {selectedBranch?.name ?? "branch"} settings…</small></section></div> : null}
       <aside className="settings-console-sidebar">
         <details className="settings-tree-shell settings-tree-shell-unified" open>
           <summary className="settings-tree-mobile-summary">Settings menu <span>⌄</span></summary>
@@ -165,7 +156,7 @@ export function SettingsUnifiedConsole({
               {branchesOpen ? (
                 <>
                   <div className="settings-tree-branch-list settings-tree-branch-list-v4">
-                    {branches.map((branch) => {
+                    {sortedBranches.map((branch) => {
                       const selected = branch.id === selectedBranch?.id;
                       return (
                         <button
@@ -178,7 +169,7 @@ export function SettingsUnifiedConsole({
                           onClick={() => chooseBranch(branch.id)}
                         >
                           <span className={`settings-tree-dot ${selected ? "settings-tree-dot-active" : ""}`} />
-                          <span><strong>{branch.name}</strong><small>{branch.address || "No address added"}</small></span>
+                          <span><strong>{branch.name}</strong><small>{branch.address || "No address added"}</small><em className={`settings-branch-status settings-branch-status-${branch.status === "active" ? "active" : "inactive"}`}>{branch.status === "active" ? "Active" : "Inactive"}</em></span>
                         </button>
                       );
                     })}

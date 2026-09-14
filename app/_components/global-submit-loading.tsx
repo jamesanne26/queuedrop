@@ -24,7 +24,7 @@ function startTimeout() {
   timeoutId = setTimeout(() => {
     timeoutId = undefined;
     setGlobalLoading(false);
-  }, 6000);
+  }, 30000);
 }
 
 function subscribe(listener: Listener) {

@@ -29,35 +29,53 @@ export function ConfirmDeleteSubmit({
   requireCode = false,
   title = "Confirm deletion",
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<"closed" | "confirm" | "verify">("closed");
   const [code, setCode] = useState("");
   const [input, setInput] = useState("");
 
-  if (!requireCode) {
-    return (
-      <button className={className} type="submit" onClick={(event) => { if (!window.confirm(message)) event.preventDefault(); }} disabled={disabled}>
-        {children}
-      </button>
-    );
+  function close() {
+    setStage("closed");
+    setInput("");
   }
 
-  function openVerification() {
+  function continueDelete() {
+    if (!requireCode) return;
     setCode(makeCode());
     setInput("");
-    setOpen(true);
+    setStage("verify");
   }
 
   return (
     <>
-      <button className={className} type="button" onClick={openVerification} disabled={disabled}>{children}</button>
-      {open ? (
-        <div className="qd-modal-backdrop qd-delete-code-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <button className={className} type="button" onClick={() => setStage("confirm")} disabled={disabled}>{children}</button>
+
+      {stage === "confirm" ? (
+        <div className="qd-modal-backdrop qd-confirm-delete-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+          <section className="qd-modal qd-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+            <div className="qd-confirm-icon qd-confirm-icon-danger">!</div>
+            <div className="qd-confirm-copy">
+              <h2 id="delete-confirm-title">{title}</h2>
+              <p>{message}</p>
+            </div>
+            <div className="qd-modal-actions">
+              <button className="button button-secondary" type="button" onClick={close}>No</button>
+              {requireCode ? (
+                <button className="button button-danger" type="button" onClick={continueDelete}>Yes, continue</button>
+              ) : (
+                <button className="button button-danger" type="submit">Yes</button>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {stage === "verify" ? (
+        <div className="qd-modal-backdrop qd-delete-code-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
           <section className="qd-modal qd-confirm-modal qd-delete-code-modal" role="dialog" aria-modal="true" aria-labelledby="delete-code-title">
             <div className="qd-confirm-icon qd-confirm-icon-danger">!</div>
             <div className="qd-confirm-copy">
-              <h2 id="delete-code-title">{title}</h2>
-              <p>{message}</p>
-              <p>Type this verification code to continue:</p>
+              <h2 id="delete-code-title">Verification required</h2>
+              <p>Type this verification code to confirm {title.toLowerCase()}:</p>
             </div>
             <div className="qd-delete-verification-code" aria-label="Verification code">{code}</div>
             <label className="qd-delete-code-field">
@@ -65,7 +83,7 @@ export function ConfirmDeleteSubmit({
               <input value={input} onChange={(event) => setInput(event.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" autoComplete="off" maxLength={4} autoFocus />
             </label>
             <div className="qd-modal-actions">
-              <button className="button button-secondary" type="button" onClick={() => setOpen(false)}>Cancel</button>
+              <button className="button button-secondary" type="button" onClick={close}>Cancel</button>
               <button className="button button-danger" type="submit" disabled={input !== code}>Confirm delete</button>
             </div>
           </section>

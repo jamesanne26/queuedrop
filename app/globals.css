@@ -7594,3 +7594,26 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
     text-align: center;
   }
 }
+
+
+/* 2026-09-14 UX refinements */
+.settings-branch-status {
+  display: inline-flex; align-items: center; width: fit-content; margin-top: 4px; padding: 2px 7px;
+  border-radius: 999px; font-size: 9px; font-style: normal; font-weight: 800; line-height: 1.4; text-transform: uppercase; letter-spacing: .04em;
+}
+.settings-branch-status-active { background: #e8f7ef; color: #08784d; }
+.settings-branch-status-inactive { background: #f1f3f2; color: #7a8580; }
+.settings-switch-loading { z-index: 10020; }
+.qd-loading-modal small { display: block; margin-top: 6px; color: #6f7a75; font-size: 12px; font-weight: 600; }
+.live-history-backdrop { z-index: 10010; }
+.live-history-modal { width: min(920px, calc(100vw - 32px)); max-height: min(78vh, 760px); overflow: auto; margin: 0; }
+.customer-ticket-identity { display: grid; gap: 2px; margin-bottom: 8px; }
+.customer-ticket-branch-name { color: #17221d; font-size: 18px; line-height: 1.2; }
+.customer-ticket-service-name { color: #0b8b58; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.customer-sms-phone-row { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.4fr); gap: 10px; align-items: end; }
+@media (max-width: 640px) {
+  .customer-sms-phone-row { grid-template-columns: 122px minmax(0, 1fr); gap: 8px; }
+  .customer-sms-phone-row label { min-width: 0; }
+  .customer-sms-phone-row select, .customer-sms-phone-row input { min-width: 0; width: 100%; }
+  .customer-ticket-branch-name { font-size: 16px; }
+}

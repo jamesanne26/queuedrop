@@ -68,6 +68,50 @@ export async function simulateGetStubAction(formData: FormData) {
   redirect(queueRedirectUrl(branchId, serviceId, "success", displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued"));
 }
 
+export async function simulateGetStubInlineAction(branchId: string, serviceId: string) {
+  if (!branchId || !serviceId) return { ok: false as const, message: "Missing branch or service" };
+
+  const { supabase, user } = await requireUser();
+  const [{ data: membership }, developer] = await Promise.all([
+    supabase.from("business_users").select("business_id, role").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle(),
+    isSystemOwner(user),
+  ]);
+  if (!membership) return { ok: false as const, message: "No active business membership" };
+  if (!developer && membership.role !== "owner" && membership.role !== "admin") {
+    return { ok: false as const, message: "Get test stub is available only to the developer and client administrators" };
+  }
+
+  const [{ data: service }, { data: branch }] = await Promise.all([
+    supabase.from("services").select("id, branch_id").eq("id", serviceId).eq("branch_id", branchId).eq("is_active", true).maybeSingle(),
+    supabase.from("branches").select("id, business_id").eq("id", branchId).maybeSingle(),
+  ]);
+  if (!service || !branch || branch.business_id !== membership.business_id) {
+    return { ok: false as const, message: "Selected service is not available for this client" };
+  }
+
+  let { data: terminal } = await supabase.from("devices")
+    .select("id, device_token")
+    .eq("branch_id", branchId).eq("service_id", serviceId).eq("device_type", "ticket_terminal")
+    .eq("is_active", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+  if (!terminal) {
+    const { data: created, error: createError } = await supabase.from("devices")
+      .insert({ branch_id: branchId, service_id: serviceId, name: "Queue View Simulator", device_type: "ticket_terminal", is_active: true })
+      .select("id, device_token").single();
+    if (createError || !created) return { ok: false as const, message: createError?.message ?? "Unable to create test terminal" };
+    terminal = created;
+  }
+
+  const { data: issued, error } = await supabase.rpc("issue_stub_ticket", { target_device_token: terminal.device_token });
+  if (error) return { ok: false as const, message: error.message };
+
+  revalidatePath("/dashboard/queues");
+  const displayNumber = issued && typeof issued === "object" && "display_number" in issued
+    ? String((issued as { display_number?: unknown }).display_number ?? "")
+    : "";
+  return { ok: true as const, message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued" };
+}
+
 export async function callNextAction(formData: FormData) {
   const branchId = String(formData.get("branch_id") ?? "");
   const serviceId = String(formData.get("service_id") ?? "");

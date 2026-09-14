@@ -10,8 +10,14 @@ const adminReady = hasAdminTestEnvironment();
 
 async function confirmCodeDelete(page, buttonName) {
   await page.getByRole("button", { name: buttonName, exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  let dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  const continueButton = dialog.getByRole("button", { name: "Yes, continue", exact: true });
+  if (await continueButton.isVisible().catch(() => false)) {
+    await continueButton.click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel("Verification code").first()).toBeVisible();
+  }
   const code = (await dialog.getByLabel("Verification code").first().textContent())?.trim();
   expect(code).toMatch(/^\d{4}$/);
   await dialog.locator("input").fill(code);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,19 +26,14 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets }: P
   const router = useRouter();
   const [tickets, setTickets] = useState(initialTickets);
   const [connected, setConnected] = useState(false);
+  const [isSwitching, startTransition] = useTransition();
   const connectedRef = useRef(false);
 
   useEffect(() => {
     const supabase = createClient();
-    let refreshTimer: number | null = null;
-    const refreshSoon = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => router.refresh(), 250);
-    };
-
     const channel = supabase
       .channel(`tv-queue-${selectedBranchId}-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets", filter: `branch_id=eq.${selectedBranchId}` }, (payload) => {
         const next = payload.new as Partial<Ticket> | null;
         const old = payload.old as Partial<Ticket> | null;
         const branchId = next?.branch_id ?? old?.branch_id;
@@ -52,7 +47,6 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets }: P
           const without = current.filter((ticket) => ticket.id !== normalized.id);
           return visible ? [...without, normalized] : without;
         });
-        refreshSoon();
       })
       .subscribe((status) => {
         const live = status === "SUBSCRIBED";
@@ -62,10 +56,9 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets }: P
 
     const fallback = window.setInterval(() => {
       if (!connectedRef.current && navigator.onLine) router.refresh();
-    }, 15000);
+    }, 5000);
 
     return () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       window.clearInterval(fallback);
       void supabase.removeChannel(channel);
     };
@@ -82,16 +75,17 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets }: P
   );
 
   function changeBranch(branchId: string) {
-    router.push(`/dashboard/tv?branch=${encodeURIComponent(branchId)}`);
+    startTransition(() => router.push(`/dashboard/tv?branch=${encodeURIComponent(branchId)}`));
   }
 
   return (
     <div className="tv-queue-page">
+      {isSwitching ? <div className="qd-loading-backdrop" role="status" aria-live="polite"><section className="qd-loading-modal"><div className="qd-loading-spinner" /><strong>Please wait</strong><small>Loading TV display…</small></section></div> : null}
       <div className="tv-queue-toolbar">
         <button type="button" className="tv-back-button" onClick={() => router.push("/dashboard")} aria-label="Back to dashboard">← Back</button>
         <label>
           <span className="sr-only">Branch</span>
-          <select value={selectedBranchId} onChange={(event) => changeBranch(event.target.value)} aria-label="TV display branch">
+          <select value={selectedBranchId} onChange={(event) => changeBranch(event.target.value)} aria-label="TV display branch" disabled={isSwitching}>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
           </select>
         </label>

@@ -71,7 +71,7 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
         </div>
         <div className={styles.toolbarActions}>
           {!creating && activeRole && !activeRole.is_protected ? <button className={styles.saveTopButton} type="submit" form={`role-editor-${activeRole.id}`}>Save Role & Permissions</button> : null}
-          <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button>
+          {!creating ? <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button> : null}
         </div>
       </div>
 
