@@ -17,30 +17,38 @@ import { dismissDashboardResultModal, expectNoAppError } from "../helpers/ui.mjs
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
 
-async function setup(page, admin, owner, id) {
+async function setupBranch(page, admin, owner, id) {
   const branchName = `E2E Settings Branch ${id}`;
-  const serviceName = `E2E Reports Service ${id}`;
   await cleanupOwnedBranch(admin, owner.businessId, branchName);
   await loginAsOwner(page, credentials);
   await createBranchFromUi(page, branchName);
   const branch = await findBranchByName(admin, owner.businessId, branchName);
   expect(branch).not.toBeNull();
-  await createServiceFromUi(page, branch.id, serviceName, { queuePrefix: "REP", estimatedMinutes: 12 });
-  const service = await findServiceByName(admin, branch.id, serviceName);
+  return { branchName, branch };
+}
+
+async function setupReportWorkspace(page, admin, owner, id) {
+  const data = await setupBranch(page, admin, owner, id);
+  const serviceName = `E2E Reports Service ${id}`;
+  await createServiceFromUi(page, data.branch.id, serviceName, { queuePrefix: "REP", estimatedMinutes: 12 });
+  const service = await findServiceByName(admin, data.branch.id, serviceName);
   expect(service).not.toBeNull();
-  return { branchName, serviceName, branch, service };
+  return { ...data, serviceName, service };
 }
 
 test.describe("owner settings and reports", () => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
 
   test("Scenario 11 - branch settings save and database persistence", async ({ page }) => {
+    // This scenario performs multiple hosted server actions and database checks.
+    // Keep its timeout scoped to this test, while avoiding unnecessary service setup.
+    test.setTimeout(process.env.CI ? 90_000 : 60_000);
     const id = scenarioId("settings");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
     let branchName = "";
     try {
-      const data = await setup(page, admin, owner, id);
+      const data = await setupBranch(page, admin, owner, id);
       branchName = data.branchName;
       // Queue behavior and notifications are separate Settings views now. Verify
       // each form at its current route instead of relying on the legacy combined form.
@@ -88,7 +96,7 @@ test.describe("owner settings and reports", () => {
     const owner = await getOwnerBusiness(admin, credentials.email);
     let branchName = "";
     try {
-      const data = await setup(page, admin, owner, id);
+      const data = await setupReportWorkspace(page, admin, owner, id);
       branchName = data.branchName;
       await page.goto(`/dashboard/queues?branch=${data.branch.id}&service=${data.service.id}`, { waitUntil: "domcontentloaded" });
       await page.getByRole("button", { name: /Get test stub/i }).click();

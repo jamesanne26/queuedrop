@@ -26,10 +26,18 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
   // while the server-side Supabase request has lost its auth context. Retry the
   // operation once after a fresh login, but only for this exact authorization
   // failure; all other branch-create errors still fail immediately.
-  const outcome = await Promise.race([
-    page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch created successfully.", { timeout: 20_000 }).then(() => "success"),
-    page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("error") === "Only the business owner/admin can manage branches.", { timeout: 20_000 }).then(() => "auth-retry"),
-  ]);
+  await page.waitForURL((url) => {
+    if (url.pathname !== "/dashboard/settings") return false;
+    return (
+      url.searchParams.get("message") === "Branch created successfully." ||
+      url.searchParams.get("error") === "Only the business owner/admin can manage branches."
+    );
+  }, { timeout: 20_000 });
+
+  const resultUrl = new URL(page.url());
+  const outcome = resultUrl.searchParams.get("message") === "Branch created successfully."
+    ? "success"
+    : "auth-retry";
 
   if (outcome === "auth-retry" && !_retried) {
     await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
