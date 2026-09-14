@@ -15,11 +15,11 @@ type Service = {
 };
 
 type Branch = { id: string; name: string; status: string; address: string | null };
-type Props = { branches: Branch[]; services: Service[]; canManage: boolean; initialBranchId: string };
+type Props = { branches: Branch[]; services: Service[]; canManage: boolean; initialBranchId: string; lockBranch?: boolean };
 type Modal = null | { kind: "edit"; service: Service } | { kind: "delete"; service: Service };
 type ActiveConfirm = { service: Service; nextActive: boolean };
 
-export function ServicesWorkspace({ branches, services, canManage, initialBranchId }: Props) {
+export function ServicesWorkspace({ branches, services, canManage, initialBranchId, lockBranch = false }: Props) {
   const [selectedBranchId, setSelectedBranchId] = useState(initialBranchId);
   const [modal, setModal] = useState<Modal>(null);
   const [activeConfirm, setActiveConfirm] = useState<ActiveConfirm | null>(null);
@@ -93,7 +93,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
 
   return (
     <>
-      <section className="dashboard-section service-tabs-card">
+      {!lockBranch ? <section className="dashboard-section service-tabs-card">
         <div className="services-branch-picker-mobile">
           <label className="responsive-branch-select">
             <span>Branch</span>
@@ -110,7 +110,7 @@ export function ServicesWorkspace({ branches, services, canManage, initialBranch
             </button>
           ))}
         </div>
-      </section>
+      </section> : null}
 
       <div className="management-grid services-management-grid">
         <section className="dashboard-section dashboard-section-stack management-list-card">

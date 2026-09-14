@@ -56,7 +56,8 @@ function teamUrl(
     params.set("branch", viewBranch);
   }
   params.set(key, message);
-  return `/dashboard/team?${params.toString()}`;
+  params.set("view", "users");
+  return `/dashboard/settings?${params.toString()}`;
 }
 
 function fail(message: string, viewBranch = ""): never {
@@ -69,7 +70,7 @@ async function getTeamContext() {
     await supabase.auth.getUser();
 
   if (userError || !userData.user) {
-    redirect("/auth/login?next=%2Fdashboard%2Fteam");
+    redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
   const { data: membership } = await supabase
@@ -231,7 +232,7 @@ export async function createTeamMember(formData: FormData) {
   } else {
     const { data: selectedBusinessRole } = await supabase
       .from("roles")
-      .select("id, base_role, name")
+      .select("id, base_role, name, branch_scope")
       .eq("id", businessRoleId)
       .eq("business_id", membership.business_id)
       .maybeSingle();
@@ -347,7 +348,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
   const role = text(formData, "role");
   const businessRoleId = text(formData, "business_role_id");
   const active = text(formData, "is_active") === "true";
-  const branchIds = selectedBranches(formData);
+  let branchIds = selectedBranches(formData);
   const newPassword = text(formData, "new_password");
 
   if (!userId) fail("Missing team member.", viewBranch);
@@ -413,12 +414,15 @@ export async function updateTeamMemberDetails(formData: FormData) {
   if (businessRoleId) {
     const { data: selectedBusinessRole } = await supabase
       .from("roles")
-      .select("id, base_role")
+      .select("id, base_role, branch_scope")
       .eq("id", businessRoleId)
       .eq("business_id", membership.business_id)
       .maybeSingle();
     if (!selectedBusinessRole || selectedBusinessRole.base_role !== role) {
       fail("The assigned business role is invalid.", viewBranch);
+    }
+    if (selectedBusinessRole.branch_scope !== "all_branches" && branchIds.length > 1) {
+      branchIds = branchIds.slice(0, 1);
     }
   } else {
     await validateBranchSelection(
@@ -584,6 +588,7 @@ export async function updateTeamMemberDetails(formData: FormData) {
   }
 
   revalidatePath("/dashboard/team");
+  revalidatePath("/dashboard/settings");
   redirect(
     teamUrl(
       viewBranch,
@@ -688,7 +693,7 @@ export async function updateEmployeeAccess(formData: FormData) {
 async function getRoleManagementContext() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fteam%3Ftab%3Droles");
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings%3Ftab%3Droles");
 
   const { data: membership } = await supabase
     .from("business_users")
@@ -711,7 +716,8 @@ function rolesUrl(roleId?: string, key?: "message" | "error", message?: string) 
   const params = new URLSearchParams({ tab: "roles" });
   if (roleId) params.set("role", roleId);
   if (key && message) params.set(key, message);
-  return `/dashboard/team?${params.toString()}`;
+  params.set("view", "roles");
+  return `/dashboard/settings?${params.toString()}`;
 }
 
 export async function createBusinessRole(formData: FormData) {
@@ -848,4 +854,102 @@ export async function assignBusinessRoleToEmployee(formData: FormData) {
 
   revalidatePath("/dashboard/team");
   redirect(teamUrl(viewBranch, "message", "Employee role updated successfully."));
+}
+
+const directPermissionColumns = [
+  "can_view_queue_information_editing",
+  "can_view_position_notifications",
+  "can_set_branch_status",
+  "can_manage_services",
+  "can_manage_operating_hours",
+  "can_manage_team",
+  "can_manage_kiosk_display",
+  "can_add_customer",
+  "can_edit_customer",
+  "can_call_customer",
+  "can_serve_customer",
+  "can_complete_ticket",
+  "can_cancel_ticket",
+  "can_mark_no_show",
+  "can_view_customer_contact",
+  "can_view_reports",
+  "can_export_reports",
+  "can_view_audit_logs",
+] as const;
+
+export async function updateTeamMemberAccess(formData: FormData) {
+  const businessUserId = text(formData, "business_user_id");
+  const targetUserId = text(formData, "user_id");
+  const viewBranch = text(formData, "view_branch") || "all";
+  if (!businessUserId || !targetUserId) fail("Missing user access record.", viewBranch);
+
+  const { supabase, membership, role: actorRole } = await getTeamContext();
+  const { data: target } = await supabase.from("business_users")
+    .select("id,user_id,role")
+    .eq("id", businessUserId)
+    .eq("user_id", targetUserId)
+    .eq("business_id", membership.business_id)
+    .maybeSingle();
+  if (!target) fail("User was not found.", viewBranch);
+  if (["owner", "admin"].includes(target.role)) fail("Owner and admin access is protected here.", viewBranch);
+  if (actorRole === "manager" && target.role !== "staff") fail("Managers can manage staff accounts only.", viewBranch);
+
+  const permissionUpdate: Record<string, boolean> = {};
+  for (const column of directPermissionColumns) permissionUpdate[column] = formData.get(column) === "on";
+  const { error: permissionError } = await supabase.from("business_users")
+    .update(permissionUpdate)
+    .eq("id", businessUserId)
+    .eq("business_id", membership.business_id);
+  if (permissionError) fail(permissionError.message || "Unable to save user permissions.", viewBranch);
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/team");
+  redirect(teamUrl(viewBranch, "message", "User permissions saved."));
+}
+
+export async function updateBranchUserAssignment(formData: FormData) {
+  const branchId = text(formData, "branch_id");
+  const userId = text(formData, "user_id");
+  const mode = text(formData, "mode");
+  if (!branchId || !userId || !["add", "remove"].includes(mode)) fail("Missing branch user update.", branchId);
+
+  const { supabase, membership, role: actorRole, managerBranchIds } = await getTeamContext();
+  const { data: branch } = await supabase.from("branches").select("id").eq("id", branchId).eq("business_id", membership.business_id).maybeSingle();
+  if (!branch) fail("Branch was not found.", branchId);
+  if (actorRole === "manager" && !managerBranchIds.includes(branchId)) fail("You can manage users only in your assigned branches.", branchId);
+
+  const { data: candidate, error: candidateError } = await supabase.from("business_users")
+    .select("user_id,role,role_id,custom_role_name")
+    .eq("business_id", membership.business_id)
+    .eq("user_id", userId)
+    .in("role", actorRole === "manager" ? ["staff"] : ["manager", "staff"])
+    .maybeSingle();
+  if (candidateError || !candidate) fail("This user cannot be assigned to the branch.", branchId);
+
+  if (mode === "remove") {
+    const { error } = await supabase.from("branch_users").delete().eq("branch_id", branchId).eq("user_id", userId);
+    if (error) fail(error.message || "Unable to remove user from branch.", branchId);
+  } else {
+    let branchScope: "own_branch_only" | "selected_branches" | "all_branches" = candidate.role === "staff" ? "own_branch_only" : "all_branches";
+    if (candidate.role_id) {
+      const { data: declaredRole } = await supabase.from("roles").select("branch_scope").eq("id", candidate.role_id).eq("business_id", membership.business_id).maybeSingle();
+      if (declaredRole?.branch_scope) branchScope = declaredRole.branch_scope as typeof branchScope;
+    }
+    if (branchScope !== "all_branches") {
+      const { data: businessBranches } = await supabase.from("branches").select("id").eq("business_id", membership.business_id);
+      const businessBranchIds = (businessBranches ?? []).map((row) => row.id);
+      const { data: existingAssignments } = businessBranchIds.length
+        ? await supabase.from("branch_users").select("branch_id").eq("user_id", userId).in("branch_id", businessBranchIds)
+        : { data: [] as { branch_id: string }[] };
+      if ((existingAssignments ?? []).some((row) => row.branch_id !== branchId)) {
+        fail("This role is limited to one branch. Remove the user from the current branch before assigning another.", branchId);
+      }
+    }
+    const { error } = await supabase.from("branch_users").upsert({ user_id: userId, branch_id: branchId }, { onConflict: "branch_id,user_id" });
+    if (error) fail(error.message || "Unable to add user to branch.", branchId);
+  }
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/team");
+  redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&view=branch-users&message=${encodeURIComponent(mode === "add" ? "User added to branch." : "User removed from branch.")}`);
 }

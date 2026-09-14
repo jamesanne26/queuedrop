@@ -332,3 +332,36 @@
   font-weight: 800;
   white-space: nowrap;
 }
+
+.toolbarActions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.saveTopButton{border:0;border-radius:10px;background:#0b8b58;color:#fff;padding:10px 14px;font-weight:800;cursor:pointer}.saveTopButton:hover{filter:brightness(.97)}
+.toolbarActions{align-items:stretch}.toolbarActions .saveTopButton,.toolbarActions .createButton{min-width:176px;min-height:40px;background:#0b8b58;border:1px solid #0b8b58;color:#fff;border-radius:9px;padding:0 15px}.toolbarActions .saveTopButton:hover,.toolbarActions .createButton:hover{background:#08784d}.toolbarCopy .eyebrow{display:none}.toolbar h2{font-size:20px}
+@media(max-width:680px){.toolbarActions{width:100%}.toolbarActions .saveTopButton,.toolbarActions .createButton{flex:1;min-width:0}}
+
+/* Round 11: toolbar actions are visually identical and align as one control group. */
+.toolbarActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(184px, 1fr));
+  align-items: stretch;
+  gap: 10px;
+}
+.toolbarActions .saveTopButton,
+.toolbarActions .createButton {
+  width: 100%;
+  min-width: 184px;
+  min-height: 42px;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid #0b8b58;
+  border-radius: 9px;
+  background: #0b8b58;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(11,139,88,.16);
+}
+@media (max-width: 760px) {
+  .toolbarActions { width: 100%; grid-template-columns: 1fr; }
+  .toolbarActions .saveTopButton,
+  .toolbarActions .createButton { min-width: 0; }
+}

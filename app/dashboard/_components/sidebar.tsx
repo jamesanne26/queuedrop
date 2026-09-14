@@ -44,10 +44,9 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      <Link className={`nav-item nav-item-queues-primary ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}><span>Queues</span><span className="nav-item-queues-indicator" aria-hidden="true">→</span></Link>
-      {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History & Reports</Link> : null}
-      <Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Queue Display</Link>
-      {settingsVisible ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
+      <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link>
+      <Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</Link>
+      {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
 
@@ -69,7 +68,10 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
         </div>
         <Link href="/dashboard" className="brand-mark brand-light sidebar-desktop-brand">QueueDrop</Link>
         <nav>{nav}</nav>
-        <div className="sidebar-footer">
+        <div className="sidebar-footer sidebar-footer-account-settings">
+          <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
+            {settingsVisible ? <Link className={`nav-item sidebar-bottom-nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
+          </div>
           <form action={signOut} data-no-global-loading="true">
             <button className="nav-item sidebar-signout-button" type="submit">Sign out</button>
           </form>

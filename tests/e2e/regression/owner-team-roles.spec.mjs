@@ -33,7 +33,7 @@ test.describe("owner team and role management", () => {
 
     try {
       await loginAsOwner(page, credentials);
-      await page.goto("/dashboard/team?tab=roles", { waitUntil: "domcontentloaded" });
+      await page.goto("/dashboard/settings?view=roles", { waitUntil: "domcontentloaded" });
       await expectNoAppError(page);
       await page.getByRole("button", { name: "+ Create Custom Role", exact: true }).click();
       const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Create Role", exact: true }) }).first();
@@ -45,7 +45,7 @@ test.describe("owner team and role management", () => {
       const callNextPermission = form.locator('input[name="permissions"][value="call_next_customer"]');
       if (await callNextPermission.count()) await callNextPermission.check();
       await form.getByRole("button", { name: "Create Role", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/team" && url.searchParams.get("tab") === "roles" && url.searchParams.get("message") === "Custom role created successfully.", { timeout: 20_000 });
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Custom role created successfully.", { timeout: 20_000 });
       await dismissDashboardResultModal(page, "Custom role created successfully.");
 
       let role = await findRoleByName(admin, owner.businessId, roleName);
@@ -56,13 +56,13 @@ test.describe("owner team and role management", () => {
       // After creation QueueDrop already selects the new role and opens its
       // detail editor. Avoid depending on the sidebar button's composite
       // accessible name (it also contains the role initial and “Custom role”).
-      const editForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Save Role & Permissions", exact: true }) }).first();
+      const editForm = page.locator(`form#role-editor-${role.id}`);
       await expect(editForm).toBeVisible();
       await editForm.locator('input[name="name"]').fill(updatedRoleName);
       await editForm.locator('input[name="description"]').fill("Updated E2E role description");
       await editForm.locator('select[name="branch_scope"]').selectOption("selected_branches");
-      await editForm.getByRole("button", { name: "Save Role & Permissions", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/team" && url.searchParams.get("tab") === "roles" && url.searchParams.get("message") === "Role permissions updated successfully.", { timeout: 20_000 });
+      await page.getByRole("button", { name: "Save Role & Permissions", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Role permissions updated successfully.", { timeout: 20_000 });
       await dismissDashboardResultModal(page, "Role permissions updated successfully.");
 
       role = await findRoleByName(admin, owner.businessId, updatedRoleName);
@@ -99,7 +99,7 @@ test.describe("owner team and role management", () => {
       expect(branch).not.toBeNull();
 
       // Create an own-branch staff role used only by this scenario.
-      await page.goto("/dashboard/team?tab=roles", { waitUntil: "domcontentloaded" });
+      await page.goto("/dashboard/settings?view=roles", { waitUntil: "domcontentloaded" });
       await page.getByRole("button", { name: "+ Create Custom Role", exact: true }).click();
       const roleForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Create Role", exact: true }) }).first();
       await roleForm.locator('input[name="name"]').fill(roleName);
@@ -111,20 +111,18 @@ test.describe("owner team and role management", () => {
       const role = await findRoleByName(admin, owner.businessId, roleName);
       expect(role).not.toBeNull();
 
-      await page.goto(`/dashboard/team?branch=${branch.id}`, { waitUntil: "domcontentloaded" });
-      const addUserPanel = page.locator("details.team-add-user-panel");
+      await page.goto(`/dashboard/settings?view=users&branch=${branch.id}`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("button", { name: "+ Add User", exact: true }).click();
+      const addUserPanel = page.locator('[data-testid="team-add-user-panel"]');
       await expect(addUserPanel).toBeVisible();
-      await addUserPanel.locator("summary").click();
-      await expect(addUserPanel).toHaveAttribute("open", "");
       const createForm = addUserPanel.locator('form.management-form').filter({ has: page.locator('input[name="full_name"]') }).first();
       await createForm.locator('input[name="full_name"]').fill(fullName);
       await createForm.locator('input[name="email"]').fill(email);
       await createForm.locator('input[name="phone"]').fill(phone);
       await createForm.getByLabel("Assigned Role").selectOption({ label: roleName });
-      await createForm.locator('select[name="branch_ids"]').selectOption(branch.id);
       await createForm.locator('input[name="temporary_password"]').fill("E2Epass123!");
       await createForm.getByRole("button", { name: "Create user", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/team" && url.searchParams.get("message")?.startsWith("Team member created successfully."), { timeout: 25_000 });
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "users" && url.searchParams.get("message")?.startsWith("Team member created successfully."), { timeout: 25_000 });
       await dismissDashboardResultModal(page, "Team member created successfully.");
 
       let authUser = await findAuthUserByEmail(admin, email);
@@ -139,12 +137,12 @@ test.describe("owner team and role management", () => {
       let memberCard = page.locator("article.team-user-row", { hasText: fullName });
       await expect(memberCard).toBeVisible();
       await memberCard.getByRole("button", { name: `Edit ${fullName}`, exact: true }).click();
-      let editDialog = page.getByRole("dialog", { name: "Edit details" });
+      let editDialog = page.getByRole("dialog", { name: "Edit user" });
       await editDialog.locator('input[name="full_name"]').fill(updatedName);
       await editDialog.locator('select').filter({ has: page.locator('option[value="true"]') }).selectOption("false");
-      await editDialog.getByRole("button", { name: "Save changes", exact: true }).click();
-      const confirmUpdate = page.getByRole("dialog").filter({ hasText: "Are you sure you want to update?" });
-      await confirmUpdate.getByRole("button", { name: "Yes, update", exact: true }).click();
+      await editDialog.getByRole("button", { name: "Save details", exact: true }).click();
+      const confirmUpdate = page.getByRole("dialog").filter({ hasText: "Save user details?" });
+      await confirmUpdate.getByRole("button", { name: "Yes, save", exact: true }).click();
       await page.waitForURL((url) => url.searchParams.get("message") === "Team member details updated successfully.", { timeout: 25_000 });
       await dismissDashboardResultModal(page, "Team member details updated successfully.");
 
@@ -158,10 +156,10 @@ test.describe("owner team and role management", () => {
       memberCard = page.locator("article.team-user-row", { hasText: updatedName });
       await expect(memberCard).toBeVisible();
       await memberCard.getByRole("button", { name: `Edit ${updatedName}`, exact: true }).click();
-      editDialog = page.getByRole("dialog", { name: "Edit details" });
+      editDialog = page.getByRole("dialog", { name: "Edit user" });
       await editDialog.locator('select').filter({ has: page.locator('option[value="true"]') }).selectOption("true");
-      await editDialog.getByRole("button", { name: "Save changes", exact: true }).click();
-      await page.getByRole("dialog").filter({ hasText: "Are you sure you want to update?" }).getByRole("button", { name: "Yes, update", exact: true }).click();
+      await editDialog.getByRole("button", { name: "Save details", exact: true }).click();
+      await page.getByRole("dialog").filter({ hasText: "Save user details?" }).getByRole("button", { name: "Yes, save", exact: true }).click();
       await page.waitForURL((url) => url.searchParams.get("message") === "Team member details updated successfully.", { timeout: 25_000 });
       await dismissDashboardResultModal(page, "Team member details updated successfully.");
       membership = await getBusinessMembership(admin, owner.businessId, authUser.id);
@@ -170,7 +168,7 @@ test.describe("owner team and role management", () => {
       memberCard = page.locator("article.team-user-row", { hasText: updatedName });
       await expect(memberCard).toBeVisible();
       await memberCard.getByRole("button", { name: `Edit ${updatedName}`, exact: true }).click();
-      editDialog = page.getByRole("dialog", { name: "Edit details" });
+      editDialog = page.getByRole("dialog", { name: "Edit user" });
       await editDialog.getByRole("button", { name: "Delete team member", exact: true }).click();
       const nameDialog = page.getByRole("dialog").filter({ hasText: "Please type" });
       await nameDialog.locator("input.qd-delete-name-input").fill(updatedName);

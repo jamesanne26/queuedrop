@@ -88,6 +88,7 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets }: P
   return (
     <div className="tv-queue-page">
       <div className="tv-queue-toolbar">
+        <button type="button" className="tv-back-button" onClick={() => router.push("/dashboard")} aria-label="Back to dashboard">← Back</button>
         <label>
           <span className="sr-only">Branch</span>
           <select value={selectedBranchId} onChange={(event) => changeBranch(event.target.value)} aria-label="TV display branch">

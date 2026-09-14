@@ -84,7 +84,7 @@ export default async function ReportsPage({ searchParams }: Props) {
         <p className="muted page-lead">A clear view of queue activity, stub flow, and service performance across your business.</p>
         <div className="reports-context-row"><span>{periodLabel}</span><span>{selectedBranchName}</span><span>{selectedServiceName}</span></div>
       </div>
-      <span className="env-badge">TEST</span>
+      {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
     </header>
 
     <form className="dashboard-section reports-filter-card" method="get">

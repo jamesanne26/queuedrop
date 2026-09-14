@@ -9,7 +9,7 @@ function value(formData: FormData, key: string) {
 }
 
 function fail(message: string): never {
-  redirect(`/dashboard/branches?error=${encodeURIComponent(message)}`);
+  redirect(`/dashboard/settings?view=branch-general&error=${encodeURIComponent(message)}`);
 }
 
 async function ownerAdminContext(targetBranchId?: string) {
@@ -17,7 +17,7 @@ async function ownerAdminContext(targetBranchId?: string) {
 
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user) {
-    redirect("/auth/login?next=%2Fdashboard%2Fbranches");
+    redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
   const { data: businessId, error: businessError } = targetBranchId
@@ -44,9 +44,11 @@ export async function createBranch(formData: FormData) {
   const name = value(formData, "name");
   const address = value(formData, "address");
   const phone = value(formData, "phone");
+  const sourceBranchId = value(formData, "source_branch_id");
+  const duplicateSettings = Boolean(sourceBranchId);
   validateBranchFields(name, address, phone);
 
-  const { supabase } = await ownerAdminContext();
+  const { supabase, businessId } = await ownerAdminContext();
   const { error } = await supabase.rpc("create_branch_with_defaults", {
     branch_name: name,
     branch_address: address || null,
@@ -60,8 +62,60 @@ export async function createBranch(formData: FormData) {
     fail(error.message || "Unable to create branch.");
   }
 
+  const { data: createdBranch, error: createdError } = await supabase
+    .from("branches")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("name", name)
+    .limit(1)
+    .maybeSingle();
+
+  if (createdError || !createdBranch?.id) fail("Branch was created, but QueueDrop could not open it.");
+
+  if (duplicateSettings && sourceBranchId) {
+    const { data: sourceBranch } = await supabase
+      .from("branches")
+      .select("id,timezone,terminal_theme,terminal_page_bg_color,terminal_press_bg_color,terminal_accent_color,terminal_text_color,terminal_muted_text_color,terminal_background_image_url,terminal_logo_url,terminal_background_overlay")
+      .eq("id", sourceBranchId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (sourceBranch) {
+      const [configResult, hoursResult, rulesResult, servicesResult] = await Promise.all([
+        supabase.from("queue_configurations").select("starting_number,no_show_minutes,is_active,show_branch_contact,customer_refresh_seconds,sms_notifications_enabled,sms_start_position").eq("branch_id", sourceBranchId).maybeSingle(),
+        supabase.from("operating_hours").select("day_of_week,is_open,open_time,close_time").eq("branch_id", sourceBranchId).order("day_of_week"),
+        supabase.from("position_notification_rules").select("position,send_sms_once,browser_notification").eq("branch_id", sourceBranchId).order("position"),
+        supabase.from("services").select("name,description,queue_prefix,estimated_minutes,is_active").eq("branch_id", sourceBranchId).order("created_at"),
+      ]);
+
+      const branchSettings = { ...sourceBranch };
+      delete (branchSettings as { id?: string }).id;
+      await supabase.from("branches").update(branchSettings).eq("id", createdBranch.id).eq("business_id", businessId);
+
+      if (configResult.data) {
+        await supabase.from("queue_configurations").upsert({ branch_id: createdBranch.id, ...configResult.data }, { onConflict: "branch_id" });
+      }
+
+      await supabase.from("operating_hours").delete().eq("branch_id", createdBranch.id);
+      if (hoursResult.data?.length) {
+        await supabase.from("operating_hours").insert(hoursResult.data.map((row: { day_of_week: number; is_open: boolean; open_time: string | null; close_time: string | null }) => ({ branch_id: createdBranch.id, ...row })));
+      }
+
+      await supabase.from("position_notification_rules").delete().eq("branch_id", createdBranch.id);
+      if (rulesResult.data?.length) {
+        await supabase.from("position_notification_rules").insert(rulesResult.data.map((row: { position: number; send_sms_once: boolean; browser_notification: boolean }) => ({ branch_id: createdBranch.id, ...row })));
+      }
+
+      await supabase.from("services").delete().eq("branch_id", createdBranch.id);
+      if (servicesResult.data?.length) {
+        await supabase.from("services").insert(servicesResult.data.map((row: { name: string; description: string | null; queue_prefix: string | null; estimated_minutes: number | null; is_active: boolean }) => ({ branch_id: createdBranch.id, ...row })));
+      }
+    }
+  }
+
   revalidatePath("/dashboard/branches");
-  redirect("/dashboard/branches?message=Branch%20created%20successfully.");
+  revalidatePath("/dashboard/settings");
+  redirect(`/dashboard/settings?branch=${createdBranch.id}&view=branch-general&message=${encodeURIComponent(duplicateSettings ? "Branch created and settings duplicated successfully." : "Branch created successfully.")}`);
 }
 
 export async function updateBranch(formData: FormData) {
@@ -90,7 +144,8 @@ export async function updateBranch(formData: FormData) {
   }
 
   revalidatePath("/dashboard/branches");
-  redirect("/dashboard/branches?message=Branch%20updated%20successfully.");
+  revalidatePath("/dashboard/settings");
+  redirect(`/dashboard/settings?branch=${branchId}&view=branch-general&message=Branch%20updated%20successfully.`);
 }
 
 export async function deleteBranch(formData: FormData) {
@@ -118,7 +173,8 @@ export async function deleteBranch(formData: FormData) {
   if (error) fail(error.message || "Unable to delete branch.");
 
   revalidatePath("/dashboard/branches");
-  redirect("/dashboard/branches?message=Branch%20deleted%20successfully.");
+  revalidatePath("/dashboard/settings");
+  redirect("/dashboard/settings?view=branch-general&message=Branch%20deleted%20successfully.");
 }
 
 
@@ -131,7 +187,7 @@ export async function updateBranchStatus(formData: FormData) {
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fbranches");
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
 
   const { error } = await supabase.rpc("set_assigned_branch_status", {
     target_branch_id: branchId,
@@ -141,5 +197,6 @@ export async function updateBranchStatus(formData: FormData) {
   if (error) fail(error.message || "Unable to update branch status.");
 
   revalidatePath("/dashboard/branches");
-  redirect("/dashboard/branches?message=Branch%20status%20updated.");
+  revalidatePath("/dashboard/settings");
+  redirect(`/dashboard/settings?branch=${branchId}&view=branch-general&message=Branch%20status%20updated.`);
 }

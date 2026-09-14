@@ -44,3 +44,16 @@ Every production-impacting bug should leave behind an automated test at the lowe
 ## Skips versus release gates
 
 Local integration/smoke commands may skip infrastructure checks when TEST configuration is absent. Release automation must use the `:required` commands so missing credentials become a failure rather than a false-green pass. The runner auto-loads `.env.test.local` / `.env.local`; explicit `QUEUEDROP_TEST_*` variables are required for Supabase integration tests to avoid accidental production access.
+
+## 2026-09-13 expanded automated coverage
+
+The unit suite now also covers role/branch-scope invariants, SMS failure-injection safety, generic SMS provider request construction/SSRF guards, and SMS route selection/order. These are deterministic business rules and belong at unit level rather than being repeated through slow browser tests.
+
+Focused browser commands:
+
+- `npm run test:settings` — Settings navigation, branch persistence, roles/team flows, reports settings flow, and UI consistency contracts.
+- `npm run test:ui:consistency` — desktop sizing/alignment contracts plus responsive coverage.
+- `npm run test:fast` — lint, typecheck, unit, SMS, and secret scan for a fast pre-commit gate.
+- `npm run test:all` — authoritative full release gate; it still runs every Playwright regression, so focused specs are not duplicated in the full runner.
+
+New UI contract regressions explicitly protect the compact desktop sidebar, equal-sized Role toolbar actions, and the grouped/equal-sized Save/Delete branch actions. Keep these checks when changing dashboard CSS so visual regressions are caught automatically.

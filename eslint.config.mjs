@@ -17,6 +17,9 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "blob-report/**",
     "next-env.d.ts",
+    // Obsolete transpiled/stale copy from pre-TypeScript Settings builds.
+    // The source of truth is settings-unified-console.tsx.
+    "app/dashboard/settings/settings-unified-console.jsx",
   ]),
 ]);
 

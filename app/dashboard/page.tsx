@@ -81,7 +81,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             <p className="eyebrow">QueueDrop workspace</p>
             <h1>Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}</h1>
           </div>
-          <span className="env-badge">TEST</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </header>
 
         {!hasWorkspace ? (

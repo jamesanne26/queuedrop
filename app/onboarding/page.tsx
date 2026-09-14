@@ -37,7 +37,7 @@ export default async function OnboardingPage({ searchParams }: Props) {
       <section className="onboarding-card">
         <div className="onboarding-topline">
           <Link href="/" className="brand-mark">QueueDrop</Link>
-          <span className="env-badge">TEST</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </div>
 
         <div className="onboarding-heading">

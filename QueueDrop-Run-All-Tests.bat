@@ -75,6 +75,9 @@ call :run "Integration tests"       "npm run test:integration:required"
 call :run "Production build"        "npm run build"
 call :run "End-to-end tests"        "npm run test:e2e"
 
+REM owner-ui-consistency.spec.mjs and all focused settings scenarios are included
+REM automatically by test:e2e. For fast local Settings-only QA, use: npm run test:settings
+
 echo.
 echo ========================================
 echo ALL QUEUEDROP AUTOMATED TESTS PASSED

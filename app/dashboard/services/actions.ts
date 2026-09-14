@@ -15,7 +15,8 @@ function servicesUrl(
   const params = new URLSearchParams();
   if (branchId && branchId !== "all") params.set("branch", branchId);
   params.set(key, message);
-  return `/dashboard/services?${params.toString()}`;
+  params.set("view", "services");
+  return `/dashboard/settings?${params.toString()}`;
 }
 
 function fail(message: string, branchId = ""): never {
@@ -40,7 +41,7 @@ export async function createService(formData: FormData) {
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fservices");
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
 
   const { error } = await supabase.rpc("create_service_for_branch", {
     target_branch_id: branchId,
@@ -102,7 +103,7 @@ export async function updateService(formData: FormData) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) {
-    redirect("/auth/login?next=%2Fdashboard%2Fservices");
+    redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
   const { error } = await supabase.rpc("update_service_for_branch", {
@@ -137,7 +138,7 @@ export async function deleteService(formData: FormData) {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) {
-    redirect("/auth/login?next=%2Fdashboard%2Fservices");
+    redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
   const { error } = await supabase.rpc("delete_service_for_branch", {
@@ -161,7 +162,7 @@ export async function setServiceActive(formData: FormData) {
 
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fservices");
+  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
 
   const { error } = await supabase.rpc("set_service_active", {
     target_service_id: serviceId,

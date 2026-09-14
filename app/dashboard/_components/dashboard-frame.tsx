@@ -17,9 +17,9 @@ type Props = {
 
 export function DashboardFrame({ role, canViewSettings, canViewReports, canManageTeam, canManageServices, canManageBranches, children }: Props) {
   const pathname = usePathname();
-  const liveQueue = pathname === "/dashboard/queues";
+  const fullScreenRoute = pathname === "/dashboard/queues" || pathname === "/dashboard/tv";
 
-  if (liveQueue) return <>{children}</>;
+  if (fullScreenRoute) return <>{children}</>;
 
   return (
     <main className="dashboard-shell">

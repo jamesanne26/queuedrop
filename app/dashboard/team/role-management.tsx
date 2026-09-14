@@ -69,7 +69,10 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
           <h2>Roles</h2>
           <p className="muted">Role names are labels. The permissions selected here are the authority QueueDrop uses for employee access.</p>
         </div>
-        <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button>
+        <div className={styles.toolbarActions}>
+          {!creating && activeRole && !activeRole.is_protected ? <button className={styles.saveTopButton} type="submit" form={`role-editor-${activeRole.id}`}>Save Role & Permissions</button> : null}
+          <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button>
+        </div>
       </div>
 
       <div className={styles.adminGrid}>
@@ -131,7 +134,7 @@ function RoleEditor({
   const [selectAll, setSelectAll] = useState(false);
 
   return (
-    <form action={action} className={styles.form}>
+    <form id={role ? `role-editor-${role.id}` : "role-editor-create"} action={action} className={styles.form}>
       {role ? <input type="hidden" name="role_id" value={role.id} /> : null}
       <div className={styles.detailHeading}>
         <div>
@@ -202,7 +205,7 @@ function RoleEditor({
       ) : (
         <div className={styles.actions}>
           {mode === "create" && onCancel ? <button className={styles.secondaryButton} type="button" onClick={onCancel}>Cancel</button> : null}
-          <button className={styles.primaryButton} type="submit">{mode === "create" ? "Create Role" : "Save Role & Permissions"}</button>
+          {mode === "create" ? <button className={styles.primaryButton} type="submit">Create Role</button> : null}
         </div>
       )}
     </form>

@@ -42,21 +42,31 @@ test.describe("owner settings and reports", () => {
     try {
       const data = await setup(page, admin, owner, id);
       branchName = data.branchName;
-      await page.goto(`/dashboard/settings?branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
+      // Queue behavior and notifications are separate Settings views now. Verify
+      // each form at its current route instead of relying on the legacy combined form.
+      await page.goto(`/dashboard/settings?view=branch-queue&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
       await expectNoAppError(page);
-      const settingsForm = page.locator('form[action]').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
-      await expect(settingsForm).toBeVisible();
-      await settingsForm.locator('input[name="customer_refresh_seconds"]').fill("11");
-      const smsToggle = settingsForm.locator('input[name="sms_notifications_enabled"]').first();
-      if (await smsToggle.isVisible()) await smsToggle.check();
-      const smsStart = settingsForm.locator('input[name="sms_start_position"]').first();
-      if (await smsStart.isVisible()) await smsStart.fill("4");
-
-      await settingsForm.getByRole("button", { name: "Save branch settings", exact: true }).click();
-      const review = page.getByRole("dialog");
+      const queueForm = page.locator('form[action]').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
+      await expect(queueForm).toBeVisible();
+      await queueForm.locator('input[name="customer_refresh_seconds"]').fill("11");
+      await queueForm.getByRole("button", { name: "Save branch settings", exact: true }).click();
+      let review = page.getByRole("dialog");
       await expect(review).toBeVisible();
       await review.getByRole("button", { name: "Confirm save", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch settings saved.", { timeout: 20_000 });
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-queue" && url.searchParams.get("message") === "Branch settings saved.", { timeout: 20_000 });
+      await dismissDashboardResultModal(page, "Branch settings saved.");
+
+      await page.goto(`/dashboard/settings?view=branch-notifications&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
+      const notificationsForm = page.locator('form[action]').filter({ has: page.locator('input[name="sms_notifications_enabled"]') }).first();
+      await expect(notificationsForm).toBeVisible();
+      const smsToggle = notificationsForm.locator('input[name="sms_notifications_enabled"]');
+      if (!(await smsToggle.isChecked())) await smsToggle.check();
+      await notificationsForm.locator('input[name="sms_start_position"]').fill("4");
+      await notificationsForm.getByRole("button", { name: "Save branch settings", exact: true }).click();
+      review = page.getByRole("dialog");
+      await expect(review).toBeVisible();
+      await review.getByRole("button", { name: "Confirm save", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-notifications" && url.searchParams.get("message") === "Branch settings saved.", { timeout: 20_000 });
       await dismissDashboardResultModal(page, "Branch settings saved.");
 
       const config = await getQueueConfiguration(admin, data.branch.id);
@@ -64,7 +74,7 @@ test.describe("owner settings and reports", () => {
       expect(config?.sms_notifications_enabled).toBe(true);
       expect(config?.sms_start_position).toBe(4);
 
-      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.goto(`/dashboard/settings?view=branch-queue&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
       const reloaded = page.locator('form[action]').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
       await expect(reloaded.locator('input[name="customer_refresh_seconds"]')).toHaveValue("11");
     } finally {

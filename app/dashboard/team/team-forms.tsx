@@ -73,10 +73,8 @@ function PasswordField({
 }
 
 export function TeamCreateFields({
-  branches,
   managerMode,
   businessRoles,
-  selectedBranchId,
 }: {
   branches: Branch[];
   managerMode: boolean;
@@ -98,36 +96,14 @@ export function TeamCreateFields({
       <input type="hidden" name="business_role_id" value={selectedBusinessRole?.id ?? ""} />
       <input type="hidden" name="custom_role_name" value={selectedBusinessRole?.name ?? "Staff"} />
 
-      {selectedBusinessRole?.branch_scope === "own_branch_only" ? (
-        <label>
-          Branch
-          <select key={`${businessRoleId}-${selectedBranchId}`} name="branch_ids" defaultValue={branches.length === 1 ? branches[0].id : selectedBranchId !== "all" ? selectedBranchId : ""} required>
-            <option value="" disabled>
-              Select one branch
-            </option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-          <small>This declared role can belong to one branch only.</small>
-        </label>
-      ) : selectedBusinessRole?.branch_scope === "all_branches" ? (
-        <div className="role-access-note"><strong>All branches</strong><span>This role automatically receives access to every branch in this business.</span></div>
-      ) : (
-        <fieldset className="branch-checkboxes">
-          <legend>
-            Branch <small>select at least one</small>
-          </legend>
-          {branches.map((branch) => (
-            <label key={branch.id}>
-              <input type="checkbox" name="branch_ids" value={branch.id} defaultChecked={branches.length === 1 || branch.id === selectedBranchId} />
-              <span>{branch.name}</span>
-            </label>
-          ))}
-        </fieldset>
-      )}
+      <div className="role-access-note">
+        <strong>Branch access after user creation</strong>
+        <span>
+          {selectedBusinessRole?.branch_scope === "all_branches"
+            ? "This role can be assigned to multiple branches from Branches → Branch Users."
+            : "This role can be assigned to one branch only from Branches → Branch Users."}
+        </span>
+      </div>
 
 
       <label>

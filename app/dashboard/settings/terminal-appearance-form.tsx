@@ -91,8 +91,7 @@ export function TerminalAppearanceForm({ action, businessId, businessName, branc
   return <form onSubmit={handleSubmit} className="terminal-appearance-settings">
     <input type="hidden" name="branch_id" value={branchId} />
     <div className="terminal-appearance-scope">
-      <div><strong>{branchName}</strong><small>Appearance is saved for this branch.</small></div>
-      <label className="compact-check"><input type="checkbox" name="apply_all_branches" /><span>Apply this appearance to all branches</span></label>
+      <div><strong>{branchName}</strong><small>Appearance is saved only for this branch.</small></div>
     </div>
     <div className="terminal-theme-grid" role="radiogroup" aria-label="Terminal themes">
       {(Object.entries(TERMINAL_THEMES) as [TerminalThemeKey, typeof TERMINAL_THEMES[TerminalThemeKey]][]).map(([key, preset]) => (

@@ -44,6 +44,13 @@ async function issueTestStub(page, admin, branch, service) {
   const getStubButton = page.getByRole("button", { name: /Get test stub/i });
   await getStubButton.click();
 
+  // Wait for the server-action redirect before polling Supabase. This prevents
+  // the next scenario from racing a still-pending issue_stub_ticket action.
+  await page.waitForURL(
+    (url) => url.pathname === "/dashboard/queues" && url.searchParams.get("branch") === branch.id && url.searchParams.get("service") === service.id && Boolean(url.searchParams.get("success")),
+    { timeout: 25_000 },
+  );
+
   // The ticket can reach Supabase/Realtime before the server action finishes its
   // redirect/revalidation. If a test opens the customer preview in that gap, the
   // late action navigation remounts the queue page and destroys the iframe. Wait
@@ -113,39 +120,51 @@ test.describe("owner terminals and queue operations", () => {
 
       // Configure a deterministic TEST-only kiosk exit PIN used by this scenario.
       const pinForm = page.locator("form.kiosk-pin-form");
+      await pinForm.locator('select[name="branch_id"]').selectOption(branch.id);
       await pinForm.locator('input[name="kiosk_exit_pin"]').fill("4826");
       await pinForm.locator('input[name="kiosk_exit_pin_confirm"]').fill("4826");
       await pinForm.getByRole("button", { name: "Save PIN", exact: true }).click();
-      await page.waitForURL(/\/dashboard\/terminals\?message=/, { timeout: 20_000 });
-      await expectNotice(page, "Terminal exit PIN updated.");
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && url.searchParams.get("branch") === branch.id && url.searchParams.get("message") === "Branch terminal exit PIN updated.", { timeout: 20_000 });
+      await expectNotice(page, "Branch terminal exit PIN updated.");
+      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
 
       const createForm = page.locator("form.form-stack.compact-form").filter({ has: page.getByRole("button", { name: "Create terminal", exact: true }) }).first();
       await createForm.locator('input[name="name"]').fill(terminalName);
       await createForm.locator('select[name="branch_id"]').selectOption(branch.id);
       await createForm.locator('select[name="service_id"]').selectOption(serviceA.id);
       await createForm.getByRole("button", { name: "Create terminal", exact: true }).click();
-      await page.waitForURL(/\/dashboard\/terminals\?message=/, { timeout: 20_000 });
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && Boolean(url.searchParams.get("message")), { timeout: 20_000 });
       await expectNotice(page, "QueueDrop terminal created.");
 
       let terminal = await findTerminalByName(admin, branch.id, terminalName);
       expect(terminal).not.toBeNull();
       expect(terminal?.service_id).toBe(serviceA.id);
 
+      // Server actions redirect terminal mutations to the Settings terminal panel.
+      // Re-open the canonical /dashboard/terminals page before interacting with the
+      // registered-terminal card so this lifecycle test uses that page's real DOM.
+      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
       let card = page.locator("article.terminal-card", { hasText: terminalName });
-      await card.locator("summary").click();
+      await expect(card).toBeVisible({ timeout: 20_000 });
+      await card.getByText("Branch & default service", { exact: true }).click();
       const editForm = card.locator("form.terminal-edit-form");
       await editForm.locator('input[name="name"]').fill(terminalEditedName);
       await editForm.locator('select[name="branch_id"]').selectOption(branch.id);
       await editForm.locator('select[name="service_id"]').selectOption(serviceB.id);
       await editForm.getByRole("button", { name: "Save assignment", exact: true }).click();
-      await page.waitForURL(/\/dashboard\/terminals\?message=/, { timeout: 20_000 });
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && Boolean(url.searchParams.get("message")), { timeout: 20_000 });
       await expectNotice(page, "Terminal branch and default service updated.");
 
       terminal = await findTerminalByName(admin, branch.id, terminalEditedName);
       expect(terminal).not.toBeNull();
       expect(terminal?.service_id).toBe(serviceB.id);
 
+      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
       card = page.locator("article.terminal-card", { hasText: terminalEditedName });
+      await expect(card).toBeVisible({ timeout: 20_000 });
       await card.getByRole("link", { name: "Open Terminal", exact: true }).click();
       await page.waitForURL(/\/kiosk\//, { timeout: 20_000 });
       await expect(page.getByRole("button", { name: "Press here to get stub" })).toBeVisible();
@@ -167,25 +186,20 @@ test.describe("owner terminals and queue operations", () => {
       const exitDialog = page.getByRole("dialog", { name: "Enter exit PIN" });
       await exitDialog.getByLabel("Exit PIN").fill("4826");
 
-      // Verify the protected-exit API itself succeeded. On hosted Next.js the
-      // subsequent router.replace()/RSC navigation can finish much later than the
-      // API response, which previously made this scenario flaky despite a valid PIN.
-      const exitResponsePromise = page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          /\/api\/kiosk\/[^/]+\/exit(?:\?|$)/.test(response.url()),
-        { timeout: 20_000 },
-      );
+      // Exercise the protected-exit flow through the UI and assert the outcome the
+      // operator actually cares about. Waiting for the fetch response event itself is
+      // brittle here because Next.js can start client navigation immediately after the
+      // successful response and Playwright may never observe that transient event.
       await exitDialog.getByRole("button", { name: "Return to dashboard", exact: true }).click();
-      const exitResponse = await exitResponsePromise;
-      expect(exitResponse.ok()).toBe(true);
+      await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 30_000 });
+      await expect(page.getByText(/Unable to exit kiosk mode|Incorrect PIN|Dashboard session expired/i)).toHaveCount(0);
 
-      // Start a fresh authenticated document after the durable exit check instead
-      // of waiting on a transient client-router stream.
+      // Open a fresh authenticated terminals document before the removal assertions.
       await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
       await expectNoAppError(page);
 
       card = page.locator("article.terminal-card", { hasText: terminalEditedName });
+      await expect(card).toBeVisible({ timeout: 20_000 });
       await card.getByRole("button", { name: "Remove", exact: true }).click();
 
       // Deletion is a Next.js server action. In hosted CI the database commit can
@@ -277,6 +291,9 @@ test.describe("owner terminals and queue operations", () => {
   });
 
   test("Scenario 9 - return serving stub to the end of waiting queue", async ({ page }) => {
+    // This path issues two stubs and crosses several server actions; 45s is too
+    // tight in production-mode E2E even when every durable mutation succeeds.
+    test.setTimeout(90_000);
     const id = scenarioId("queue-return");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
@@ -304,8 +321,23 @@ test.describe("owner terminals and queue operations", () => {
       await submitVerificationDialog(dialog, "Return to last");
       await waitForTicketStatus(admin, first.id, "waiting");
 
+      const returned = await getTicketById(admin, first.id);
+      const { data: waitingRows, error: waitingError } = await admin.from("tickets")
+        .select("id,ticket_number")
+        .eq("branch_id", setup.branch.id)
+        .eq("service_id", setup.service.id)
+        .eq("status", "waiting")
+        .order("ticket_number", { ascending: true });
+      if (waitingError) throw waitingError;
+      expect(waitingRows).toHaveLength(2);
+      expect(waitingRows.at(-1)?.id).toBe(first.id);
+      expect(returned?.ticket_number).toBe(waitingRows.at(-1)?.ticket_number);
+
+      // Render from persisted state so the assertion is not coupled to websocket
+      // delivery timing after the return-to-last server action.
+      await page.reload({ waitUntil: "domcontentloaded" });
       const waitingCards = page.locator(".live-waiting-panel .live-ticket-card");
-      await expect(waitingCards).toHaveCount(2);
+      await expect(waitingCards).toHaveCount(2, { timeout: 15_000 });
       await expect(waitingCards.nth(1)).toContainText(first.display_number);
     } finally {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);

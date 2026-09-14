@@ -2,100 +2,64 @@ import { test, expect } from "@playwright/test";
 import { loginAsOwner } from "../helpers/auth.mjs";
 import { hasAdminTestEnvironment, ownerCredentials } from "../helpers/env.mjs";
 import { cleanupOwnedBranch, createAdminClient, findBranchByName, findServiceByName, getOwnerBusiness } from "../helpers/admin-db.mjs";
+import { createBranchFromUi, createServiceFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
 import { dismissDashboardResultModal, expectNoAppError } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
 
-function runId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+async function confirmCodeDelete(page, buttonName) {
+  await page.getByRole("button", { name: buttonName, exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  const code = (await dialog.getByLabel("Verification code").first().textContent())?.trim();
+  expect(code).toMatch(/^\d{4}$/);
+  await dialog.locator("input").fill(code);
+  await dialog.getByRole("button", { name: "Confirm delete", exact: true }).click();
 }
 
 test.describe("owner management scenarios", () => {
   test.skip(!credentials || !adminReady, "Owner credentials and dedicated TEST Supabase admin variables are required.");
 
   test("Scenario 1 - create and delete a branch independently", async ({ page }) => {
-    const id = runId();
-    const branchName = `E2E Branch ${id}`;
+    const branchName = `E2E Branch ${scenarioId()}`;
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
-
     await cleanupOwnedBranch(admin, owner.businessId, branchName);
 
     try {
       await loginAsOwner(page, credentials);
-      await page.goto("/dashboard/branches", { waitUntil: "domcontentloaded" });
-      await expectNoAppError(page);
-
-      const createForm = page.locator('form.management-form').filter({ has: page.locator('input[name="name"]') }).first();
-      await createForm.locator('input[name="name"]').fill(branchName);
-      await createForm.getByRole("button", { name: "Create branch", exact: true }).click();
-
-      await page.waitForURL(/\/dashboard\/branches\?message=/, { timeout: 15_000 });
-      await dismissDashboardResultModal(page, "Branch created successfully.");
-
-      const row = page.locator("article.branch-row", { hasText: branchName });
-      await expect(row).toBeVisible();
-
+      await createBranchFromUi(page, branchName);
       const persisted = await findBranchByName(admin, owner.businessId, branchName);
-      expect(persisted, "Created branch was not persisted in TEST Supabase").not.toBeNull();
+      expect(persisted).not.toBeNull();
 
-      await row.getByRole("button", { name: "Delete", exact: true }).click();
-      const confirmDialog = page.getByRole("dialog", { name: new RegExp(`Delete ${branchName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) });
-      await expect(confirmDialog).toBeVisible();
-      await confirmDialog.getByRole("button", { name: "Yes, delete branch", exact: true }).click();
-
-      await page.waitForURL(/\/dashboard\/branches\?message=/, { timeout: 15_000 });
+      await page.goto(`/dashboard/settings?view=branch-general&branch=${persisted.id}`, { waitUntil: "domcontentloaded" });
+      await confirmCodeDelete(page, "Delete branch");
+      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch deleted successfully.", { timeout: 20_000 });
       await dismissDashboardResultModal(page, "Branch deleted successfully.");
-      await expect(page.locator("article.branch-row", { hasText: branchName })).toHaveCount(0);
-
-      const deleted = await findBranchByName(admin, owner.businessId, branchName);
-      expect(deleted, "Deleted branch still exists in TEST Supabase").toBeNull();
+      expect(await findBranchByName(admin, owner.businessId, branchName)).toBeNull();
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
   });
 
-  test("Scenario 2 - create a service in scenario-owned branch and verify persistence", async ({ page }) => {
-    const id = runId();
+  test("Scenario 2 - create a catalog service, assign it to a branch, and verify persistence", async ({ page }) => {
+    const id = scenarioId();
     const branchName = `E2E Service Branch ${id}`;
     const serviceName = `E2E Service ${id}`;
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
-
     await cleanupOwnedBranch(admin, owner.businessId, branchName);
 
     try {
       await loginAsOwner(page, credentials);
-      await page.goto("/dashboard/branches", { waitUntil: "domcontentloaded" });
-      await expectNoAppError(page);
-
-      const branchForm = page.locator('form.management-form').filter({ has: page.locator('input[name="name"]') }).first();
-      await branchForm.locator('input[name="name"]').fill(branchName);
-      await branchForm.getByRole("button", { name: "Create branch", exact: true }).click();
-
-      await page.waitForURL(/\/dashboard\/branches\?message=/, { timeout: 15_000 });
-      await dismissDashboardResultModal(page, "Branch created successfully.");
-
+      await createBranchFromUi(page, branchName);
       const branch = await findBranchByName(admin, owner.businessId, branchName);
-      expect(branch, "Scenario-owned branch was not persisted").not.toBeNull();
-
-      await page.goto(`/dashboard/services?branch=${branch.id}`, { waitUntil: "domcontentloaded" });
-      await expectNoAppError(page);
-
-      const serviceForm = page.locator('form.management-form').filter({ has: page.locator('input[name="queue_prefix"]') }).first();
-      await expect(serviceForm).toBeVisible();
-      await serviceForm.locator('input[name="name"]').fill(serviceName);
-      await serviceForm.locator('input[name="queue_prefix"]').fill("E2E");
-      await serviceForm.locator('input[name="estimated_minutes"]').fill("15");
-      await serviceForm.getByRole("button", { name: "Create service", exact: true }).click();
-
-      await page.waitForURL((url) => url.pathname === "/dashboard/services" && url.searchParams.get("message") === "Service created successfully.", { timeout: 15_000 });
-      await dismissDashboardResultModal(page, "Service created successfully.");
-
-      await expect(page.locator("article", { hasText: serviceName }).first()).toBeVisible();
+      expect(branch).not.toBeNull();
+      await createServiceFromUi(page, branch.id, serviceName, { queuePrefix: "E2E", estimatedMinutes: 15 });
       const persisted = await findServiceByName(admin, branch.id, serviceName);
-      expect(persisted, "Created service was not persisted in TEST Supabase").not.toBeNull();
+      expect(persisted, "Assigned service was not materialized for the branch").not.toBeNull();
+      await expectNoAppError(page);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }

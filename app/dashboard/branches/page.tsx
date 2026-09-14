@@ -82,7 +82,7 @@ export default async function BranchesPage({ searchParams }: Props) {
             <h1>{business?.name ?? "QueueDrop"}</h1>
             <p className="muted page-lead">{canManage ? "Manage physical locations and the default queue settings created for each branch." : "You can only view the branch locations assigned to your staff account."}</p>
           </div>
-          <span className="env-badge">TEST</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </header>
 
         <div className="management-grid">

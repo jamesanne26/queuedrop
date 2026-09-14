@@ -18,17 +18,23 @@ const publicRoutes = [
 
 const ownerRoutes = [
   "/dashboard",
-  "/dashboard/branches",
-  "/dashboard/services",
-  "/dashboard/team",
-  "/dashboard/team?tab=roles",
-  "/dashboard/reports",
-  "/dashboard/terminals",
   "/dashboard/queues",
   "/dashboard/tv",
-  "/dashboard/settings",
-  "/client/configurations",
-  "/client/subscription",
+  "/dashboard/reports",
+  "/dashboard/settings?view=branch-general",
+  "/dashboard/settings?view=branch-services",
+  "/dashboard/settings?view=branch-users",
+  "/dashboard/settings?view=branch-operating",
+  "/dashboard/settings?view=branch-queue",
+  "/dashboard/settings?view=branch-notifications",
+  "/dashboard/settings?view=branch-appearance",
+  "/dashboard/settings?view=branch-terminals",
+  "/dashboard/settings?view=services",
+  "/dashboard/settings?view=users",
+  "/dashboard/settings?view=roles",
+  "/dashboard/settings?view=permissions",
+  "/dashboard/settings?view=business",
+  "/dashboard/settings?view=billing",
 ];
 
 test.describe("responsive layout coverage", () => {

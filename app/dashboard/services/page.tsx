@@ -49,7 +49,7 @@ export default async function ServicesPage({ searchParams }: Props) {
     <PreserveDashboardScroll />
     <DashboardResultModal success={params.message} error={params.error} />
     <section className="dashboard-content">
-      <header className="dashboard-header"><div><p className="eyebrow">{canManage ? "Service management" : "Assigned branch services"}</p><h1>{business?.name ?? "QueueDrop"}</h1><p className="muted page-lead">{canManage ? "Services are loaded once so switching branches is instant." : "View the services available in your assigned branch locations."}</p></div><span className="env-badge">TEST</span></header>
+      <header className="dashboard-header"><div><p className="eyebrow">{canManage ? "Service management" : "Assigned branch services"}</p><h1>{business?.name ?? "QueueDrop"}</h1><p className="muted page-lead">{canManage ? "Services are loaded once so switching branches is instant." : "View the services available in your assigned branch locations."}</p></div>{process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}</header>
       <ServicesWorkspace branches={branches} services={(allServices ?? []).map((service) => ({ id: service.id, branch_id: service.branch_id, name: service.name, description: service.description, queue_prefix: service.queue_prefix, estimated_minutes: service.estimated_minutes, is_active: service.is_active }))} canManage={canManage} initialBranchId={selectedBranchId}/>
     </section>
   </>;
