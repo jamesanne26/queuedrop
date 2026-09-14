@@ -4,6 +4,8 @@ import { ownerCredentials } from "../helpers/env.mjs";
 import { expectResponsivePage, responsiveViewports } from "../helpers/responsive.mjs";
 
 const credentials = ownerCredentials();
+const publicSweepTimeout = process.env.CI ? 60_000 : 45_000;
+const ownerSweepTimeout = process.env.CI ? 120_000 : 60_000;
 
 const publicRoutes = [
   "/",
@@ -40,21 +42,25 @@ const ownerRoutes = [
 test.describe("responsive layout coverage", () => {
   for (const viewport of responsiveViewports) {
     test(`public views fit ${viewport.name} (${viewport.width}x${viewport.height})`, async ({ page }) => {
+      test.setTimeout(publicSweepTimeout);
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const pageErrors = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
 
       for (const route of publicRoutes) {
-        const response = await page.goto(route, { waitUntil: "domcontentloaded" });
-        expect(response, `No response received for ${route}`).not.toBeNull();
-        expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
-        await expectResponsivePage(page, `${route} at ${viewport.name}`);
+        await test.step(`${viewport.name} public ${route}`, async () => {
+          const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+          expect(response, `No response received for ${route}`).not.toBeNull();
+          expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
+          await expectResponsivePage(page, `${route} at ${viewport.name}`);
+        });
       }
 
       expect(pageErrors, `Uncaught browser errors in ${viewport.name} public sweep`).toEqual([]);
     });
 
     test(`owner views fit ${viewport.name} (${viewport.width}x${viewport.height})`, async ({ page }) => {
+      test.setTimeout(ownerSweepTimeout);
       test.skip(!credentials, "E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD are required.");
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       const pageErrors = [];
@@ -62,9 +68,13 @@ test.describe("responsive layout coverage", () => {
 
       await loginAsOwner(page, credentials);
       for (const route of ownerRoutes) {
-        await page.goto(route, { waitUntil: "domcontentloaded" });
-        await expect(page.locator("body")).not.toContainText(/Invalid login credentials/i);
-        await expectResponsivePage(page, `${route} at ${viewport.name}`);
+        await test.step(`${viewport.name} owner ${route}`, async () => {
+          const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+          expect(response, `No response received for ${route}`).not.toBeNull();
+          expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
+          await expect(page.locator("body")).not.toContainText(/Invalid login credentials/i);
+          await expectResponsivePage(page, `${route} at ${viewport.name}`);
+        });
       }
 
       expect(pageErrors, `Uncaught browser errors in ${viewport.name} owner sweep`).toEqual([]);
