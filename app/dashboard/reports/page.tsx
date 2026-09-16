@@ -16,13 +16,15 @@ export default async function ReportsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_view_reports, can_export_reports, businesses(name)")
+    .select("business_id, role, can_view_history, can_view_reports, can_export_reports, businesses(name)")
     .eq("user_id", userData.user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) redirect("/dashboard");
 
   const role = membership.role as Role;
   const businessWide = role === "owner" || role === "admin";
-  if (!businessWide && !membership.can_view_reports) redirect("/dashboard");
+  const canViewHistory = businessWide || Boolean(membership.can_view_history);
+  const canViewReports = businessWide || Boolean(membership.can_view_reports);
+  if (!canViewHistory && !canViewReports) redirect("/dashboard");
   const canExport = businessWide || Boolean(membership.can_export_reports);
 
   let allowedBranchIds: string[] | null = null;
@@ -57,6 +59,7 @@ export default async function ReportsPage({ searchParams }: Props) {
   if (branch !== "all") q = q.eq("branch_id", branch);
   if (service !== "all") q = q.eq("service_id", service);
   if (status !== "all") q = q.eq("status", status);
+  if (!canViewReports) q = q.in("status", ["completed", "cancelled", "no_show"]);
   const { data: ticketData } = await q;
   const tickets = ticketData ?? [];
 
@@ -100,14 +103,14 @@ export default async function ReportsPage({ searchParams }: Props) {
       </div>
     </form>
 
-    <div className="reports-stat-grid">
+    {canViewReports ? <div className="reports-stat-grid">
       <article><span>Total stubs</span><strong>{tickets.length}</strong><small>In selected period</small></article>
       <article><span>Completed</span><strong>{completed}</strong><small>{completionRate}% completion rate</small></article>
       <article><span>Average wait</span><strong>{avgWaitMinutes}<em> min</em></strong><small>Based on called stubs</small></article>
       <article><span>Active queue</span><strong>{active}</strong><small>Waiting, called, or serving</small></article>
       <article><span>Cancelled</span><strong>{cancelled}</strong><small>Cancelled tickets</small></article>
       <article><span>No show</span><strong>{noShow}</strong><small>Stubs marked no show</small></article>
-    </div>
+    </div> : null}
 
     <section className="dashboard-section reports-export-card">
       <div><p className="eyebrow">Export report</p><h2>{businessName} operational report</h2><p className="muted">Download the exact filtered view above with stub, branch, service, status, and queue timestamps.</p></div>

@@ -51,16 +51,17 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_roles, can_manage_kiosk_display, businesses(name,kiosk_exit_pin_hash,terminal_theme,terminal_page_bg_color,terminal_press_bg_color,terminal_accent_color,terminal_text_color,terminal_muted_text_color,terminal_background_image_url,terminal_logo_url,terminal_background_overlay)")
+    .select("business_id, role, can_manage_branches, can_manage_settings, can_view_queue_information_editing, can_view_position_notifications, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_roles, can_manage_kiosk_display, businesses(name,kiosk_exit_pin_hash,terminal_theme,terminal_page_bg_color,terminal_press_bg_color,terminal_accent_color,terminal_text_color,terminal_muted_text_color,terminal_background_image_url,terminal_logo_url,terminal_background_overlay)")
     .eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) redirect("/dashboard");
 
   const actorRole = membership.role as Role;
   const businessWide = actorRole === "owner" || actorRole === "admin";
-  const canViewQueueInformationEditing = businessWide || Boolean(membership.can_view_queue_information_editing);
-  const canViewPositionNotifications = businessWide || Boolean(membership.can_view_position_notifications);
-  const canManageOperatingHours = businessWide || Boolean(membership.can_manage_operating_hours);
-  const canManageBranches = businessWide || Boolean(membership.can_set_branch_status);
+  const canManageSettings = businessWide || Boolean(membership.can_manage_settings);
+  const canViewQueueInformationEditing = canManageSettings || Boolean(membership.can_view_queue_information_editing);
+  const canViewPositionNotifications = canManageSettings || Boolean(membership.can_view_position_notifications);
+  const canManageOperatingHours = canManageSettings || Boolean(membership.can_manage_operating_hours);
+  const canManageBranches = businessWide || Boolean(membership.can_manage_branches || membership.can_set_branch_status);
   const canManageServices = businessWide || Boolean(membership.can_manage_services);
   const canManageTeam = businessWide || Boolean(membership.can_manage_team);
   const canManageRoles = businessWide || Boolean(membership.can_manage_roles);

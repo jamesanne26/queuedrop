@@ -100,6 +100,7 @@ export function SettingsUnifiedConsole({
   const [accessOpen, setAccessOpen] = useState(() => ["users", "roles", "permissions"].includes(normalizeView(initialView)));
   const [activeBranchId, setActiveBranchId] = useState(initialBranchId ?? branches[0]?.id);
   const [isBranchSwitching, startBranchTransition] = useTransition();
+  const [, startViewTransition] = useTransition();
   const selectedBranch = useMemo(() => branches.find((branch) => branch.id === activeBranchId) ?? branches[0], [branches, activeBranchId]);
   const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
@@ -116,7 +117,10 @@ export function SettingsUnifiedConsole({
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
     const nextUrl = `${url.pathname}?${url.searchParams.toString()}`;
-    startBranchTransition(() => router.replace(nextUrl, { scroll: false }));
+    // The panel changes optimistically above. Keep ordinary section navigation
+    // non-blocking and reserve the full-screen loading layer for a real branch
+    // switch, where every branch-scoped value must be replaced.
+    startViewTransition(() => router.replace(nextUrl, { scroll: false }));
   };
 
   const chooseBranch = (branchId: string) => {

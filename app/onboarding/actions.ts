@@ -45,24 +45,10 @@ export async function createBusinessWorkspace(formData: FormData) {
     redirect("/auth/login?next=%2Fonboarding");
   }
 
-  const { data: existingMembership, error: membershipError } = await supabase
-    .from("business_users")
-    .select("business_id")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (membershipError) {
-    fail("Unable to verify your workspace access. Please try again.");
-  }
-
-  if (existingMembership) {
-    redirect("/dashboard");
-  }
-
   // The RPC creates the business, owner membership, Starter trial, first branch,
-  // branch membership and queue defaults atomically. There is no second app-side
-  // subscription step that can fail and leave a half-created workspace.
+  // branch membership and queue defaults atomically. It also rejects an account
+  // that already owns/belongs to a workspace, so a separate membership query
+  // only adds another network round trip to the most latency-sensitive flow.
   const { data: created, error } = await supabase.rpc("create_initial_business_workspace", {
     business_name: businessName,
     branch_name: branchName,

@@ -92,3 +92,32 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /const viewAllowed/);
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
+
+test("settings navigation separates branch switching from optimistic view navigation", async () => {
+  const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
+  assert.match(consoleSource, /const \[, startViewTransition\] = useTransition\(\)/);
+  assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+});
+
+test("manage settings is honored by both settings routes and server actions", async () => {
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(page, /can_manage_branches, can_manage_settings/);
+  assert.match(page, /const canManageSettings = businessWide \|\| Boolean\(membership\.can_manage_settings\)/);
+  assert.match(actions, /can_manage_settings,can_manage_operating_hours/);
+  assert.match(actions, /privileged \|\| Boolean\(settingsMembership\?\.can_manage_settings\)/);
+});
+
+test("history-only users can open history without receiving report summaries", async () => {
+  const reports = await readFile(new URL("../../app/dashboard/reports/page.tsx", import.meta.url), "utf8");
+  assert.match(reports, /can_view_history, can_view_reports/);
+  assert.match(reports, /if \(!canViewReports\) q = q\.in\("status", \["completed", "cancelled", "no_show"\]\)/);
+  assert.match(reports, /\{canViewReports \? <div className="reports-stat-grid">/);
+});
+
+test("atomic onboarding avoids a redundant membership round trip", async () => {
+  const onboarding = await readFile(new URL("../../app/onboarding/actions.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(onboarding, /existingMembership/);
+  assert.match(onboarding, /create_initial_business_workspace/);
+});

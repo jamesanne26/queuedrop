@@ -130,10 +130,10 @@ export async function updateQueueSettings(formData: FormData) {
   }
 
   const { data: settingsMembership } = await supabase.from("business_users")
-    .select("role,can_manage_operating_hours,can_view_queue_information_editing,can_view_position_notifications")
+    .select("role,can_manage_settings,can_manage_operating_hours,can_view_queue_information_editing,can_view_position_notifications")
     .eq("user_id", userData.user.id).eq("is_active", true).limit(1).maybeSingle();
   const privileged = isOwnerOrAdmin(settingsMembership?.role);
-  const permitted = privileged ||
+  const permitted = privileged || Boolean(settingsMembership?.can_manage_settings) ||
     (returnView === "branch-operating" && Boolean(settingsMembership?.can_manage_operating_hours)) ||
     (returnView === "branch-queue" && Boolean(settingsMembership?.can_view_queue_information_editing)) ||
     (returnView === "branch-notifications" && Boolean(settingsMembership?.can_view_position_notifications));
