@@ -15,9 +15,15 @@ function fail(message: string): never {
 export async function updateOwnAccount(formData: FormData) {
   const fullName = value(formData, "full_name");
   const phone = value(formData, "phone");
+  const newPassword = value(formData, "new_password");
+  const confirmPassword = value(formData, "confirm_password");
 
   if (fullName.length < 2 || fullName.length > 100) fail("Full name must be between 2 and 100 characters.");
   if (phone && !/^[0-9]{7,20}$/.test(phone)) fail("Mobile number must contain numbers only.");
+  if (newPassword || confirmPassword) {
+    if (newPassword.length < 6 || newPassword.length > 72) fail("New password must be between 6 and 72 characters.");
+    if (newPassword !== confirmPassword) fail("Password confirmation does not match.");
+  }
 
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -30,8 +36,11 @@ export async function updateOwnAccount(formData: FormData) {
 
   if (profileError) fail(profileError.message || "Unable to update your account.");
 
-  const { error: metadataError } = await supabase.auth.updateUser({ data: { full_name: fullName } });
-  if (metadataError) fail(metadataError.message || "Account was saved, but login profile metadata could not be updated.");
+  const { error: metadataError } = await supabase.auth.updateUser({
+    data: { full_name: fullName },
+    ...(newPassword ? { password: newPassword } : {}),
+  });
+  if (metadataError) fail(metadataError.message || "Account was saved, but login profile or password could not be updated.");
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/account");

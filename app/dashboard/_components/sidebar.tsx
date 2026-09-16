@@ -10,6 +10,7 @@ type NavKey = "overview" | "queues" | "reports" | "tv" | "settings";
 type Props = {
   active?: NavKey;
   role?: "owner" | "admin" | "manager" | "staff" | null;
+  canViewQueue?: boolean;
   canViewSettings?: boolean;
   canViewReports?: boolean;
   canManageTeam?: boolean;
@@ -17,7 +18,7 @@ type Props = {
   canManageBranches?: boolean;
 };
 
-export function DashboardSidebar({ active, role = "owner", canViewSettings, canViewReports }: Props) {
+export function DashboardSidebar({ active, role = "owner", canViewQueue, canViewSettings, canViewReports }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -38,14 +39,14 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
           : "overview";
   const currentActive = active ?? routeActive;
 
+  const queueVisible = canViewQueue ?? (role === "owner" || role === "admin" || role === "manager" || role === "staff");
   const settingsVisible = canViewSettings ?? (role === "owner" || role === "admin" || role === "manager");
   const reportsVisible = canViewReports ?? (role === "owner" || role === "admin");
 
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link>
-      <Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</Link>
+      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</Link></> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
@@ -72,9 +73,15 @@ export function DashboardSidebar({ active, role = "owner", canViewSettings, canV
           <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
             {settingsVisible ? <Link className={`nav-item sidebar-bottom-nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
           </div>
-          <form action={signOut} data-no-global-loading="true">
-            <button className="nav-item sidebar-signout-button" type="submit">Sign out</button>
-          </form>
+          <details className="sidebar-account-menu">
+            <summary className="nav-item sidebar-account-trigger">Account <span>⌃</span></summary>
+            <div className="sidebar-account-popover">
+              <Link className="nav-item" href="/dashboard/account" onClick={() => setOpen(false)}>My Account</Link>
+              <form action={signOut} data-no-global-loading="true">
+                <button className="nav-item sidebar-signout-button" type="submit">Sign out</button>
+              </form>
+            </div>
+          </details>
         </div>
       </aside>
     </>

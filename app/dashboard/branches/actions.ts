@@ -74,11 +74,12 @@ export async function createBranch(formData: FormData) {
       .maybeSingle();
 
     if (sourceBranch) {
-      const [configResult, hoursResult, rulesResult, servicesResult] = await Promise.all([
+      const [configResult, hoursResult, rulesResult, servicesResult, sourceLinksResult] = await Promise.all([
         supabase.from("queue_configurations").select("starting_number,no_show_minutes,is_active,show_branch_contact,customer_refresh_seconds,sms_notifications_enabled,sms_start_position").eq("branch_id", sourceBranchId).maybeSingle(),
         supabase.from("operating_hours").select("day_of_week,is_open,open_time,close_time").eq("branch_id", sourceBranchId).order("day_of_week"),
         supabase.from("position_notification_rules").select("position,send_sms_once,browser_notification").eq("branch_id", sourceBranchId).order("position"),
-        supabase.from("services").select("name,description,queue_prefix,estimated_minutes,is_active").eq("branch_id", sourceBranchId).order("created_at"),
+        supabase.from("services").select("id,name,description,queue_prefix,estimated_minutes,is_active").eq("branch_id", sourceBranchId).order("created_at"),
+        supabase.from("branch_service_catalog").select("business_service_id,service_id").eq("branch_id", sourceBranchId),
       ]);
 
       const branchSettings = { ...sourceBranch };
@@ -100,8 +101,25 @@ export async function createBranch(formData: FormData) {
       }
 
       await supabase.from("services").delete().eq("branch_id", branchId);
+      await supabase.from("branch_service_catalog").delete().eq("branch_id", branchId);
       if (servicesResult.data?.length) {
-        await supabase.from("services").insert(servicesResult.data.map((row: { name: string; description: string | null; queue_prefix: string | null; estimated_minutes: number | null; is_active: boolean }) => ({ branch_id: branchId, ...row })));
+        const serviceCopies = servicesResult.data.map((row: { id: string; name: string; description: string | null; queue_prefix: string | null; estimated_minutes: number | null; is_active: boolean }) => ({
+          branch_id: branchId, name: row.name, description: row.description, queue_prefix: row.queue_prefix,
+          estimated_minutes: row.estimated_minutes, is_active: row.is_active,
+        }));
+        const { data: insertedServices, error: serviceCopyError } = await supabase.from("services").insert(serviceCopies).select("id,name");
+        if (serviceCopyError) fail(serviceCopyError.message || "Unable to duplicate branch services.");
+        const sourceNameById = new Map(servicesResult.data.map((row: { id: string; name: string }) => [row.id, row.name.toLowerCase()]));
+        const newIdByName = new Map((insertedServices ?? []).map((row) => [row.name.toLowerCase(), row.id]));
+        const links = (sourceLinksResult.data ?? []).flatMap((link) => {
+          const sourceName = link.service_id ? sourceNameById.get(link.service_id) : null;
+          const serviceId = sourceName ? newIdByName.get(sourceName) : null;
+          return serviceId ? [{ business_service_id: link.business_service_id, branch_id: branchId, service_id: serviceId }] : [];
+        });
+        if (links.length) {
+          const { error: linkError } = await supabase.from("branch_service_catalog").insert(links);
+          if (linkError) fail(linkError.message || "Unable to duplicate branch service assignments.");
+        }
       }
     }
   }

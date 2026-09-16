@@ -15,14 +15,32 @@ export async function loginAsOwner(page, credentials) {
 
   await signInButton.click();
   await page.waitForURL(/\/dashboard(?:\?.*)?$/, { timeout: 20_000 });
-  // The hosted Next.js dashboard can stream its page body after the authenticated
-  // shell is already usable. Treat the persistent authenticated navigation as the
-  // login-ready signal instead of coupling every scenario to the dashboard h1.
-  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+
+  // The Account/Sign out controls now live inside a collapsible sidebar menu and
+  // the whole sidebar is off-canvas on phone/tablet until navigation is opened.
+  // Use the authenticated dashboard shell itself as the viewport-independent
+  // login-ready signal instead of requiring a currently visible Sign out button.
+  await expect(page.locator("aside.sidebar")).toBeAttached();
+  await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
   await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
 }
 
 export async function signOut(page) {
+  const account = page.locator("summary.sidebar-account-trigger");
+
+  // On responsive layouts the sidebar is off-canvas until the hamburger opens it.
+  if (!(await account.isVisible())) {
+    const openNavigation = page.getByRole("button", { name: "Open navigation menu" });
+    await expect(openNavigation).toBeVisible();
+    await openNavigation.click();
+    await expect(account).toBeVisible();
+  }
+
+  const menu = page.locator("details.sidebar-account-menu");
+  if (!(await menu.evaluate((element) => element.hasAttribute("open")))) {
+    await account.click();
+  }
+
   const button = page.getByRole("button", { name: "Sign out", exact: true });
   await expect(button).toBeVisible();
   await button.click();

@@ -60,10 +60,11 @@ export default async function SettingsPage({ searchParams }: Props) {
   const canViewQueueInformationEditing = businessWide || Boolean(membership.can_view_queue_information_editing);
   const canViewPositionNotifications = businessWide || Boolean(membership.can_view_position_notifications);
   const canManageOperatingHours = businessWide || Boolean(membership.can_manage_operating_hours);
+  const canManageBranches = businessWide || Boolean(membership.can_set_branch_status);
   const canManageServices = businessWide || Boolean(membership.can_manage_services);
   const canManageTeam = businessWide || Boolean(membership.can_manage_team);
   const canManageRoles = businessWide || Boolean(membership.can_manage_roles);
-  if (!canViewQueueInformationEditing && !canViewPositionNotifications && !canManageOperatingHours && !canManageServices && !canManageTeam) redirect("/dashboard");
+  if (!canViewQueueInformationEditing && !canViewPositionNotifications && !canManageOperatingHours && !canManageServices && !canManageTeam && !canManageRoles) redirect("/dashboard");
 
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
   let allowedBranchIds: string[] | null = null;
@@ -82,14 +83,34 @@ export default async function SettingsPage({ searchParams }: Props) {
   const selectedBranch = branches.find((branch) => branch.id === selectedBranchId);
   const branchIds = branches.map((branch) => branch.id);
 
+  const activeView = params.view ?? (canManageBranches ? "branch-general" : canManageServices ? "services" : canManageTeam ? "users" : canManageRoles ? "roles" : canManageOperatingHours ? "branch-operating" : canViewQueueInformationEditing ? "branch-queue" : "branch-notifications");
+  const viewAllowed =
+    (activeView === "branch-general" && canManageBranches) ||
+    (activeView === "branch-services" && canManageServices) ||
+    (activeView === "branch-users" && canManageTeam) ||
+    (activeView === "branch-operating" && canManageOperatingHours) ||
+    (activeView === "branch-queue" && canViewQueueInformationEditing) ||
+    (activeView === "branch-notifications" && canViewPositionNotifications) ||
+    (["branch-appearance","branch-terminals","business","billing"].includes(activeView) && businessWide) ||
+    (activeView === "services" && canManageServices) ||
+    (activeView === "users" && canManageTeam) ||
+    (["roles","permissions"].includes(activeView) && canManageRoles);
+  if (!viewAllowed) redirect("/dashboard");
+  const needsQueueConfig = ["branch-queue", "branch-notifications"].includes(activeView);
+  const needsOperatingHours = activeView === "branch-operating";
+  const needsNotificationRules = activeView === "branch-notifications";
+  const needsServices = ["services", "branch-services", "branch-terminals"].includes(activeView);
+  const needsAccessData = ["users", "roles", "permissions", "branch-users"].includes(activeView);
+  const needsBilling = activeView === "billing";
+
   const selectedPromises = selectedBranchId ? Promise.all([
-    supabase.from("queue_configurations").select("starting_number,no_show_minutes,is_active,show_branch_contact,customer_refresh_seconds,sms_notifications_enabled,sms_start_position").eq("branch_id", selectedBranchId).maybeSingle(),
-    supabase.from("operating_hours").select("day_of_week,is_open,open_time,close_time").eq("branch_id", selectedBranchId).order("day_of_week", { ascending: true }),
-    supabase.from("position_notification_rules").select("position,send_sms_once,browser_notification").eq("branch_id", selectedBranchId).order("position", { ascending: true }),
+    needsQueueConfig ? supabase.from("queue_configurations").select("starting_number,no_show_minutes,is_active,show_branch_contact,customer_refresh_seconds,sms_notifications_enabled,sms_start_position").eq("branch_id", selectedBranchId).maybeSingle() : Promise.resolve({ data: null }),
+    needsOperatingHours ? supabase.from("operating_hours").select("day_of_week,is_open,open_time,close_time").eq("branch_id", selectedBranchId).order("day_of_week", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
+    needsNotificationRules ? supabase.from("position_notification_rules").select("position,send_sms_once,browser_notification").eq("branch_id", selectedBranchId).order("position", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
   ]) : Promise.resolve([{ data: null }, { data: [] }, { data: [] }] as const);
 
-  const servicesPromise = supabase.from("business_services").select("id,name,service_group,description,queue_prefix,estimated_minutes,is_active,created_at").eq("business_id", membership.business_id).order("service_group", { ascending: true }).order("created_at", { ascending: true });
-  const branchServiceLinksPromise = branchIds.length ? supabase.from("branch_service_catalog").select("business_service_id,branch_id,service_id").in("branch_id", branchIds) : Promise.resolve({ data: [] as never[] });
+  const servicesPromise = needsServices ? supabase.from("business_services").select("id,name,service_group,description,queue_prefix,estimated_minutes,is_active,created_at").eq("business_id", membership.business_id).order("service_group", { ascending: true }).order("created_at", { ascending: true }) : Promise.resolve({ data: [] as never[] });
+  const branchServiceLinksPromise = needsServices && branchIds.length ? supabase.from("branch_service_catalog").select("business_service_id,branch_id,service_id").in("branch_id", branchIds) : Promise.resolve({ data: [] as never[] });
 
   let memberQuery = supabase.from("business_users")
     .select("id,user_id,role,role_id,is_active,created_at,custom_role_name,can_set_branch_status,can_manage_services,can_manage_operating_hours,can_manage_team,can_manage_kiosk_display,can_add_customer,can_edit_customer,can_call_customer,can_serve_customer,can_complete_ticket,can_cancel_ticket,can_mark_no_show,can_view_customer_contact,can_view_reports,can_export_reports,can_view_audit_logs,can_view_queue_information_editing,can_view_position_notifications")
@@ -100,13 +121,13 @@ export default async function SettingsPage({ searchParams }: Props) {
     selectedPromises,
     servicesPromise,
     branchServiceLinksPromise,
-    memberQuery,
-    supabase.from("roles").select("id,name,description,base_role,branch_scope,is_system,is_protected").eq("business_id", membership.business_id).order("is_system", { ascending: false }).order("created_at", { ascending: true }),
-    supabase.from("permissions").select("code,label,description,category,sort_order").order("sort_order", { ascending: true }),
-    supabase.from("role_permissions").select("role_id,permission_code"),
-    businessWide ? supabase.from("plans").select("id,name,description,max_branches,price_monthly,price_yearly,currency,max_active_queues_per_branch,max_services_per_branch,allow_auto_renew,tax_mode,vat_rate,tax_price_mode").eq("is_active", true).eq("is_public", true).eq("accepts_new_subscriptions", true).order("sort_order") : Promise.resolve({ data: [] as never[] }),
-    businessWide ? supabase.rpc("get_effective_subscription_terms", { target_business_id: membership.business_id }) : Promise.resolve({ data: null }),
-    businessWide ? supabase.from("subscription_orders").select("id,status,amount,currency,billing_interval,renewal_mode,created_at,plans(name)").eq("business_id", membership.business_id).order("created_at", { ascending: false }).limit(5) : Promise.resolve({ data: [] as never[] }),
+    needsAccessData ? memberQuery : Promise.resolve({ data: [] as never[] }),
+    needsAccessData ? supabase.from("roles").select("id,name,description,base_role,branch_scope,is_system,is_protected").eq("business_id", membership.business_id).order("is_system", { ascending: false }).order("created_at", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
+    needsAccessData ? supabase.from("permissions").select("code,label,description,category,sort_order").order("sort_order", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
+    needsAccessData ? supabase.from("role_permissions").select("role_id,permission_code") : Promise.resolve({ data: [] as never[] }),
+    businessWide && needsBilling ? supabase.from("plans").select("id,name,description,max_branches,price_monthly,price_yearly,currency,max_active_queues_per_branch,max_services_per_branch,allow_auto_renew,tax_mode,vat_rate,tax_price_mode").eq("is_active", true).eq("is_public", true).eq("accepts_new_subscriptions", true).order("sort_order") : Promise.resolve({ data: [] as never[] }),
+    businessWide && needsBilling ? supabase.rpc("get_effective_subscription_terms", { target_business_id: membership.business_id }) : Promise.resolve({ data: null }),
+    businessWide && needsBilling ? supabase.from("subscription_orders").select("id,status,amount,currency,billing_interval,renewal_mode,created_at,plans(name)").eq("business_id", membership.business_id).order("created_at", { ascending: false }).limit(5) : Promise.resolve({ data: [] as never[] }),
   ]);
 
   const [configResult, hoursResult, notificationRulesResult] = selectedResults;
@@ -157,7 +178,7 @@ export default async function SettingsPage({ searchParams }: Props) {
         };
       }),
   }));
-  const { data: terminals } = businessWide && branchIds.length
+  const { data: terminals } = businessWide && activeView === "branch-terminals" && branchIds.length
     ? await supabase.from("devices").select("id,name,device_token,is_active,last_seen_at,branch_id,service_id,branches(name),services(name)").in("branch_id", branchIds).eq("device_type", "ticket_terminal").order("created_at")
     : { data: [] as never[] };
 
@@ -219,7 +240,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const operatingPanel = selectedBranchId && selectedBranch ? <form key={`${settingsFormKey}:operating`} action={updateQueueSettings} className="settings-detail-form-v2"><input type="hidden" name="return_view" value="branch-operating" />{hiddenBaseQueueSettings}<input type="hidden" name="customer_refresh_seconds" value={config?.customer_refresh_seconds ?? 8} /><input type="hidden" name="sms_start_position" value={config?.sms_start_position ?? 3} />{config?.sms_notifications_enabled ? <input type="hidden" name="sms_notifications_enabled" value="on" /> : null}{hiddenRules}<section id="operating-hours" className="settings-form-section-v2"><div className="settings-section-heading-v2"><span className="settings-section-heading-icon">◷</span><div><p className="eyebrow">Operating Hours</p><h2>Weekly schedule</h2><p className="muted">Control when customers can issue new stubs.</p></div></div><div className="hours-list settings-hours-v2">{DAYS.map((day) => { const row = hoursByDay.get(day.value); const isOpen = row?.is_open ?? true; return <div className="hours-row" key={day.value}><label className="hours-day"><input type="checkbox" name={`day_${day.value}_open`} defaultChecked={isOpen} /><strong>{day.label}</strong></label><label>Open<input type="time" name={`day_${day.value}_open_time`} defaultValue={(row?.open_time ?? "00:00").slice(0, 5)} /></label><label>Close<input type="time" name={`day_${day.value}_close_time`} defaultValue={(row?.close_time ?? "23:59").slice(0, 5)} /></label></div>; })}</div></section><div className="settings-save-bar-v2"><div><strong>Operating Hours</strong><small>Save this branch weekly schedule.</small></div><SettingsSaveGuard branchName={selectedBranch.name} /></div></form> : branchGeneralPanel;
 
-  const appearancePanel = selectedBranchId && selectedBranch && businessWide ? <section id="terminal-appearance" className="settings-new-section settings-anchor-section"><SectionHeading eyebrow="Appearance" title="Terminal appearance" description="Customize this branch kiosk and terminal presentation." /><TerminalAppearanceForm action={updateTerminalAppearance} businessId={membership.business_id} businessName={business?.name ?? "Your Business"} branchId={selectedBranchId} branchName={selectedBranch.name} appearance={{ terminal_theme: selectedBranch.terminal_theme ?? business?.terminal_theme, terminal_page_bg_color: selectedBranch.terminal_page_bg_color ?? business?.terminal_page_bg_color, terminal_press_bg_color: selectedBranch.terminal_press_bg_color ?? business?.terminal_press_bg_color, terminal_accent_color: selectedBranch.terminal_accent_color ?? business?.terminal_accent_color, terminal_text_color: selectedBranch.terminal_text_color ?? business?.terminal_text_color, terminal_muted_text_color: selectedBranch.terminal_muted_text_color ?? business?.terminal_muted_text_color, terminal_background_image_url: selectedBranch.terminal_background_image_url ?? business?.terminal_background_image_url, terminal_logo_url: selectedBranch.terminal_logo_url ?? business?.terminal_logo_url, terminal_background_overlay: selectedBranch.terminal_background_overlay ?? business?.terminal_background_overlay }} /></section> : branchGeneralPanel;
+  const appearancePanel = selectedBranchId && selectedBranch && businessWide ? <section id="terminal-appearance" className="settings-new-section settings-anchor-section"><SectionHeading eyebrow="Appearance" title="Terminal appearance" description="Customize this branch kiosk and terminal presentation." /><TerminalAppearanceForm action={updateTerminalAppearance} businessId={membership.business_id} businessName={business?.name ?? "Your Business"} branchId={selectedBranchId} branchName={selectedBranch.name} canApplyAll={businessWide} appearance={{ terminal_theme: selectedBranch.terminal_theme ?? business?.terminal_theme, terminal_page_bg_color: selectedBranch.terminal_page_bg_color ?? business?.terminal_page_bg_color, terminal_press_bg_color: selectedBranch.terminal_press_bg_color ?? business?.terminal_press_bg_color, terminal_accent_color: selectedBranch.terminal_accent_color ?? business?.terminal_accent_color, terminal_text_color: selectedBranch.terminal_text_color ?? business?.terminal_text_color, terminal_muted_text_color: selectedBranch.terminal_muted_text_color ?? business?.terminal_muted_text_color, terminal_background_image_url: selectedBranch.terminal_background_image_url ?? business?.terminal_background_image_url, terminal_logo_url: selectedBranch.terminal_logo_url ?? business?.terminal_logo_url, terminal_background_overlay: selectedBranch.terminal_background_overlay ?? business?.terminal_background_overlay }} /></section> : branchGeneralPanel;
 
   const selectedTerminalBranches = selectedBranch ? terminalBranches.filter((branch) => branch.id === selectedBranch.id) : [];
   const selectedTerminals = selectedBranchId ? (terminals ?? []).filter((terminal) => terminal.branch_id === selectedBranchId) : [];
@@ -232,7 +253,7 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const addBranchPanel = businessWide ? (
     <details className="settings-add-branch-panel-v4">
-      <summary><span>＋</span>Add branch</summary>
+      <summary><span className="settings-add-branch-plus">＋</span><span className="settings-add-branch-open-label">Add branch</span><span className="settings-add-branch-cancel-label">Cancel</span></summary>
       <form action={createBranch} className="settings-add-branch-form-v4">
         <label>Branch name<input name="name" required minLength={2} maxLength={120} placeholder="New branch" /></label>
         <label>Address<input name="address" maxLength={300} placeholder="Branch address" /></label>
@@ -249,10 +270,11 @@ export default async function SettingsPage({ searchParams }: Props) {
     <section className="dashboard-content settings-page settings-page-unified">
       <header className="dashboard-header settings-page-unified-header"><div><h1>Settings</h1><p className="muted page-lead">Manage your business, branches, services, users and more from one workspace.</p></div>{process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}</header>
       <SettingsUnifiedConsole
-        key={`${selectedBranchId ?? "none"}:${params.view ?? "branch-general"}`}
+        key={`${selectedBranchId ?? "none"}:${activeView}`}
         branches={branches.map((branch) => ({ id: branch.id, name: branch.name, address: branch.address, status: branch.status }))}
         initialBranchId={selectedBranchId}
-        initialView={params.view}
+        initialView={activeView}
+        canManageBranches={canManageBranches}
         canManageServices={canManageServices}
         canManageTeam={canManageTeam}
         canManageRoles={canManageRoles}

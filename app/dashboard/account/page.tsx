@@ -15,7 +15,7 @@ export default async function AccountPage({ searchParams }: Props) {
 
   const [{ data: profile }, { data: membership }] = await Promise.all([
     supabase.from("profiles").select("full_name,email,phone").eq("id", user.id).maybeSingle(),
-    supabase.from("business_users").select("role,businesses(name)").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle(),
+    supabase.from("business_users").select("role,can_manage_roles,businesses(name)").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle(),
   ]);
 
   const business = membership ? (Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses) : null;
@@ -41,9 +41,15 @@ export default async function AccountPage({ searchParams }: Props) {
               <label>Full name<input name="full_name" required minLength={2} maxLength={100} defaultValue={fullName} /></label>
               <label>Email<input value={email} readOnly aria-readonly="true" /><small className="muted">Login email is protected here. Contact an administrator if it must be changed.</small></label>
               <label>Mobile number<DigitsOnlyInput name="phone" maxLength={20} defaultValue={profile?.phone ?? ""} placeholder="09XXXXXXXXX" /></label>
+              <div className="account-password-section">
+                <div><strong>Change password</strong><small className="muted">Leave blank to keep your current password.</small></div>
+                <label>New password<input name="new_password" type="password" minLength={6} maxLength={72} autoComplete="new-password" placeholder="At least 6 characters" /></label>
+                <label>Confirm password<input name="confirm_password" type="password" minLength={6} maxLength={72} autoComplete="new-password" placeholder="Repeat new password" /></label>
+              </div>
               <div className="account-edit-summary-v2"><span>Role</span><strong>{membership?.role ?? "user"}</strong></div>
               <div className="account-edit-summary-v2"><span>Business</span><strong>{business?.name ?? "QueueDrop"}</strong></div>
-              <button className="button button-primary" type="submit">Save account</button>
+              {membership?.can_manage_roles || membership?.role === "owner" || membership?.role === "admin" ? <div className="account-permission-access"><strong>Permissions</strong><span>Your role can manage role permissions.</span><a className="button button-secondary" href="/dashboard/settings?view=permissions">Open Permissions</a></div> : null}
+              <button className="button button-primary" type="submit">Save account & password</button>
             </form>
           </section>
         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 
 type Listener = () => void;
 
@@ -156,7 +157,9 @@ export function GlobalSubmitLoading() {
 
   if (!isLoading) return null;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="qd-loading-backdrop"
       role="status"
@@ -167,6 +170,7 @@ export function GlobalSubmitLoading() {
         <div className="qd-loading-spinner" aria-hidden="true" />
         <strong>Please wait</strong>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

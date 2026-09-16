@@ -19,7 +19,7 @@ test("owner/admin helper only accepts privileged roles", () => {
 
 test("unauthenticated membership has no dashboard access", () => {
   assert.deepEqual(dashboardAccessFor(null), {
-    role: null, canViewSettings: false, canViewReports: false, canManageTeam: false, canManageServices: false, canManageBranches: false,
+    role: null, canViewQueue: false, canViewSettings: false, canViewReports: false, canManageTeam: false, canManageServices: false, canManageBranches: false,
   });
 });
 
@@ -33,7 +33,7 @@ test("owner receives business-wide dashboard access", () => {
 });
 
 test("admin receives business-wide dashboard access", () => {
-  assert.deepEqual(dashboardAccessFor({ role: "admin" }), { role: "admin", canViewSettings: true, canViewReports: true, canManageTeam: true, canManageServices: true, canManageBranches: true });
+  assert.deepEqual(dashboardAccessFor({ role: "admin" }), { role: "admin", canViewQueue: true, canViewSettings: true, canViewReports: true, canManageTeam: true, canManageServices: true, canManageBranches: true });
 });
 
 test("manager access follows explicit permissions", () => {

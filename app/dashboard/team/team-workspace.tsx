@@ -112,7 +112,7 @@ export function TeamWorkspace({ members, profiles, branches, assignments, actorR
               <div><p className="eyebrow">Users &amp; Access</p><h2 id="add-user-title">Add user</h2></div>
               <button className="qd-modal-close" type="button" aria-label="Close" onClick={() => setAddUserOpen(false)}>×</button>
             </div>
-            <form action={createTeamMember} className="form-stack management-form team-add-user-popup-form" autoComplete="off" data-no-global-loading="true" data-lpignore="true" data-1p-ignore="true">
+            <form action={createTeamMember} className="form-stack management-form team-add-user-popup-form" autoComplete="off" data-lpignore="true" data-1p-ignore="true">
               <input type="hidden" name="view_branch" value={selectedBranchId} />
               <TeamCreateFields branches={activeBranches} managerMode={isManager} businessRoles={businessRoles} selectedBranchId={selectedBranchId} />
               <div className="team-add-user-actions">

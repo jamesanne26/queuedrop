@@ -36,3 +36,59 @@ test("team server actions reject missing email and no longer create phone-only a
   assert.doesNotMatch(teamActions, /login_method:\s*email\s*\?/);
   assert.match(teamActions, /login_method:\s*"email"/);
 });
+
+test("global loading and settings review dialogs render through document body portals", async () => {
+  const globalLoader = await readFile(new URL("../../app/_components/global-submit-loading.tsx", import.meta.url), "utf8");
+  const settingsGuard = await readFile(new URL("../../app/dashboard/settings/settings-save-guard.tsx", import.meta.url), "utf8");
+  assert.match(globalLoader, /createPortal\(/);
+  assert.match(globalLoader, /document\.body/);
+  assert.match(settingsGuard, /qd-settings-review-backdrop/);
+  assert.match(settingsGuard, /createPortal\(/);
+});
+
+test("new team users receive branch assignment controls and create-user loading is enabled", async () => {
+  const fields = await readFile(new URL("../../app/dashboard/team/team-forms.tsx", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../../app/dashboard/team/team-workspace.tsx", import.meta.url), "utf8");
+  assert.match(fields, /name="branch_ids"/);
+  assert.match(fields, /Assigned branch/);
+  assert.doesNotMatch(workspace, /team-add-user-popup-form[^>]*data-no-global-loading/);
+});
+
+test("staff terminal shortcut is permission based and account supports password changes", async () => {
+  const queue = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
+  const account = await readFile(new URL("../../app/dashboard/account/page.tsx", import.meta.url), "utf8");
+  assert.match(queue, /canManageTerminals \? <a/);
+  assert.match(account, /name="new_password"/);
+  assert.match(account, /name="confirm_password"/);
+});
+
+test("branch duplication preserves catalog assignments and excludes users and terminals", async () => {
+  const source = await readFile(new URL("../../app/dashboard/branches/actions.ts", import.meta.url), "utf8");
+  assert.match(source, /branch_service_catalog/);
+  assert.match(source, /sourceLinksResult/);
+  assert.doesNotMatch(source, /branch_users.*sourceBranchId/);
+});
+
+test("owner and admin appearance editor can apply changes to all branches", async () => {
+  const form = await readFile(new URL("../../app/dashboard/settings/terminal-appearance-form.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(form, /apply_to_all_branches/);
+  assert.match(actions, /applyToAll/);
+});
+
+test("queue controls and mutations are permission driven", async () => {
+  const page = await readFile(new URL("../../app/dashboard/queues/page.tsx", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/queues/actions.ts", import.meta.url), "utf8");
+  assert.match(page, /can_return_customer/);
+  assert.match(workspace, /queuePermissions\.call/);
+  assert.match(workspace, /queuePermissions\.returnLast/);
+  assert.match(actions, /requireQueuePermission/);
+  assert.match(actions, /qd_staff_update_ticket_status/);
+});
+
+test("settings routes reject views outside the signed-in user's permissions", async () => {
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /const viewAllowed/);
+  assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
+});

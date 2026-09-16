@@ -23,6 +23,24 @@ async function requireUser() {
 }
 
 
+async function requireQueuePermission(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, permission: "call" | "serve" | "return" | "move_pending" | "complete" | "cancel" | "no_show") {
+  const { data: membership } = await supabase.from("business_users")
+    .select("role,can_call_customer,can_return_customer,can_serve_customer,can_move_pending,can_complete_ticket,can_cancel_ticket,can_mark_no_show")
+    .eq("user_id", userId).eq("is_active", true).limit(1).maybeSingle();
+  if (!membership) return false;
+  if (membership.role === "owner" || membership.role === "admin") return true;
+  const map = {
+    call: membership.can_call_customer,
+    serve: membership.can_serve_customer,
+    return: membership.can_return_customer,
+    move_pending: membership.can_move_pending,
+    complete: membership.can_complete_ticket,
+    cancel: membership.can_cancel_ticket,
+    no_show: membership.can_mark_no_show,
+  };
+  return Boolean(map[permission]);
+}
+
 export async function simulateGetStubAction(formData: FormData) {
   const branchId = String(formData.get("branch_id") ?? "");
   const serviceId = String(formData.get("service_id") ?? "");
@@ -117,8 +135,9 @@ export async function callNextAction(formData: FormData) {
   const serviceId = String(formData.get("service_id") ?? "");
   if (!branchId || !serviceId) redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
 
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("staff_call_next", { target_branch_id: branchId, target_service_id: serviceId });
+  const { supabase, user } = await requireUser();
+  if (!(await requireQueuePermission(supabase, user.id, "call"))) redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to call the next customer"));
+  const { error } = await supabase.rpc("qd_staff_call_next", { target_branch_id: branchId, target_service_id: serviceId });
   if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
   // Live Queue is realtime-first. Do not redirect/reload the workspace after a
@@ -134,8 +153,9 @@ export async function returnLastCustomerAction(formData: FormData) {
   const serviceId = String(formData.get("service_id") ?? "");
   if (!branchId || !serviceId) redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
 
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("staff_return_last_to_queue", { target_branch_id: branchId, target_service_id: serviceId });
+  const { supabase, user } = await requireUser();
+  if (!(await requireQueuePermission(supabase, user.id, "return"))) redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to return customers"));
+  const { error } = await supabase.rpc("qd_staff_return_last_to_queue", { target_branch_id: branchId, target_service_id: serviceId });
   if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
   after(() => dispatchSmsAfterQueueChange(branchId));
@@ -156,12 +176,16 @@ export async function updateTicketAction(formData: FormData) {
     }
   }
 
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
+  const requiredPermission = action === "complete" ? "complete" : action === "cancel" ? "cancel" : action === "no_show" ? "no_show" : action === "recall" ? "call" : action === "return_last" ? "return" : action === "pending" ? "move_pending" : "serve";
+  if (!(await requireQueuePermission(supabase, user.id, requiredPermission))) {
+    redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to perform this queue action"));
+  }
   if (action === "return_last") {
-    const { error } = await supabase.rpc("staff_return_ticket_to_last", { target_ticket_id: ticketId });
+    const { error } = await supabase.rpc("qd_staff_return_ticket_to_last", { target_ticket_id: ticketId });
     if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
   } else {
-    const { error } = await supabase.rpc("staff_update_ticket_status", { target_ticket_id: ticketId, target_action: action });
+    const { error } = await supabase.rpc("qd_staff_update_ticket_status", { target_ticket_id: ticketId, target_action: action });
     if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
   }
 
@@ -189,8 +213,9 @@ function relationOne<T>(value: T | T[] | null): T | null {
 export async function loadServiceHistoryAction(selectedBranchId: string): Promise<ServiceHistoryTicket[]> {
   const { supabase, user } = await requireUser();
 
-  const { data: membership } = await supabase.from("business_users").select("business_id, role").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
+  const { data: membership } = await supabase.from("business_users").select("business_id, role, can_view_history").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) return [];
+  if (membership.role !== "owner" && membership.role !== "admin" && !membership.can_view_history) return [];
 
   const role = membership.role as "owner" | "admin" | "manager" | "staff";
   let branchIds: string[] = [];

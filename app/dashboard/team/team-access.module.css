@@ -378,3 +378,25 @@
 .deleteRoleButton { width:100%; min-width:150px; min-height:42px; height:42px; padding:0 16px; border:1px solid #d84b4b; border-radius:9px; background:#fff; color:#b42318; font-size:13px; font-weight:800; cursor:pointer; }
 .deleteRoleButton:hover { background:#fff5f5; }
 @media (max-width: 760px) { .deleteRoleButton { min-width:0; } }
+
+
+/* 2026-09-15 role action layout */
+.toolbarActions { margin-left: auto; display:flex; justify-content:flex-end; align-items:center; width:auto; }
+.toolbarActions .createButton { width:auto; min-width:184px; }
+.actions { display:flex; justify-content:flex-end; align-items:center; gap:10px; padding-top:20px; border-top:1px solid #e7eeea; }
+.actions .saveTopButton, .actions .deleteRoleButton { min-width:190px; min-height:42px; height:42px; }
+.deleteRoleForm { display:flex; margin:0; }
+@media (max-width:760px) { .toolbarActions { width:100%; } .toolbarActions .createButton { width:100%; } .actions { flex-direction:column-reverse; align-items:stretch; } .actions > *, .actions button { width:100%; } }
+
+/* 2026-09-16 E2E/UI consistency: role primary actions use one exact desktop size. */
+@media (min-width: 761px) {
+  .toolbarActions .createButton,
+  .actions .saveTopButton {
+    width: 230px;
+    min-width: 230px;
+    max-width: 230px;
+    height: 42px;
+    min-height: 42px;
+    box-sizing: border-box;
+  }
+}

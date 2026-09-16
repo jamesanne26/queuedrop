@@ -26,12 +26,14 @@ export default async function TvQueuePage({ searchParams }: Props) {
   if (!user) redirect("/auth/login?next=%2Fdashboard%2Ftv");
 
   const { data: membership } = await supabase.from("business_users")
-    .select("business_id,role")
+    .select("business_id,role,role_id,can_view_live_queue,roles(branch_scope)")
     .eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) redirect("/onboarding");
+  if (membership.role !== "owner" && membership.role !== "admin" && !membership.can_view_live_queue) redirect("/dashboard");
 
   const role = membership.role as Role;
-  const businessWide = role === "owner" || role === "admin";
+  const roleRelation = Array.isArray(membership.roles) ? membership.roles[0] : membership.roles;
+  const businessWide = role === "owner" || role === "admin" || (role === "manager" && roleRelation?.branch_scope === "all_branches");
   let branchIds: string[] | null = null;
   if (!businessWide) {
     const { data: assignments } = await supabase.from("branch_users").select("branch_id").eq("user_id", user.id);

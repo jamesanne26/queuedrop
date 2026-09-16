@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Change = {
   field: string;
@@ -239,8 +240,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
         Save branch settings
       </button>
 
-      {open ? (
-        <div className="qd-modal-backdrop" role="presentation">
+      {open && typeof document !== "undefined" ? createPortal(
+        <div className="qd-modal-backdrop qd-settings-review-backdrop" role="presentation">
           <section
             className="qd-modal qd-settings-review-modal"
             role="dialog"
@@ -296,7 +297,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
               ) : null}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );

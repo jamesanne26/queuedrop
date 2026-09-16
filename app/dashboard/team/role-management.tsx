@@ -72,8 +72,6 @@ export function RoleManagement({ roles, permissions, rolePermissions, selectedRo
           <p className="muted">Role names are labels. The permissions selected here are the authority QueueDrop uses for employee access.</p>
         </div>
         <div className={styles.toolbarActions}>
-          {!creating && activeRole && !activeRole.is_protected ? <button className={styles.saveTopButton} type="submit" form={`role-editor-${activeRole.id}`}>Save Role & Permissions</button> : null}
-          {!creating && activeRole && !activeRole.is_protected ? <form action={deleteBusinessRole} className={styles.deleteRoleForm}><input type="hidden" name="role_id" value={activeRole.id}/><ConfirmDeleteSubmit className={styles.deleteRoleButton} message={`Delete role ${activeRole.name}? Users assigned to this role must be reassigned first.`} title="Delete role">Delete Role</ConfirmDeleteSubmit></form> : null}
           {!creating ? <button className={styles.createButton} type="button" onClick={() => setCreating(true)}>+ Create Custom Role</button> : null}
         </div>
       </div>
@@ -237,7 +235,10 @@ function RoleEditor({
       ) : (
         <div className={styles.actions}>
           {mode === "create" && onCancel ? <button className={styles.secondaryButton} type="button" onClick={onCancel}>Cancel</button> : null}
-          {mode === "create" ? <button className={styles.primaryButton} type="submit">Create Role</button> : null}
+          {mode === "create" ? <button className={styles.primaryButton} type="submit">Create Role</button> : <>
+            <button className={styles.saveTopButton} type="submit">Save Role &amp; Permissions</button>
+            <div className={styles.deleteRoleForm}><ConfirmDeleteSubmit formAction={deleteBusinessRole} className={styles.deleteRoleButton} message={`Delete role ${role?.name}? Users assigned to this role must be reassigned first.`} title="Delete role">Delete Role</ConfirmDeleteSubmit></div>
+          </>}
         </div>
       )}
     </form>

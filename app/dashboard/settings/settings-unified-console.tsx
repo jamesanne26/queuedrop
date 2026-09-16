@@ -25,6 +25,7 @@ type Props = {
   branches: BranchNav[];
   initialBranchId?: string;
   initialView?: string;
+  canManageBranches: boolean;
   canManageServices: boolean;
   canManageTeam: boolean;
   canManageRoles: boolean;
@@ -83,6 +84,7 @@ export function SettingsUnifiedConsole({
   branches,
   initialBranchId,
   initialView,
+  canManageBranches,
   canManageServices,
   canManageTeam,
   canManageRoles,
@@ -113,7 +115,8 @@ export function SettingsUnifiedConsole({
     setView(next);
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
-    window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
+    const nextUrl = `${url.pathname}?${url.searchParams.toString()}`;
+    startBranchTransition(() => router.replace(nextUrl, { scroll: false }));
   };
 
   const chooseBranch = (branchId: string) => {
@@ -126,15 +129,14 @@ export function SettingsUnifiedConsole({
   };
 
   const hiddenBranchItem = (key: ViewKey) =>
+    (key === "branch-general" && !canManageBranches) ||
     (key === "branch-services" && !canManageServices) ||
     (key === "branch-users" && !canManageTeam) ||
     (key === "branch-operating" && !canManageOperatingHours) ||
     (key === "branch-notifications" && !canViewPositionNotifications) ||
     ((key === "branch-appearance" || key === "branch-terminals") && !businessWide);
 
-  const configPanel = isBranchSwitching && branchViews.has(view)
-    ? <div className="settings-branch-loading" role="status" aria-live="polite"><span className="settings-branch-loading-spinner" /><strong>Loading branch settings…</strong><small>Switching to {selectedBranch?.name ?? "selected branch"}.</small></div>
-    : (panels[view] ?? panels["branch-general"]);
+  const configPanel = panels[view] ?? panels["branch-general"];
   const activeLabel = branchItems.find((entry) => entry.key === view)?.label
     ?? ({ services: "Services", users: "Users", roles: "Roles", permissions: "Permissions", business: "Business", billing: "Billing & Subscription" } as Partial<Record<ViewKey, string>>)[view]
     ?? "Settings";
@@ -149,7 +151,7 @@ export function SettingsUnifiedConsole({
             <section className="settings-tree-group settings-tree-branches-v4">
               <button type="button" className="settings-tree-top-row settings-tree-expand-button" data-settings-group="branches" aria-expanded={branchesOpen} onClick={() => setBranchesOpen((open) => !open)}>
                 <span className="settings-tree-icon"><Icon name="branch" /></span>
-                <strong>Branches</strong>
+                <strong>Branches <small className="settings-branch-counts">{branches.filter((b) => b.status === "active").length} active · {branches.filter((b) => b.status !== "active").length} inactive</small></strong>
                 <span className="settings-tree-caret">{branchesOpen ? "⌄" : "›"}</span>
               </button>
 

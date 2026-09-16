@@ -32,14 +32,18 @@ export default async function QueuesPage({ searchParams }: Props) {
   if (!user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
 
   const { data: membership } = await supabase.from("business_users")
-    .select("business_id, role, businesses(name)")
+    .select("business_id, role, role_id, can_view_live_queue, can_view_history, can_manage_kiosk_display, can_call_customer, can_return_customer, can_serve_customer, can_move_pending, can_complete_ticket, can_cancel_ticket, can_mark_no_show, businesses(name), roles(branch_scope)")
     .eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) redirect("/onboarding");
+
+  if (membership.role !== "owner" && membership.role !== "admin" && !membership.can_view_live_queue) redirect("/dashboard");
 
   const business = relationOne(membership.businesses);
   const role = membership.role as Role;
   const developer = await isSystemOwner(user);
-  const businessWide = role === "owner" || role === "admin";
+  const roleRelation = relationOne((membership as typeof membership & { roles?: { branch_scope?: string } | { branch_scope?: string }[] | null }).roles);
+  const allBranchesByRole = role === "manager" && roleRelation?.branch_scope === "all_branches";
+  const businessWide = role === "owner" || role === "admin" || allBranchesByRole;
 
   let allowedBranchIds: string[] | null = null;
   if (!businessWide) {
@@ -109,6 +113,17 @@ export default async function QueuesPage({ searchParams }: Props) {
       key={selectedBranchId}
       role={role}
       canSimulateStub={developer || role === "owner" || role === "admin"}
+      canViewHistory={role === "owner" || role === "admin" || Boolean(membership.can_view_history)}
+      canManageTerminals={role === "owner" || role === "admin" || Boolean(membership.can_manage_kiosk_display)}
+      queuePermissions={{
+        call: role === "owner" || role === "admin" || Boolean(membership.can_call_customer),
+        serve: role === "owner" || role === "admin" || Boolean(membership.can_serve_customer),
+        returnLast: role === "owner" || role === "admin" || Boolean(membership.can_return_customer),
+        movePending: role === "owner" || role === "admin" || Boolean(membership.can_move_pending),
+        complete: role === "owner" || role === "admin" || Boolean(membership.can_complete_ticket),
+        cancel: role === "owner" || role === "admin" || Boolean(membership.can_cancel_ticket),
+        noShow: role === "owner" || role === "admin" || Boolean(membership.can_mark_no_show),
+      }}
       businessName={business.name}
       selectedBranchId={selectedBranchId}
       selectedBranch={{ id: selectedBranch.id, name: selectedBranch.name, address: selectedBranch.address, status: selectedBranch.status }}

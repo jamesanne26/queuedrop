@@ -7640,3 +7640,27 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
   .ticket-edit-panel { padding-top: 8px; padding-bottom: 8px; }
   .compact-form { gap: 10px; }
 }
+
+
+/* 2026-09-15 UX/access cleanup */
+.qd-settings-review-backdrop { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; overflow: auto !important; }
+.qd-settings-review-modal { width: min(720px, calc(100vw - 32px)) !important; max-height: calc(100dvh - 32px) !important; margin: auto !important; overflow: auto !important; }
+.settings-add-branch-cancel-label { display: none; }
+.settings-add-branch-panel-v4[open] > summary .settings-add-branch-open-label,
+.settings-add-branch-panel-v4[open] > summary .settings-add-branch-plus { display: none; }
+.settings-add-branch-panel-v4[open] > summary .settings-add-branch-cancel-label { display: inline; color: #b42318; }
+.stub-pin-dialog input { color: #10233f !important; background: #fff !important; caret-color: #0b8b58 !important; -webkit-text-fill-color: #10233f !important; opacity: 1 !important; }
+.sidebar-account-menu { position: relative; }
+.sidebar-account-trigger { list-style: none; display:flex; align-items:center; justify-content:space-between; width:100%; cursor:pointer; }
+.sidebar-account-trigger::-webkit-details-marker { display:none; }
+.sidebar-account-popover { display:grid; gap:4px; margin-top:6px; padding:7px; border:1px solid rgba(255,255,255,.10); border-radius:10px; background:rgba(255,255,255,.05); }
+.sidebar-account-popover .nav-item { width:100%; }
+.team-create-branch-fieldset { display:grid; gap:8px; margin:0; padding:12px; border:1px solid #dfe7e3; border-radius:10px; }
+.team-create-branch-fieldset legend { padding:0 5px; font-weight:800; }
+.team-create-branch-options { display:grid; gap:6px; max-height:160px; overflow:auto; }
+.team-create-branch-options label { display:flex; align-items:center; gap:8px; }
+.account-password-section { display:grid; gap:12px; padding:16px; border:1px solid #dfe7e3; border-radius:12px; background:#f8fbf9; }
+.account-password-section > div { display:grid; gap:3px; }
+.account-permission-access { display:grid; gap:8px; padding:14px; border:1px solid #dfe7e3; border-radius:12px; }
+
+.settings-branch-counts{display:block;font-size:11px;font-weight:600;color:var(--muted,#6b7b8f);margin-top:2px;white-space:nowrap}.terminal-apply-all{display:flex;align-items:center;gap:8px;font-weight:700}.terminal-apply-all input{width:18px;height:18px}

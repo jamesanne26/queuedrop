@@ -129,6 +129,16 @@ export async function updateQueueSettings(formData: FormData) {
     redirect("/auth/login?next=%2Fdashboard%2Fsettings");
   }
 
+  const { data: settingsMembership } = await supabase.from("business_users")
+    .select("role,can_manage_operating_hours,can_view_queue_information_editing,can_view_position_notifications")
+    .eq("user_id", userData.user.id).eq("is_active", true).limit(1).maybeSingle();
+  const privileged = isOwnerOrAdmin(settingsMembership?.role);
+  const permitted = privileged ||
+    (returnView === "branch-operating" && Boolean(settingsMembership?.can_manage_operating_hours)) ||
+    (returnView === "branch-queue" && Boolean(settingsMembership?.can_view_queue_information_editing)) ||
+    (returnView === "branch-notifications" && Boolean(settingsMembership?.can_view_position_notifications));
+  if (!permitted) fail(branchId, "You do not have permission to change these branch settings.", returnView);
+
   // Queue prefixes are managed at the service level. Settings no longer
   // exposes the branch fallback prefix, so preserve the current database
   // value instead of overwriting it during an unrelated settings save.
@@ -302,18 +312,16 @@ export async function updateTerminalAppearance(formData: FormData) {
     terminal_background_image_url: backgroundUrl,
   };
 
-  // Appearance is intentionally branch-scoped. Never update sibling branches or
-  // the business defaults from this branch editor.
-  const { error } = await supabase.from("branches")
-    .update(appearance)
-    .eq("id", branchId)
-    .eq("business_id", businessId);
+  const applyToAll = field(formData, "apply_to_all_branches") === "1";
+  let appearanceUpdate = supabase.from("branches").update(appearance).eq("business_id", businessId);
+  if (!applyToAll) appearanceUpdate = appearanceUpdate.eq("id", branchId);
+  const { error } = await appearanceUpdate;
   if (error) redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&view=branch-appearance&error=${encodeURIComponent(error.message)}#terminal-appearance`);
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/terminals");
   revalidatePath("/kiosk/[deviceToken]", "page");
-  redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&view=branch-appearance&message=${encodeURIComponent("Branch terminal appearance updated.")}#terminal-appearance`);
+  redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&view=branch-appearance&message=${encodeURIComponent(applyToAll ? "Terminal appearance applied to all branches." : "Branch terminal appearance updated.")}#terminal-appearance`);
 }
 
 function serviceSettingsUrl(key: "message" | "error", message: string, branchId?: string, view = "services") {

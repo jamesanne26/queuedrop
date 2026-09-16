@@ -226,6 +226,15 @@ export async function createTeamMember(formData: FormData) {
     if (!selectedBusinessRole || selectedBusinessRole.base_role !== role || selectedBusinessRole.name !== customRoleName) {
       fail("The selected employee role is invalid.", viewBranch);
     }
+    if (selectedBusinessRole.branch_scope === "own_branch_only" && branchIds.length !== 1) {
+      fail("Choose one branch for this role.", viewBranch);
+    }
+    if (selectedBusinessRole.branch_scope === "selected_branches" && branchIds.length < 1) {
+      fail("Choose at least one branch for this role.", viewBranch);
+    }
+    if (selectedBusinessRole.branch_scope !== "all_branches") {
+      await validateBranchSelection(supabase, membership.business_id, actorRole, managerBranchIds, role, branchIds);
+    }
   }
 
   const admin = createAdminClient();

@@ -73,8 +73,10 @@ function PasswordField({
 }
 
 export function TeamCreateFields({
+  branches,
   managerMode,
   businessRoles,
+  selectedBranchId,
 }: {
   branches: Branch[];
   managerMode: boolean;
@@ -88,6 +90,9 @@ export function TeamCreateFields({
   const role = (selectedBusinessRole?.base_role === "manager" ? "manager" : "staff") as Role;
 
   const passwordMin = 6;
+  const defaultBranchId = selectedBranchId !== "all" && branches.some((branch) => branch.id === selectedBranchId)
+    ? selectedBranchId
+    : branches[0]?.id ?? "";
 
   return (
     <>
@@ -155,6 +160,24 @@ export function TeamCreateFields({
         </select>
         <small>Roles and their permissions are configured under Team & Roles → Roles.</small>
       </label>
+
+      {selectedBusinessRole?.branch_scope === "all_branches" ? (
+        <div className="role-access-note"><strong>Branch assignment</strong><span>This role automatically has access to all branches.</span></div>
+      ) : selectedBusinessRole?.branch_scope === "selected_branches" ? (
+        <fieldset className="team-create-branch-fieldset">
+          <legend>Assigned branches</legend>
+          <div className="team-create-branch-options">{branches.map((branch) => <label key={branch.id}><input type="checkbox" name="branch_ids" value={branch.id} defaultChecked={branch.id === defaultBranchId} /><span>{branch.name}</span></label>)}</div>
+          <small>Select at least one branch for this user.</small>
+        </fieldset>
+      ) : (
+        <label>
+          Assigned branch
+          <select name="branch_ids" defaultValue={defaultBranchId} required>
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+          </select>
+          <small>Staff and own-branch roles need one branch so Queue and TV Display open correctly.</small>
+        </label>
+      )}
 
       <small className="team-login-identifier-note">Email is the login ID for every QueueDrop user. Role access follows the selected role; the temporary password uses the same 6+ character rule for every team role.</small>
 
