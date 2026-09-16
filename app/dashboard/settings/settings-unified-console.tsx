@@ -100,7 +100,7 @@ export function SettingsUnifiedConsole({
   const [accessOpen, setAccessOpen] = useState(() => ["users", "roles", "permissions"].includes(normalizeView(initialView)));
   const [activeBranchId, setActiveBranchId] = useState(initialBranchId ?? branches[0]?.id);
   const [isBranchSwitching, startBranchTransition] = useTransition();
-  const [, startViewTransition] = useTransition();
+  const [isViewSwitching, startViewTransition] = useTransition();
   const selectedBranch = useMemo(() => branches.find((branch) => branch.id === activeBranchId) ?? branches[0], [branches, activeBranchId]);
   const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
@@ -113,13 +113,13 @@ export function SettingsUnifiedConsole({
   };
 
   const chooseView = (next: ViewKey) => {
-    setView(next);
+    if (next === view || isViewSwitching || isBranchSwitching) return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
     const nextUrl = `${url.pathname}?${url.searchParams.toString()}`;
-    // The panel changes optimistically above. Keep ordinary section navigation
-    // non-blocking and reserve the full-screen loading layer for a real branch
-    // switch, where every branch-scoped value must be replaced.
+    // Keep the current server-rendered panel visible until the next route payload
+    // arrives. Switching optimistically used to expose empty placeholder arrays
+    // for Users/Roles before their view-specific data had loaded.
     startViewTransition(() => router.replace(nextUrl, { scroll: false }));
   };
 
@@ -147,7 +147,7 @@ export function SettingsUnifiedConsole({
 
   return (
     <div className="settings-console settings-console-unified">
-      {isBranchSwitching ? <div className="qd-loading-backdrop settings-switch-loading" role="status" aria-live="polite"><section className="qd-loading-modal"><div className="qd-loading-spinner" aria-hidden="true" /><strong>Please wait</strong><small>Loading {selectedBranch?.name ?? "branch"} settings…</small></section></div> : null}
+      {isBranchSwitching || isViewSwitching ? <div className="qd-loading-backdrop settings-switch-loading" role="status" aria-live="polite"><section className="qd-loading-modal"><div className="qd-loading-spinner" aria-hidden="true" /><strong>Please wait</strong><small>{isBranchSwitching ? `Loading ${selectedBranch?.name ?? "branch"} settings…` : "Loading settings section…"}</small></section></div> : null}
       <aside className="settings-console-sidebar">
         <details className="settings-tree-shell settings-tree-shell-unified" open>
           <summary className="settings-tree-mobile-summary">Settings menu <span>⌄</span></summary>

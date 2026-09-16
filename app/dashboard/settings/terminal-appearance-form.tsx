@@ -18,9 +18,9 @@ type Appearance = {
   terminal_background_overlay?: number | null;
 };
 
-type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; branchId: string; branchName: string; appearance: Appearance; canApplyAll?: boolean };
+type Props = { action: (formData: FormData) => void | Promise<void>; businessId: string; businessName: string; branchId: string; branchName: string; previewServiceName?: string; appearance: Appearance; canApplyAll?: boolean };
 
-export function TerminalAppearanceForm({ action, businessId, businessName, branchId, branchName, appearance, canApplyAll = false }: Props) {
+export function TerminalAppearanceForm({ action, businessId, businessName, branchId, branchName, previewServiceName = "Service preview", appearance, canApplyAll = false }: Props) {
   const initialTheme = safeTerminalTheme(appearance.terminal_theme);
   const [theme, setTheme] = useState<TerminalThemeKey>(initialTheme);
   const [page, setPage] = useState(appearance.terminal_page_bg_color || TERMINAL_THEMES[initialTheme].page);
@@ -132,8 +132,8 @@ export function TerminalAppearanceForm({ action, businessId, businessName, branc
           <div className="terminal-preview-qd">QueueDrop</div>
           <div className="terminal-preview-center">
             {logoPreview ? <Image unoptimized src={logoPreview} alt="Business logo preview" width={120} height={120} /> : <div className="terminal-preview-logo-placeholder">{businessName.slice(0,1).toUpperCase()}</div>}
-            <p>{businessName}</p><h3>Commonwealth</h3>
-            <label><span>Choose service</span><div>Haircut <b>⌄</b></div></label>
+            <p>{businessName}</p><h3>{branchName}</h3>
+            <label><span>Choose service</span><div>{previewServiceName} <b>⌄</b></div></label>
             <button type="button"><strong>PRESS HERE</strong><span>to get stub</span></button>
           </div>
         </div>

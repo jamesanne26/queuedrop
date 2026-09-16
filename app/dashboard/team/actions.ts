@@ -756,7 +756,6 @@ export async function createBusinessRole(formData: FormData) {
     }
   }
 
-  revalidatePath("/dashboard/team");
   redirect(rolesUrl(role.id, "message", "Custom role created successfully."));
 }
 
@@ -812,15 +811,15 @@ export async function updateBusinessRole(formData: FormData) {
     .eq("business_id", membership.business_id)
     .eq("role_id", roleId);
 
-  for (const member of assignedMembers ?? []) {
-    const { error } = await supabase.rpc("apply_business_role_to_user", {
+  const syncResults = await Promise.all((assignedMembers ?? []).map((member) =>
+    supabase.rpc("apply_business_role_to_user", {
       target_business_user_id: member.id,
       target_role_id: roleId,
-    });
-    if (error) redirect(rolesUrl(roleId, "error", error.message || "Role saved, but employee access could not be synchronized."));
-  }
+    }),
+  ));
+  const syncError = syncResults.find((result) => result.error)?.error;
+  if (syncError) redirect(rolesUrl(roleId, "error", syncError.message || "Role saved, but employee access could not be synchronized."));
 
-  revalidatePath("/dashboard/team");
   revalidatePath("/dashboard");
   redirect(rolesUrl(roleId, "message", "Role permissions updated successfully."));
 }

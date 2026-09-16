@@ -260,6 +260,7 @@ test.describe("owner terminals and queue operations", () => {
       const historyRow = historyPanel.locator("tbody tr", { hasText: ticket.display_number });
       await expect(historyRow).toBeVisible({ timeout: 30_000 });
       await expect(historyRow).toContainText("completed");
+      await expect(page).not.toHaveURL(/[?&]error=No(?:\+|%20)waiting(?:\+|%20)stub/);
     } finally {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }

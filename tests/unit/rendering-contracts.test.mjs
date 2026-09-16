@@ -93,11 +93,29 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
 
-test("settings navigation separates branch switching from optimistic view navigation", async () => {
+test("settings navigation waits for server data before showing a new view", async () => {
   const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
-  assert.match(consoleSource, /const \[, startViewTransition\] = useTransition\(\)/);
+  assert.match(consoleSource, /const \[isViewSwitching, startViewTransition\] = useTransition\(\)/);
+  assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
   assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
   assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+});
+
+test("queue test-stub creation blocks call-next until the stub action settles", async () => {
+  const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
+  assert.match(workspace, /disabled=\{!selectedService \|\| stubBusy\}>Call next/);
+  assert.match(workspace, /type="button" onClick=\{showHistory\}/);
+});
+
+test("appearance preview uses the selected branch and assigned service", async () => {
+  const form = await readFile(new URL("../../app/dashboard/settings/terminal-appearance-form.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(form, /<h3>\{branchName\}<\/h3>/);
+  assert.match(form, /\{previewServiceName\}/);
+  assert.doesNotMatch(form, />Commonwealth</);
+  assert.doesNotMatch(form, />Haircut/);
+  assert.match(page, /"branch-appearance"/);
+  assert.match(page, /previewServiceName=\{previewServiceName\}/);
 });
 
 test("manage settings is honored by both settings routes and server actions", async () => {

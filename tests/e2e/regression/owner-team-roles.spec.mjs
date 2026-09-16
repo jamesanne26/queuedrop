@@ -22,6 +22,23 @@ const adminReady = hasAdminTestEnvironment();
 test.describe("owner team and role management", () => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
 
+  test("Users and Roles navigation never renders unloaded empty data", async ({ page }) => {
+    await loginAsOwner(page, credentials);
+    await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /Users & Access/ }).click();
+    await page.getByRole("button", { name: "Users", exact: true }).click();
+    await expect(page).toHaveURL(/view=users/, { timeout: 20_000 });
+    await expect(page.getByText("No users here yet.", { exact: true })).toHaveCount(0);
+    await expect(page.locator("article.team-user-row").first()).toBeVisible({ timeout: 20_000 });
+
+    await page.getByRole("button", { name: "Roles", exact: true }).click();
+    await expect(page).toHaveURL(/view=roles/, { timeout: 20_000 });
+    await expect(page.getByText("No roles found.", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Admin Default role/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: /Manager Default role/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Staff Default role/ })).toBeVisible();
+  });
+
   test("Scenario 13 - custom role create and update with permission persistence", async ({ page }) => {
     const id = scenarioId("role");
     const roleName = `E2E Role ${id}`;
