@@ -169,9 +169,8 @@ export function SettingsUnifiedConsole({
                           type="button"
                           key={branch.id}
                           data-branch-id={branch.id}
+                          aria-current={selected ? "page" : undefined}
                           className={`settings-tree-branch settings-tree-branch-button ${selected ? "settings-tree-branch-active" : ""}`}
-                          onPointerEnter={() => router.prefetch(getBranchUrl(branch.id))}
-                          onFocus={() => router.prefetch(getBranchUrl(branch.id))}
                           onClick={() => chooseBranch(branch.id)}
                         >
                           <span className={`settings-tree-dot ${selected ? "settings-tree-dot-active" : ""}`} />

@@ -72,11 +72,17 @@ test.describe("owner dashboard navigation", () => {
     const count = await branchButtons.count();
     test.skip(count < 2, "At least two branches are required for the branch-switching regression check.");
 
-    const target = branchButtons.nth(1);
+    const current = page.locator('[data-branch-id][aria-current="page"]');
+    await expect(current).toHaveCount(1);
+
+    // Always exercise a real branch change. The active branch is not
+    // guaranteed to be first because the sidebar is sorted by display name.
+    const target = page.locator('[data-branch-id]:not([aria-current="page"])').first();
     const targetId = await target.getAttribute("data-branch-id");
     const targetName = (await target.locator("strong").textContent())?.trim();
     expect(targetId).toBeTruthy();
     expect(targetName).toBeTruthy();
+    expect(targetId).not.toBe(await current.getAttribute("data-branch-id"));
 
     await target.click();
     await expect(page).toHaveURL(new RegExp(`branch=${targetId}`));

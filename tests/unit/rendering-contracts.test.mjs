@@ -99,6 +99,8 @@ test("settings navigation waits for server data before showing a new view", asyn
   assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
   assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
   assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
+  assert.doesNotMatch(consoleSource, /router\.prefetch\(getBranchUrl\(branch\.id\)\)/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
