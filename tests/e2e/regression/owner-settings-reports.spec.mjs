@@ -7,6 +7,7 @@ import {
   findBranchByName,
   findServiceByName,
   getOwnerBusiness,
+  getPositionNotificationRules,
   getQueueConfiguration,
   getTicketById,
   latestTicketForService,
@@ -65,11 +66,17 @@ test.describe("owner settings and reports", () => {
       await dismissDashboardResultModal(page, "Branch settings saved.");
 
       await page.goto(`/dashboard/settings?view=branch-notifications&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
-      const notificationsForm = page.locator('form[action]').filter({ has: page.locator('input[name="sms_notifications_enabled"]') }).first();
+      const notificationsForm = page.locator('form[action]').filter({ has: page.locator('input[name="position_rule_count"]') }).first();
       await expect(notificationsForm).toBeVisible();
-      const smsToggle = notificationsForm.locator('input[name="sms_notifications_enabled"]');
-      if (!(await smsToggle.isChecked())) await smsToggle.check();
-      await notificationsForm.locator('input[name="sms_start_position"]').fill("4");
+      await expect(notificationsForm.locator('input[name="position_rule_count"]')).toHaveValue("3");
+      await expect(notificationsForm.locator('input[name="position_rule_0_position"]')).toHaveValue("1");
+      await expect(notificationsForm.locator('input[name="position_rule_1_position"]')).toHaveValue("2");
+      await expect(notificationsForm.locator('input[name="position_rule_2_position"]')).toHaveValue("3");
+      await expect(notificationsForm.locator('input[name="position_rule_0_sms"]')).not.toBeChecked();
+      await expect(notificationsForm.locator('input[name="position_rule_1_sms"]')).not.toBeChecked();
+      await expect(notificationsForm.locator('input[name="position_rule_2_sms"]')).not.toBeChecked();
+      await notificationsForm.locator('input[name="position_rule_0_browser"]').check();
+      await notificationsForm.locator('input[name="position_rule_1_sms"]').check();
       await notificationsForm.getByRole("button", { name: "Save branch settings", exact: true }).click();
       review = page.getByRole("dialog");
       await expect(review).toBeVisible();
@@ -79,8 +86,12 @@ test.describe("owner settings and reports", () => {
 
       const config = await getQueueConfiguration(admin, data.branch.id);
       expect(config?.customer_refresh_seconds).toBe(11);
-      expect(config?.sms_notifications_enabled).toBe(true);
-      expect(config?.sms_start_position).toBe(4);
+      const notificationRules = await getPositionNotificationRules(admin, data.branch.id);
+      expect(notificationRules).toEqual([
+        expect.objectContaining({ position: 1, browser_notification: true, send_sms_once: false }),
+        expect.objectContaining({ position: 2, browser_notification: false, send_sms_once: true }),
+        expect.objectContaining({ position: 3, browser_notification: false, send_sms_once: false }),
+      ]);
 
       await page.goto(`/dashboard/settings?view=branch-queue&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
       const reloaded = page.locator('form[action]').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();

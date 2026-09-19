@@ -227,6 +227,15 @@ export async function getQueueConfiguration(admin, branchId) {
   return data ?? null;
 }
 
+export async function getPositionNotificationRules(admin, branchId) {
+  const { data, error } = await admin.from("position_notification_rules")
+    .select("branch_id,position,send_sms_once,browser_notification")
+    .eq("branch_id", branchId)
+    .order("position", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function findRoleByName(admin, businessId, name) {
   const { data, error } = await admin.from("roles")
     .select("id,business_id,name,description,base_role,branch_scope,is_system,is_protected")

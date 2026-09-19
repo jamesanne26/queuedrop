@@ -112,24 +112,16 @@ test.describe("owner terminals and queue operations", () => {
       await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
       await expectNoAppError(page);
 
-      // Configure a deterministic TEST-only kiosk exit PIN used by this scenario.
-      const pinForm = page.locator("form.kiosk-pin-form");
-      await pinForm.locator('select[name="branch_id"]').selectOption(branch.id);
-      await pinForm.locator('input[name="kiosk_exit_pin"]').fill("4826");
-      await pinForm.locator('input[name="kiosk_exit_pin_confirm"]').fill("4826");
-      await pinForm.getByRole("button", { name: "Save PIN", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && url.searchParams.get("branch") === branch.id && url.searchParams.get("message") === "Branch terminal exit PIN updated.", { timeout: 20_000 });
-      await expectNotice(page, "Branch terminal exit PIN updated.");
-      await page.goto("/dashboard/terminals", { waitUntil: "domcontentloaded" });
-      await expectNoAppError(page);
-
       const createForm = page.locator("form.form-stack.compact-form").filter({ has: page.getByRole("button", { name: "Create terminal", exact: true }) }).first();
       await createForm.locator('input[name="name"]').fill(terminalName);
       await createForm.locator('select[name="branch_id"]').selectOption(branch.id);
       await createForm.locator('select[name="service_id"]').selectOption(serviceA.id);
+      await createForm.locator('input[name="kiosk_exit_pin"]').fill("4826");
+      await createForm.locator('input[name="kiosk_exit_pin_confirm"]').fill("4826");
       await createForm.getByRole("button", { name: "Create terminal", exact: true }).click();
       await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && Boolean(url.searchParams.get("message")), { timeout: 20_000 });
-      await expectNotice(page, "QueueDrop terminal created.");
+      await expectNotice(page, /QueueDrop terminal created/);
+      await expect(page.getByRole("status")).toContainText("4826");
 
       let terminal = await findTerminalByName(admin, branch.id, terminalName);
       expect(terminal).not.toBeNull();
