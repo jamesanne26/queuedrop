@@ -16,9 +16,10 @@ type Props = {
   compact?: boolean;
   hideBranchSelect?: boolean;
   disabled?: boolean;
+  requirePin?: boolean;
 };
 
-export function TerminalForm({ branches, action, submitLabel, terminalId, defaultName = "", defaultBranchId = "", defaultServiceId = "", compact = false, hideBranchSelect = false, disabled = false }: Props) {
+export function TerminalForm({ branches, action, submitLabel, terminalId, defaultName = "", defaultBranchId = "", defaultServiceId = "", compact = false, hideBranchSelect = false, disabled = false, requirePin = false }: Props) {
   const [branchId, setBranchId] = useState(defaultBranchId);
   const services = useMemo(() => {
     const branch = branches.find((item) => item.id === branchId);
@@ -30,6 +31,7 @@ export function TerminalForm({ branches, action, submitLabel, terminalId, defaul
     <label>Terminal name<input name="name" required maxLength={80} defaultValue={defaultName} placeholder="Front Desk Terminal" /></label>
     {hideBranchSelect ? <input type="hidden" name="branch_id" value={branchId} /> : <label>Branch<select name="branch_id" required value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="" disabled>Select branch</option>{branches.map((branch)=><option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}
     <label>Default service<select name="service_id" required defaultValue={branchId === defaultBranchId ? defaultServiceId : ""} key={branchId}><option value="" disabled>Select default service</option>{services.map((service)=><option key={service.id} value={service.id}>{service.name}</option>)}</select><small className="muted">This is preselected when Get Stub opens. Customers can still choose any active service in this branch.</small></label>
+    {requirePin ? <div className="terminal-create-pin-fields"><label>Terminal PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4–8 digit PIN" /></label><label>Confirm PIN<input name="kiosk_exit_pin_confirm" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="Repeat PIN" /></label></div> : null}
     <button className="button button-primary" type="submit" disabled={disabled}>{disabled ? "Set PIN first" : submitLabel}</button>
   </form>;
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createPinRevealToken } from "@/lib/terminal/pin-reveal";
 
 function field(formData: FormData, key: string) { return String(formData.get(key) ?? "").trim(); }
 
@@ -10,13 +11,12 @@ export async function createTerminal(formData: FormData) {
   const branchId = field(formData, "branch_id");
   const serviceId = field(formData, "service_id");
   const name = field(formData, "name");
+  const pin = field(formData, "kiosk_exit_pin");
+  const confirmPin = field(formData, "kiosk_exit_pin_confirm");
   if (!branchId || !serviceId || !name) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent("Branch, default service, and terminal name are required.")}`);
+  if (!/^\d{4,8}$/.test(pin)) redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Terminal PIN must contain 4 to 8 digits.")}`);
+  if (pin !== confirmPin) redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Terminal PIN confirmation does not match.")}`);
   const supabase = await createClient();
-  const { data: branch, error: branchError } = await supabase.from("branches")
-    .select("id,kiosk_exit_pin_hash")
-    .eq("id", branchId)
-    .maybeSingle();
-  if (branchError || !branch?.kiosk_exit_pin_hash) redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Set a 4 to 8 digit terminal exit PIN before creating a terminal.")}`);
   const { data: service, error: serviceError } = await supabase.from("services")
     .select("id,branch_id")
     .eq("id", serviceId)
@@ -24,6 +24,8 @@ export async function createTerminal(formData: FormData) {
     .eq("is_active", true)
     .maybeSingle();
   if (serviceError || !service) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent("Selected default service does not belong to the selected branch.")}`);
+  const { error: pinError } = await supabase.rpc("set_branch_kiosk_exit_pin", { target_branch_id: branchId, target_pin: pin });
+  if (pinError) redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent(pinError.message)}`);
   const { error } = await supabase.from("devices").insert({
     branch_id: branchId,
     service_id: serviceId,
@@ -34,7 +36,8 @@ export async function createTerminal(formData: FormData) {
   if (error) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent(error.message)}`);
   revalidatePath("/dashboard/terminals");
   revalidatePath("/dashboard/settings");
-  redirect(`/dashboard/settings?view=branch-terminals&message=${encodeURIComponent("QueueDrop terminal created.")}`);
+  const reveal = createPinRevealToken(name, pin);
+  redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&pin_reveal=${encodeURIComponent(reveal)}&message=${encodeURIComponent("QueueDrop terminal created. Save the displayed PIN now; it will only be shown once.")}`);
 }
 
 export async function updateTerminal(formData: FormData) {

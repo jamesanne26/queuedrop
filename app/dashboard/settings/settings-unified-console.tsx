@@ -52,7 +52,7 @@ const branchItems: Array<{ key: ViewKey; label: string; icon: IconName }> = [
   { key: "branch-queue", label: "Queue Settings", icon: "sliders" },
   { key: "branch-notifications", label: "Notifications", icon: "bell" },
   { key: "branch-appearance", label: "Appearance", icon: "palette" },
-  { key: "branch-terminals", label: "Terminals", icon: "terminal" },
+  { key: "branch-terminals", label: "Stub Printer", icon: "terminal" },
 ];
 
 function Icon({ name }: { name: IconName }) {
@@ -144,7 +144,7 @@ export function SettingsUnifiedConsole({
 
   const configPanel = panels[view] ?? panels["branch-general"];
   const activeLabel = branchItems.find((entry) => entry.key === view)?.label
-    ?? ({ services: "Services", users: "Users", roles: "Roles", permissions: "Permissions", business: "Business", billing: "Billing & Subscription", "android-app": "Android App" } as Partial<Record<ViewKey, string>>)[view]
+    ?? ({ services: "Services", users: "Users", roles: "Roles", permissions: "Permissions", business: "Business", billing: "Billing & Subscription", "android-app": "Mobile Installers" } as Partial<Record<ViewKey, string>>)[view]
     ?? "Settings";
 
   return (
@@ -211,7 +211,7 @@ export function SettingsUnifiedConsole({
 
             {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></button></section> : null}
             {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></button></section> : null}
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Android App</strong><span className="settings-tree-caret">›</span></button></section> : null}
+            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Mobile Installers</strong><span className="settings-tree-caret">›</span></button></section> : null}
           </nav>
         </details>
       </aside>

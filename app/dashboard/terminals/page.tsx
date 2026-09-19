@@ -50,7 +50,7 @@ export default async function TerminalsPage({ searchParams }: Props) {
 
     <section className="dashboard-section dashboard-section-stack">
       <div><h2>Add terminal</h2><p className="muted">Select the branch first, then choose the service that should be preselected by default. The same service can be the default on more than one terminal.</p></div>
-      <TerminalForm branches={safeBranches} action={createTerminal} submitLabel="Create terminal" />
+      <TerminalForm branches={safeBranches} action={createTerminal} submitLabel="Create terminal" requirePin />
     </section>
 
     <section className="dashboard-section dashboard-section-stack">
