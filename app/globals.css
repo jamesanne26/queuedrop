@@ -7664,3 +7664,4 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
 .account-permission-access { display:grid; gap:8px; padding:14px; border:1px solid #dfe7e3; border-radius:12px; }
 
 .settings-branch-counts{display:block;font-size:11px;font-weight:600;color:var(--muted,#6b7b8f);margin-top:2px;white-space:nowrap}.terminal-apply-all{display:flex;align-items:center;gap:8px;font-weight:700}.terminal-apply-all input{width:18px;height:18px}
+.settings-apk-download{display:flex;align-items:center;justify-content:space-between;gap:20px}.settings-apk-download>div{display:grid;gap:6px}.settings-apk-download p{margin:0}@media(max-width:820px){.settings-apk-download{align-items:stretch;flex-direction:column}.settings-apk-download .button{justify-content:center}}

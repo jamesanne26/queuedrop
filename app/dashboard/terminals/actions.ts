@@ -12,6 +12,11 @@ export async function createTerminal(formData: FormData) {
   const name = field(formData, "name");
   if (!branchId || !serviceId || !name) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent("Branch, default service, and terminal name are required.")}`);
   const supabase = await createClient();
+  const { data: branch, error: branchError } = await supabase.from("branches")
+    .select("id,kiosk_exit_pin_hash")
+    .eq("id", branchId)
+    .maybeSingle();
+  if (branchError || !branch?.kiosk_exit_pin_hash) redirect(`/dashboard/settings?view=branch-terminals&branch=${encodeURIComponent(branchId)}&error=${encodeURIComponent("Set a 4 to 8 digit terminal exit PIN before creating a terminal.")}`);
   const { data: service, error: serviceError } = await supabase.from("services")
     .select("id,branch_id")
     .eq("id", serviceId)

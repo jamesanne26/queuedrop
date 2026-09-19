@@ -37,7 +37,6 @@ export async function updateQueueSettings(formData: FormData) {
   const noShowMinutes = Number(field(formData, "no_show_minutes"));
   const timezone = field(formData, "timezone");
   const customerRefreshSeconds = Number(field(formData, "customer_refresh_seconds") || 8);
-  const smsStartPosition = Number(field(formData, "sms_start_position") || 3);
   const returnView = normalizeReturnView(field(formData, "return_view"));
 
   if (!branchId) fail(branchId, "Select a branch.", returnView);
@@ -61,10 +60,6 @@ export async function updateQueueSettings(formData: FormData) {
 
   if (!Number.isInteger(customerRefreshSeconds) || customerRefreshSeconds < 3 || customerRefreshSeconds > 300) {
     fail(branchId, "Customer refresh interval must be between 3 and 300 seconds.", returnView);
-  }
-
-  if (!Number.isInteger(smsStartPosition) || smsStartPosition < 1 || smsStartPosition > 20) {
-    fail(branchId, "SMS start position must be between 1 and 20.", returnView);
   }
 
   if (!(TIMEZONES as readonly string[]).includes(timezone)) {
@@ -175,13 +170,6 @@ export async function updateQueueSettings(formData: FormData) {
     target_seconds: customerRefreshSeconds,
   });
   if (refreshError) fail(branchId, refreshError.message, returnView);
-
-  const { error: smsSettingsError } = await supabase.rpc("set_branch_sms_position_settings", {
-    target_branch_id: branchId,
-    target_enabled: checked(formData, "sms_notifications_enabled"),
-    target_start_position: smsStartPosition,
-  });
-  if (smsSettingsError) fail(branchId, smsSettingsError.message, returnView);
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/branches");

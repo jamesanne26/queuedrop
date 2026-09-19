@@ -50,7 +50,7 @@ export default async function ReportsPage({ searchParams }: Props) {
   const to = dateOnly(params.to, endDefault);
   const branch = branchIds.includes(params.branch ?? "") ? params.branch! : "all";
   const service = services.some((s) => s.id === params.service) ? params.service! : "all";
-  const status = ["all","waiting","called","serving","completed","cancelled","no_show"].includes(params.status ?? "") ? params.status! : "all";
+  const status = ["all","waiting","called","serving","completed","cancelled","no_show","not_completed"].includes(params.status ?? "") ? params.status! : "all";
   const report = ["history","summary","service"].includes(params.report ?? "") ? params.report! : "history";
 
   let q = supabase.from("tickets").select("id,display_number,status,joined_at,called_at,serving_at,completed_at,cancelled_at,branch_id,service_id,sms_phone, branches(name), services(name)")

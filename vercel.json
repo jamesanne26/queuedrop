@@ -3,6 +3,10 @@
     {
       "path": "/api/internal/subscriptions/reconcile",
       "schedule": "10 0 * * *"
+    },
+    {
+      "path": "/api/internal/queues/end-of-day",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

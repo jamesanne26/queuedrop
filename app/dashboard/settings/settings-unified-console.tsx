@@ -19,7 +19,8 @@ type ViewKey =
   | "roles"
   | "permissions"
   | "business"
-  | "billing";
+  | "billing"
+  | "android-app";
 
 type Props = {
   branches: BranchNav[];
@@ -36,7 +37,7 @@ type Props = {
   panels: Partial<Record<ViewKey, ReactNode>>;
 };
 
-type IconName = "branch" | "home" | "service" | "users" | "clock" | "sliders" | "bell" | "palette" | "terminal" | "business" | "billing" | "shield" | "role";
+type IconName = "branch" | "home" | "service" | "users" | "clock" | "sliders" | "bell" | "palette" | "terminal" | "business" | "billing" | "download" | "shield" | "role";
 
 const branchViews = new Set<ViewKey>([
   "branch-general", "branch-services", "branch-users", "branch-operating", "branch-queue",
@@ -67,6 +68,7 @@ function Icon({ name }: { name: IconName }) {
   if (name === "terminal") return <svg {...common}><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M9 18h6M8 6h8v8H8z"/></svg>;
   if (name === "business") return <svg {...common}><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M8 10h.01M12 10h.01M16 10h.01"/></svg>;
   if (name === "billing") return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 15h4"/></svg>;
+  if (name === "download") return <svg {...common}><path d="M12 3v12m0 0 5-5m-5 5-5-5"/><path d="M5 21h14"/></svg>;
   if (name === "shield") return <svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>;
   return <svg {...common}><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0M18 4l2 2"/></svg>;
 }
@@ -75,7 +77,7 @@ function normalizeView(value?: string): ViewKey {
   const allowed: ViewKey[] = [
     "branch-general", "branch-services", "branch-users", "branch-operating", "branch-queue",
     "branch-notifications", "branch-appearance", "branch-terminals", "services", "users", "roles",
-    "permissions", "business", "billing",
+    "permissions", "business", "billing", "android-app",
   ];
   return allowed.includes(value as ViewKey) ? (value as ViewKey) : "branch-general";
 }
@@ -142,7 +144,7 @@ export function SettingsUnifiedConsole({
 
   const configPanel = panels[view] ?? panels["branch-general"];
   const activeLabel = branchItems.find((entry) => entry.key === view)?.label
-    ?? ({ services: "Services", users: "Users", roles: "Roles", permissions: "Permissions", business: "Business", billing: "Billing & Subscription" } as Partial<Record<ViewKey, string>>)[view]
+    ?? ({ services: "Services", users: "Users", roles: "Roles", permissions: "Permissions", business: "Business", billing: "Billing & Subscription", "android-app": "Android App" } as Partial<Record<ViewKey, string>>)[view]
     ?? "Settings";
 
   return (
@@ -209,6 +211,7 @@ export function SettingsUnifiedConsole({
 
             {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></button></section> : null}
             {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></button></section> : null}
+            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Android App</strong><span className="settings-tree-caret">›</span></button></section> : null}
           </nav>
         </details>
       </aside>
