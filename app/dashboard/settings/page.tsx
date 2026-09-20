@@ -103,7 +103,8 @@ export default async function SettingsPage({ searchParams }: Props) {
   const needsOperatingHours = activeView === "branch-operating";
   const needsNotificationRules = activeView === "branch-notifications";
   const needsServices = ["services", "branch-services", "branch-appearance", "branch-terminals"].includes(activeView);
-  const needsAccessData = ["users", "roles", "permissions", "branch-users"].includes(activeView);
+  const needsMembers = ["users", "branch-users"].includes(activeView);
+  const needsRoles = ["users", "roles", "permissions", "branch-users"].includes(activeView);
   const needsBilling = activeView === "billing";
 
   const selectedPromises = selectedBranchId ? Promise.all([
@@ -124,10 +125,10 @@ export default async function SettingsPage({ searchParams }: Props) {
     selectedPromises,
     servicesPromise,
     branchServiceLinksPromise,
-    needsAccessData ? memberQuery : Promise.resolve({ data: [] as never[] }),
-    needsAccessData ? supabase.from("roles").select("id,name,description,base_role,branch_scope,is_system,is_protected").eq("business_id", membership.business_id).order("is_system", { ascending: false }).order("created_at", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
-    needsAccessData ? supabase.from("permissions").select("code,label,description,category,sort_order").order("sort_order", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
-    needsAccessData ? supabase.from("role_permissions").select("role_id,permission_code") : Promise.resolve({ data: [] as never[] }),
+    needsMembers ? memberQuery : Promise.resolve({ data: [] as never[] }),
+    needsRoles ? supabase.from("roles").select("id,name,description,base_role,branch_scope,is_system,is_protected").eq("business_id", membership.business_id).order("is_system", { ascending: false }).order("created_at", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
+    needsRoles ? supabase.from("permissions").select("code,label,description,category,sort_order").order("sort_order", { ascending: true }) : Promise.resolve({ data: [] as never[] }),
+    needsRoles ? supabase.from("role_permissions").select("role_id,permission_code") : Promise.resolve({ data: [] as never[] }),
     businessWide && needsBilling ? supabase.from("plans").select("id,name,description,max_branches,price_monthly,price_yearly,currency,max_active_queues_per_branch,max_services_per_branch,allow_auto_renew,tax_mode,vat_rate,tax_price_mode").eq("is_active", true).eq("is_public", true).eq("accepts_new_subscriptions", true).order("sort_order") : Promise.resolve({ data: [] as never[] }),
     businessWide && needsBilling ? supabase.rpc("get_effective_subscription_terms", { target_business_id: membership.business_id }) : Promise.resolve({ data: null }),
     businessWide && needsBilling ? supabase.from("subscription_orders").select("id,status,amount,currency,billing_interval,renewal_mode,created_at,plans(name)").eq("business_id", membership.business_id).order("created_at", { ascending: false }).limit(5) : Promise.resolve({ data: [] as never[] }),

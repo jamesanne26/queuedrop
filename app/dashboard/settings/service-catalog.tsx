@@ -56,8 +56,8 @@ export function ServiceCatalog({ services, canManage }: Props) {
                 <form action={updateCatalogService} className="settings-catalog-form">
                   <input type="hidden" name="service_key" value={service.key} />
                   <label>Service name<input name="name" required minLength={2} maxLength={120} defaultValue={service.name} /></label>
-                  <label>Group<input name="service_group" maxLength={80} placeholder="e.g. Salon, Auto" /></label>
-            <label>Description<textarea name="description" maxLength={500} defaultValue={service.description ?? ""} /></label>
+                  <label>Group<input name="service_group" maxLength={80} placeholder="e.g. Salon, Auto" defaultValue={service.group ?? ""} /></label>
+                  <label>Description<textarea name="description" maxLength={500} defaultValue={service.description ?? ""} /></label>
                   <div className="settings-catalog-split">
                     <label>Queue prefix<input name="queue_prefix" maxLength={6} defaultValue={service.queue_prefix ?? ""} /></label>
                     <label>Estimated minutes<input name="estimated_minutes" type="number" min={1} max={480} defaultValue={service.estimated_minutes ?? ""} /></label>

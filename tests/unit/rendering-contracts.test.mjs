@@ -141,3 +141,24 @@ test("atomic onboarding avoids a redundant membership round trip", async () => {
   assert.doesNotMatch(onboarding, /existingMembership/);
   assert.match(onboarding, /create_initial_business_workspace/);
 });
+
+test("service catalog preserves the saved service group in the edit form", async () => {
+  const catalog = await readFile(new URL("../../app/dashboard/settings/service-catalog.tsx", import.meta.url), "utf8");
+  assert.match(catalog, /name="service_group"[\s\S]*?defaultValue=\{service\.group \?\? ""\}/);
+});
+
+test("live queue uses one realtime owner and avoids route-wide refreshes for inline stubs", async () => {
+  const page = await readFile(new URL("../../app/dashboard/queues/page.tsx", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/queues/actions.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /LiveQueueRefresh/);
+  assert.match(workspace, /realtimeConnected \? "Live connected" : "Reconnecting…"/);
+  const inlineAction = actions.slice(actions.indexOf("export async function simulateGetStubInlineAction"), actions.indexOf("export async function callNextAction"));
+  assert.doesNotMatch(inlineAction, /revalidatePath/);
+});
+
+test("settings only loads member profiles for user-assignment views", async () => {
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /const needsMembers = \["users", "branch-users"\]/);
+  assert.match(page, /needsMembers \? memberQuery/);
+});

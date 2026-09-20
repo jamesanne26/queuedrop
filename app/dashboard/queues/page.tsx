@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { LiveQueueRefresh } from "./live-queue-refresh";
 import { LiveQueueWorkspace } from "./live-queue-workspace";
 import { isSystemOwner } from "@/lib/auth/system-owner";
 
@@ -107,9 +106,7 @@ export default async function QueuesPage({ searchParams }: Props) {
     updated_at: ticket.updated_at,
   }));
 
-  return <>
-    <LiveQueueRefresh branchId={selectedBranchId} />
-    <LiveQueueWorkspace
+  return <LiveQueueWorkspace
       key={selectedBranchId}
       role={role}
       canSimulateStub={developer || role === "owner" || role === "admin"}
@@ -134,6 +131,5 @@ export default async function QueuesPage({ searchParams }: Props) {
       currentSessionDate={currentSessionDate}
       successMessage={params.success}
       errorMessage={params.error}
-    />
-  </>;
+    />;
 }

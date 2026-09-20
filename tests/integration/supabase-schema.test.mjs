@@ -4,8 +4,6 @@ import assert from "node:assert/strict";
 const url = process.env.QUEUEDROP_TEST_SUPABASE_URL;
 const serviceKey = process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.QUEUEDROP_TEST_SUPABASE_ANON_KEY;
-const ownerEmail = process.env.E2E_OWNER_EMAIL;
-const ownerPassword = process.env.E2E_OWNER_PASSWORD;
 const forbiddenBusinessId = process.env.E2E_FORBIDDEN_BUSINESS_ID;
 const requireIntegration = process.env.QUEUEDROP_REQUIRE_INTEGRATION === "1";
 
@@ -17,8 +15,6 @@ const adminMissing = [
 const rlsMissing = [
   ["QUEUEDROP_TEST_SUPABASE_URL", url],
   ["QUEUEDROP_TEST_SUPABASE_ANON_KEY", anonKey],
-  ["E2E_OWNER_EMAIL", ownerEmail],
-  ["E2E_OWNER_PASSWORD", ownerPassword],
   ["E2E_FORBIDDEN_BUSINESS_ID", forbiddenBusinessId],
 ].filter(([, value]) => !value).map(([name]) => name);
 
@@ -79,13 +75,45 @@ test("invalid terminal token does not reveal terminal data", { skip: !adminEnabl
 test("authenticated owner cannot read an explicitly foreign business", { skip: !rlsEnabled }, async () => {
   assertSafeTestUrl();
   const { createClient } = await import("@supabase/supabase-js");
+  const admin = await adminClient();
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `queuedrop-rls-${suffix}@example.com`;
+  const password = `Qd!${suffix}Aa9`;
+  let createdUserId = null;
+  let createdBusinessId = null;
   const client = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { error: authError } = await client.auth.signInWithPassword({ email: ownerEmail, password: ownerPassword });
-  assert.equal(authError, null, authError?.message);
-  const { data, error } = await client.from("businesses").select("id").eq("id", forbiddenBusinessId);
-  assert.equal(error, null, error?.message);
-  assert.deepEqual(data, []);
-  await client.auth.signOut();
+  try {
+    const { data: createdAuth, error: createAuthError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: "QueueDrop RLS Test" },
+    });
+    assert.equal(createAuthError, null, createAuthError?.message);
+    createdUserId = createdAuth.user?.id ?? null;
+    assert.ok(createdUserId, "temporary RLS user was not created");
+
+    const { error: authError } = await client.auth.signInWithPassword({ email, password });
+    assert.equal(authError, null, authError?.message);
+    const { data: workspace, error: workspaceError } = await client.rpc("create_initial_business_workspace", {
+      business_name: `RLS Test ${suffix}`,
+      branch_name: "RLS Branch",
+      branch_address: null,
+      branch_phone: null,
+    });
+    assert.equal(workspaceError, null, workspaceError?.message);
+    const workspaceRow = Array.isArray(workspace) ? workspace[0] : workspace;
+    createdBusinessId = workspaceRow?.business_id ?? null;
+    assert.ok(createdBusinessId, "temporary owner workspace was not created");
+
+    const { data, error } = await client.from("businesses").select("id").eq("id", forbiddenBusinessId);
+    assert.equal(error, null, error?.message);
+    assert.deepEqual(data, []);
+  } finally {
+    await client.auth.signOut();
+    if (createdBusinessId) await admin.from("businesses").delete().eq("id", createdBusinessId);
+    if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
+  }
 });
 
 

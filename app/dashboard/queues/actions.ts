@@ -123,7 +123,9 @@ export async function simulateGetStubInlineAction(branchId: string, serviceId: s
   const { data: issued, error } = await supabase.rpc("issue_stub_ticket", { target_device_token: terminal.device_token });
   if (error) return { ok: false as const, message: error.message };
 
-  revalidatePath("/dashboard/queues");
+  // The live workspace receives this insert through Realtime and also runs a
+  // lightweight reconciliation query. Invalidating the whole route here made
+  // every test-stub request trigger an unnecessary server render.
   const displayNumber = issued && typeof issued === "object" && "display_number" in issued
     ? String((issued as { display_number?: unknown }).display_number ?? "")
     : "";

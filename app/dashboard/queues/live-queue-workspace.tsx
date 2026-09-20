@@ -65,6 +65,7 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [stubBusy, setStubBusy] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const historyRequestId = useRef(0);
   // Keep only the selected ticket id, then derive the preview from liveTickets.
   // A newly-created ticket can arrive over Realtime before its customer_sessions
@@ -172,7 +173,9 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
         );
       })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") void reconcile();
+        const connected = status === "SUBSCRIBED";
+        setRealtimeConnected(connected);
+        if (connected) void reconcile();
       });
 
     // Realtime should normally update in under a second. This is a deliberately
@@ -371,6 +374,10 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
         </select>
       </label>
     </header>
+
+    <div className="ticket-live-row queue-live-refresh" role="status">
+      <span><span className="status-dot" /> {realtimeConnected ? "Live connected" : "Reconnecting…"}</span>
+    </div>
 
     {flash ? <div className={`notice ${flash.type === "success" ? "notice-success" : "notice-error"} live-queue-flash`} role="status">{flash.message}</div> : null}
 
