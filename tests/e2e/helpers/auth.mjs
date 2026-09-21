@@ -14,7 +14,17 @@ export async function loginAsOwner(page, credentials) {
   await passwordInput.fill(credentials.password);
 
   await signInButton.click();
-  await page.waitForURL(/\/dashboard(?:\?.*)?$/, { timeout: 20_000 });
+  await page.waitForURL((url) => {
+    if (/\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
+    return url.pathname === "/auth/login" && url.searchParams.has("error");
+  }, { timeout: 20_000 });
+
+  const loginResult = new URL(page.url());
+  if (loginResult.pathname === "/auth/login" && loginResult.searchParams.has("error")) {
+    throw new Error(
+      "Owner E2E login failed. Verify E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD belong to the configured TEST Supabase project.",
+    );
+  }
 
   // The Account/Sign out controls now live inside a collapsible sidebar menu and
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.

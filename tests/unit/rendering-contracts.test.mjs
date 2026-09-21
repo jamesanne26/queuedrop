@@ -162,3 +162,15 @@ test("settings only loads member profiles for user-assignment views", async () =
   assert.match(page, /const needsMembers = \["users", "branch-users"\]/);
   assert.match(page, /needsMembers \? memberQuery/);
 });
+
+test("browser E2E validates shared CI credentials and fails fast", async () => {
+  const config = await readFile(new URL("../../playwright.config.mjs", import.meta.url), "utf8");
+  const setup = await readFile(new URL("../e2e/global-setup.mjs", import.meta.url), "utf8");
+  const auth = await readFile(new URL("../e2e/helpers/auth.mjs", import.meta.url), "utf8");
+
+  assert.match(config, /globalSetup:\s*"\.\/tests\/e2e\/global-setup\.mjs"/);
+  assert.match(config, /maxFailures:\s*process\.env\.CI\s*\?\s*3\s*:\s*0/);
+  assert.match(setup, /getOwnerBusiness\(admin, email\)/);
+  assert.match(setup, /signInWithPassword\(\{ email, password \}\)/);
+  assert.match(auth, /url\.searchParams\.has\("error"\)/);
+});

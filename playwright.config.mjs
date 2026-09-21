@@ -26,8 +26,11 @@ if (!externalBaseUrl && !process.env.CI) {
 
 export default defineConfig({
   testDir: "./tests/e2e/regression",
+  globalSetup: "./tests/e2e/global-setup.mjs",
   fullyParallel: false,
   workers: 1,
+  // Stop cascading shared-fixture failures before they consume the entire CI job.
+  maxFailures: process.env.CI ? 3 : 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
 
