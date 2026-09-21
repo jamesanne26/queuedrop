@@ -55,3 +55,6 @@ supabase/.branches/
 # keep the sanitized environment template in source control
 !.env.example
 !.env.test.local.example
+
+# local agent archive
+AGENTS.zip
