@@ -127,7 +127,7 @@ on conflict (branch_id, user_id) do nothing;
 -- -----------------------------------------------------------------------------
 insert into public.queue_configurations (
   branch_id, ticket_prefix, starting_number, no_show_minutes,
-  allow_qr_join, is_active, show_branch_contact
+  is_active, show_branch_contact, stub_mode_enabled
 )
 select
   br.id,
@@ -144,7 +144,6 @@ on conflict (branch_id) do update set
   ticket_prefix = excluded.ticket_prefix,
   starting_number = excluded.starting_number,
   no_show_minutes = excluded.no_show_minutes,
-  allow_qr_join = excluded.allow_qr_join,
   is_active = excluded.is_active,
   show_branch_contact = excluded.show_branch_contact;
 
@@ -212,23 +211,28 @@ on conflict (branch_id, day_of_week) do update set
   close_time = excluded.close_time;
 
 -- -----------------------------------------------------------------------------
--- 7) Ready-made queue for Anne Salon / Commonwealth
+-- 7) Ready-made stub terminal + anonymous queue for Anne Salon / Commonwealth
 -- -----------------------------------------------------------------------------
--- Creates customer records, customer sessions, queue session, counters,
--- tickets and ticket events using the same public queue RPC used by the app.
+insert into public.devices (id, branch_id, name, device_type, device_token, is_active, service_id)
+values (
+  '50000000-0000-4000-8000-000000000001',
+  '30000000-0000-4000-8000-000000000001',
+  'Commonwealth Haircut Stub Terminal',
+  'ticket_terminal',
+  '60000000-0000-4000-8000-000000000001',
+  true,
+  '40000000-0000-4000-8000-000000000001'
+)
+on conflict (id) do update set
+  name=excluded.name, device_type=excluded.device_type, device_token=excluded.device_token,
+  is_active=excluded.is_active, service_id=excluded.service_id;
+
 do $$
 begin
-  if not exists (
-    select 1
-    from public.tickets t
-    where t.branch_id = '30000000-0000-4000-8000-000000000001'::uuid
-  ) then
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Maria Santos', '09171111001');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Juan Dela Cruz', '09171111002');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Ana Reyes', '09171111003');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000001', 'Paolo Garcia', '09171111004');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Bea Mendoza', '09171112001');
-    perform public.join_public_queue('anne-salon', 'commonwealth', '40000000-0000-4000-8000-000000000002', 'Carlo Ramos', '09171112002');
+  if not exists (select 1 from public.tickets where branch_id='30000000-0000-4000-8000-000000000001'::uuid) then
+    perform public.issue_stub_ticket('60000000-0000-4000-8000-000000000001');
+    perform public.issue_stub_ticket('60000000-0000-4000-8000-000000000001');
+    perform public.issue_stub_ticket('60000000-0000-4000-8000-000000000001');
   end if;
 end;
 $$;
@@ -245,16 +249,6 @@ values (
   '20000000-0000-4000-8000-000000000001',
   jsonb_build_object('note', 'QueueDrop local development seed loaded', 'business_count', 10)
 );
-
--- Milestone 7.1 DEV defaults: make Anne Salon / Commonwealth easy to test.
-update public.queue_configurations
-set customer_can_edit_name = true,
-    customer_can_edit_mobile = true,
-    staff_can_edit_name = true,
-    staff_can_edit_mobile = true,
-    manager_can_edit_name = true,
-    manager_can_edit_mobile = true
-where branch_id = '30000000-0000-4000-8000-000000000001'::uuid;
 
 insert into public.position_notification_rules(branch_id, position, send_sms_once, browser_notification)
 values

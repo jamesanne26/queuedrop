@@ -29,12 +29,12 @@ export async function createBusinessWorkspace(formData: FormData) {
     fail("Branch address must be 300 characters or fewer.");
   }
 
-  if (branchPhone.length > 32) {
-    fail("Branch phone must be 32 characters or fewer.");
+  if (branchPhone.length > 20) {
+    fail("Branch phone must be 20 digits or fewer.");
   }
 
-  if (branchPhone && !/^[0-9+() .-]{7,32}$/.test(branchPhone)) {
-    fail("Branch phone contains invalid characters.");
+  if (branchPhone && !/^[0-9]{7,20}$/.test(branchPhone)) {
+    fail("Branch phone must contain numbers only.");
   }
 
   const supabase = await createClient();
@@ -45,18 +45,11 @@ export async function createBusinessWorkspace(formData: FormData) {
     redirect("/auth/login?next=%2Fonboarding");
   }
 
-  const { data: existingMembership } = await supabase
-    .from("business_users")
-    .select("business_id")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (existingMembership) {
-    redirect("/dashboard");
-  }
-
-  const { error } = await supabase.rpc("create_initial_business_workspace", {
+  // The RPC creates the business, owner membership, Starter trial, first branch,
+  // branch membership and queue defaults atomically. It also rejects an account
+  // that already owns/belongs to a workspace, so a separate membership query
+  // only adds another network round trip to the most latency-sensitive flow.
+  const { data: created, error } = await supabase.rpc("create_initial_business_workspace", {
     business_name: businessName,
     branch_name: branchName,
     branch_address: branchAddress || null,
@@ -64,8 +57,19 @@ export async function createBusinessWorkspace(formData: FormData) {
   });
 
   if (error) {
+    console.error("QueueDrop onboarding failed", {
+      code: error.code,
+      message: error.message,
+      userId,
+    });
     fail(error.message || "Unable to create your QueueDrop workspace.");
   }
 
-  redirect("/dashboard?message=Workspace%20created%20successfully.");
+  const workspace = Array.isArray(created) ? created[0] : created;
+  const branchId = workspace?.branch_id;
+  if (!branchId) {
+    fail("Workspace was created, but QueueDrop could not continue to first service setup.");
+  }
+
+  redirect(`/onboarding/service?branch=${encodeURIComponent(branchId)}`);
 }

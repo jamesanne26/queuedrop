@@ -6,25 +6,51 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "node scripts/run-tests.mjs unit",
+    "test:unit:watch": "node scripts/run-tests.mjs unit --watch",
+    "test:unit:coverage": "node scripts/run-tests.mjs unit --coverage",
+    "test:sms": "node scripts/run-tests.mjs sms",
+    "test:integration": "node scripts/run-tests.mjs integration",
+    "test:smoke": "node scripts/run-tests.mjs e2e/smoke",
+    "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run security:secrets",
+    "verify": "npm run quality && npm run test:integration && npm run build",
+    "security:secrets": "node scripts/check-secrets.mjs",
+    "test:integration:required": "node scripts/run-tests.mjs integration --required",
+    "test:smoke:required": "node scripts/run-tests.mjs e2e/smoke --required",
+    "test:e2e": "playwright test",
+    "test:responsive": "playwright test tests/e2e/regression/responsive-layout.spec.mjs tests/e2e/regression/owner-terminal-queue.spec.mjs -g \"responsive layout coverage|Scenario 6|Scenario 10\"",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "setup:sms:test": "powershell -ExecutionPolicy Bypass -File scripts/setup-sms-test-env.ps1",
+    "sms:dispatch": "node scripts/dispatch-sms.mjs",
+    "production:check": "node scripts/check-production-readiness.mjs",
+    "test:all": "npm run lint && npm run typecheck && npm run test:unit && npm run test:sms && npm run security:secrets && npm run test:integration:required && npm run build && npm run test:e2e",
+    "test:settings": "playwright test tests/e2e/regression/owner-navigation.spec.mjs tests/e2e/regression/owner-management.spec.mjs tests/e2e/regression/owner-branch-service-lifecycle.spec.mjs tests/e2e/regression/owner-settings-reports.spec.mjs tests/e2e/regression/owner-team-roles.spec.mjs tests/e2e/regression/owner-ui-consistency.spec.mjs",
+    "test:ui:consistency": "playwright test tests/e2e/regression/owner-ui-consistency.spec.mjs tests/e2e/regression/responsive-layout.spec.mjs",
+    "test:fast": "npm run lint && npm run typecheck && npm run test:unit && npm run test:sms && npm run security:secrets"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "next": "16.3.2",
+    "next": "^16.3.5",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "qrcode": "^1.5.4"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@types/qrcode": "^1.5.6"
+    "typescript": "^5"
   }
 }

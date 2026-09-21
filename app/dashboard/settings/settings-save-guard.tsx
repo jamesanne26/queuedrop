@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Change = {
   field: string;
@@ -21,19 +22,11 @@ type Rule = {
 };
 
 const LABELS: Record<string, string> = {
-  ticket_prefix: "Default queue prefix",
   starting_number: "Starting number",
   no_show_minutes: "No-show grace period",
   timezone: "Branch timezone",
   is_active: "Queue active",
-  allow_qr_join: "Public / QR joining",
   show_branch_contact: "Show branch contact",
-  customer_can_edit_name: "Customer can edit name",
-  customer_can_edit_mobile: "Customer can edit mobile",
-  staff_can_edit_name: "Staff can edit name",
-  staff_can_edit_mobile: "Staff can edit mobile",
-  manager_can_edit_name: "Manager can edit name",
-  manager_can_edit_mobile: "Manager can edit mobile",
 };
 
 function prettyField(name: string) {
@@ -118,7 +111,7 @@ function rulesFrom(snapshot: Map<string, string>) {
 }
 
 function ruleText(rule: Rule) {
-  return `Position ${rule.position || "—"} · SMS ${rule.sms} · Browser ${rule.browser}`;
+  return `Position ${rule.position || "-"} - SMS ${rule.sms} - Browser ${rule.browser}`;
 }
 
 function isPositionRuleField(name: string) {
@@ -217,8 +210,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
       next.push({
         field: name,
         label: prettyField(name),
-        before: before || "—",
-        after: after || "—",
+        before: before || "-",
+        after: after || "-",
         kind: "normal",
       });
     }
@@ -247,8 +240,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
         Save branch settings
       </button>
 
-      {open ? (
-        <div className="qd-modal-backdrop" role="presentation">
+      {open && typeof document !== "undefined" ? createPortal(
+        <div className="qd-modal-backdrop qd-settings-review-backdrop" role="presentation">
           <section
             className="qd-modal qd-settings-review-modal"
             role="dialog"
@@ -304,7 +297,8 @@ export function SettingsSaveGuard({ branchName }: Props) {
               ) : null}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );

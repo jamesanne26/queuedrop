@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const features = [
-  ["No app required", "Customers join and track their queue directly from the browser."],
+  ["No app required", "Customers tap GET STUB, then scan only if they want live status."],
   ["Built for branches", "Each branch can run its own services, queue settings, staff, and operating hours."],
   ["Real-time operations", "Staff can call, serve, complete, cancel, and mark no-shows from one live workspace."],
 ];
@@ -13,6 +13,7 @@ export default function Home() {
         <nav className="topbar">
           <Link href="/" className="brand-mark">QueueDrop</Link>
           <div className="topbar-actions">
+            <Link href="/pricing" className="button button-secondary">Pricing</Link>
             <Link href="/auth/login" className="button button-secondary">Sign in</Link>
             <Link href="/auth/signup" className="button button-primary">Get started</Link>
           </div>
@@ -21,12 +22,12 @@ export default function Home() {
         <div className="hero-grid">
           <div className="hero-copy">
             <span className="pill">Digital queues. Less waiting.</span>
-            <h1>Let customers leave the line without losing their place.</h1>
+            <h1>One tap for a stub. Live queue status when they need it.</h1>
             <p>
               QueueDrop is a web-based queue management platform for salons, clinics, repair shops, service centers, and multi-branch businesses.
             </p>
             <div className="hero-actions">
-              <Link href="/auth/signup" className="button button-primary button-large">Start with QueueDrop</Link>
+              <Link href="/pricing" className="button button-primary button-large">View plans & subscribe</Link>
               <a href="#how-it-works" className="button button-secondary button-large">See how it works</a>
             </div>
           </div>
@@ -41,7 +42,7 @@ export default function Home() {
               <div className="position-number">5th</div>
               <h2>position in queue</h2>
               <div className="demo-person">
-                <div><strong>Maria Clara</strong><span>Queue A-023</span></div>
+                <div><strong>Stub A-023</strong><span>No customer name required</span></div>
                 <span className="live-badge">Live</span>
               </div>
             </div>
@@ -67,21 +68,21 @@ export default function Home() {
 
       <section className="flow-section">
         <div className="flow-copy">
-          <p className="eyebrow">Customer flow</p>
+          <p className="eyebrow">Stub flow</p>
           <h2>Join in seconds.</h2>
-          <p>Choose a service, enter basic details, receive a queue number, and monitor your position from any phone browser.</p>
+          <p>Choose a service and get a printed stub instantly. Scan the QR code for live status, and add a mobile number only if you want SMS alerts.</p>
         </div>
         <ol className="flow-steps">
           <li><span>1</span>Choose service</li>
-          <li><span>2</span>Enter name & mobile</li>
-          <li><span>3</span>Receive queue number</li>
-          <li><span>4</span>Track live position</li>
+          <li><span>2</span>Get printed stub</li>
+          <li><span>3</span>Scan QR for live status</li>
+          <li><span>4</span>Optional SMS alerts</li>
         </ol>
       </section>
 
       <footer className="footer">
         <div><strong>QueueDrop</strong><p>Modern queue management for service businesses.</p></div>
-        <span>Development foundation · 2026</span>
+        <span><Link href="/terms">Terms</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/refunds">Refunds</Link></span>
       </footer>
     </main>
   );

@@ -2,24 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSystemOwner } from "@/lib/auth/system-owner";
+import { dispatchSmsAfterQueueChange } from "@/lib/notifications/sms";
 
-export type AssistedJoinState = {
-  ok: boolean;
-  message: string;
-};
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Queue action failed.";
-}
-
-
-function queueRedirectUrl(
-  branchId: string,
-  serviceId?: string,
-  key: "success" | "error" = "success",
-  message?: string,
-) {
+function queueRedirectUrl(branchId: string, serviceId?: string, key: "success" | "error" = "success", message?: string) {
   const params = new URLSearchParams();
   if (branchId) params.set("branch", branchId);
   if (serviceId) params.set("service", serviceId);
@@ -27,33 +15,152 @@ function queueRedirectUrl(
   return `/dashboard/queues?${params.toString()}`;
 }
 
+async function requireUser() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
+  return { supabase, user: data.user };
+}
+
+
+async function requireQueuePermission(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, permission: "call" | "serve" | "return" | "move_pending" | "complete" | "cancel" | "no_show") {
+  const { data: membership } = await supabase.from("business_users")
+    .select("role,can_call_customer,can_return_customer,can_serve_customer,can_move_pending,can_complete_ticket,can_cancel_ticket,can_mark_no_show")
+    .eq("user_id", userId).eq("is_active", true).limit(1).maybeSingle();
+  if (!membership) return false;
+  if (membership.role === "owner" || membership.role === "admin") return true;
+  const map = {
+    call: membership.can_call_customer,
+    serve: membership.can_serve_customer,
+    return: membership.can_return_customer,
+    move_pending: membership.can_move_pending,
+    complete: membership.can_complete_ticket,
+    cancel: membership.can_cancel_ticket,
+    no_show: membership.can_mark_no_show,
+  };
+  return Boolean(map[permission]);
+}
+
+export async function simulateGetStubAction(formData: FormData) {
+  const branchId = String(formData.get("branch_id") ?? "");
+  const serviceId = String(formData.get("service_id") ?? "");
+  if (!branchId || !serviceId) redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
+
+  const { supabase, user } = await requireUser();
+
+  const [{ data: membership }, developer] = await Promise.all([
+    supabase.from("business_users").select("business_id, role").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle(),
+    isSystemOwner(user),
+  ]);
+  if (!membership) redirect("/dashboard/queues?error=No%20active%20business%20membership");
+  if (!developer && membership.role !== "owner" && membership.role !== "admin") {
+    redirect(queueRedirectUrl(branchId, serviceId, "error", "Get test stub is available only to the developer and client administrators"));
+  }
+
+  const [{ data: service }, { data: branch }] = await Promise.all([
+    supabase.from("services").select("id, branch_id").eq("id", serviceId).eq("branch_id", branchId).eq("is_active", true).maybeSingle(),
+    supabase.from("branches").select("id, business_id").eq("id", branchId).maybeSingle(),
+  ]);
+  if (!service || !branch || branch.business_id !== membership.business_id) {
+    redirect(queueRedirectUrl(branchId, serviceId, "error", "Selected service is not available for this client"));
+  }
+
+  let { data: terminal } = await supabase.from("devices")
+    .select("id, device_token")
+    .eq("branch_id", branchId).eq("service_id", serviceId).eq("device_type", "ticket_terminal")
+    .eq("is_active", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+  if (!terminal) {
+    const { data: created, error: createError } = await supabase.from("devices")
+      .insert({ branch_id: branchId, service_id: serviceId, name: "Queue View Simulator", device_type: "ticket_terminal", is_active: true })
+      .select("id, device_token").single();
+    if (createError || !created) redirect(queueRedirectUrl(branchId, serviceId, "error", createError?.message ?? "Unable to create test terminal"));
+    terminal = created;
+  }
+
+  const { data: issued, error } = await supabase.rpc("issue_stub_ticket", { target_device_token: terminal.device_token });
+  if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
+
+  revalidatePath("/dashboard/queues");
+  const displayNumber = issued && typeof issued === "object" && "display_number" in issued ? String((issued as { display_number?: unknown }).display_number ?? "") : "";
+  redirect(queueRedirectUrl(branchId, serviceId, "success", displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued"));
+}
+
+export async function simulateGetStubInlineAction(branchId: string, serviceId: string) {
+  if (!branchId || !serviceId) return { ok: false as const, message: "Missing branch or service" };
+
+  const { supabase, user } = await requireUser();
+  const [{ data: membership }, developer] = await Promise.all([
+    supabase.from("business_users").select("business_id, role").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle(),
+    isSystemOwner(user),
+  ]);
+  if (!membership) return { ok: false as const, message: "No active business membership" };
+  if (!developer && membership.role !== "owner" && membership.role !== "admin") {
+    return { ok: false as const, message: "Get test stub is available only to the developer and client administrators" };
+  }
+
+  const [{ data: service }, { data: branch }] = await Promise.all([
+    supabase.from("services").select("id, branch_id").eq("id", serviceId).eq("branch_id", branchId).eq("is_active", true).maybeSingle(),
+    supabase.from("branches").select("id, business_id").eq("id", branchId).maybeSingle(),
+  ]);
+  if (!service || !branch || branch.business_id !== membership.business_id) {
+    return { ok: false as const, message: "Selected service is not available for this client" };
+  }
+
+  let { data: terminal } = await supabase.from("devices")
+    .select("id, device_token")
+    .eq("branch_id", branchId).eq("service_id", serviceId).eq("device_type", "ticket_terminal")
+    .eq("is_active", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+  if (!terminal) {
+    const { data: created, error: createError } = await supabase.from("devices")
+      .insert({ branch_id: branchId, service_id: serviceId, name: "Queue View Simulator", device_type: "ticket_terminal", is_active: true })
+      .select("id, device_token").single();
+    if (createError || !created) return { ok: false as const, message: createError?.message ?? "Unable to create test terminal" };
+    terminal = created;
+  }
+
+  const { data: issued, error } = await supabase.rpc("issue_stub_ticket", { target_device_token: terminal.device_token });
+  if (error) return { ok: false as const, message: error.message };
+
+  // The live workspace receives this insert through Realtime and also runs a
+  // lightweight reconciliation query. Invalidating the whole route here made
+  // every test-stub request trigger an unnecessary server render.
+  const displayNumber = issued && typeof issued === "object" && "display_number" in issued
+    ? String((issued as { display_number?: unknown }).display_number ?? "")
+    : "";
+  return { ok: true as const, message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued" };
+}
+
 export async function callNextAction(formData: FormData) {
   const branchId = String(formData.get("branch_id") ?? "");
   const serviceId = String(formData.get("service_id") ?? "");
+  if (!branchId || !serviceId) redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
 
-  if (!branchId || !serviceId) {
-    redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
-  }
+  const { supabase, user } = await requireUser();
+  if (!(await requireQueuePermission(supabase, user.id, "call"))) redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to call the next customer"));
+  const { error } = await supabase.rpc("qd_staff_call_next", { target_branch_id: branchId, target_service_id: serviceId });
+  if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
+  // Live Queue is realtime-first. Do not redirect/reload the workspace after a
+  // successful high-frequency operator action: a navigation keeps the command
+  // bar pending even after the ticket has already moved on screen. Realtime
+  // applies the database change immediately and the 2.5s reconciliation loop
+  // remains as a safety net for dropped websocket events.
+  after(() => dispatchSmsAfterQueueChange(branchId));
+}
 
-  const { error } = await supabase.rpc("staff_call_next", {
-    target_branch_id: branchId,
-    target_service_id: serviceId,
-  });
+export async function returnLastCustomerAction(formData: FormData) {
+  const branchId = String(formData.get("branch_id") ?? "");
+  const serviceId = String(formData.get("service_id") ?? "");
+  if (!branchId || !serviceId) redirect("/dashboard/queues?error=Missing%20branch%20or%20service");
 
-  if (error) {
-    redirect(
-      queueRedirectUrl(branchId, serviceId, "error", error.message),
-    );
-  }
+  const { supabase, user } = await requireUser();
+  if (!(await requireQueuePermission(supabase, user.id, "return"))) redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to return customers"));
+  const { error } = await supabase.rpc("qd_staff_return_last_to_queue", { target_branch_id: branchId, target_service_id: serviceId });
+  if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
 
-  revalidatePath("/dashboard/queues");
-  redirect(
-    queueRedirectUrl(branchId, serviceId, "success", "Next customer called"),
-  );
+  after(() => dispatchSmsAfterQueueChange(branchId));
 }
 
 export async function updateTicketAction(formData: FormData) {
@@ -61,148 +168,30 @@ export async function updateTicketAction(formData: FormData) {
   const serviceId = String(formData.get("service_id") ?? "");
   const ticketId = String(formData.get("ticket_id") ?? "");
   const action = String(formData.get("action") ?? "");
+  if (!branchId || !ticketId || !action) redirect("/dashboard/queues?error=Missing%20ticket%20action%20details");
 
-  if (!branchId || !ticketId || !action) {
-    redirect("/dashboard/queues?error=Missing%20ticket%20action%20details");
+  if (action === "cancel" || action === "return_last") {
+    const expectedCode = String(formData.get("expected_code") ?? "").trim();
+    const confirmCode = String(formData.get("confirm_code") ?? "").trim();
+    if (!expectedCode || confirmCode !== expectedCode) {
+      redirect(queueRedirectUrl(branchId, serviceId, "error", action === "cancel" ? "Cancellation verification code did not match" : "Return-to-last verification code did not match"));
+    }
   }
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
-
-  try {
-    const { error } = await supabase.rpc("staff_update_ticket_status", {
-      target_ticket_id: ticketId,
-      target_action: action,
-    });
-
-    if (error) throw error;
-  } catch (error) {
-    redirect(
-      queueRedirectUrl(
-        branchId,
-        serviceId,
-        "error",
-        errorMessage(error),
-      ),
-    );
+  const { supabase, user } = await requireUser();
+  const requiredPermission = action === "complete" ? "complete" : action === "cancel" ? "cancel" : action === "no_show" ? "no_show" : action === "recall" ? "call" : action === "return_last" ? "return" : action === "pending" ? "move_pending" : "serve";
+  if (!(await requireQueuePermission(supabase, user.id, requiredPermission))) {
+    redirect(queueRedirectUrl(branchId, serviceId, "error", "You do not have permission to perform this queue action"));
+  }
+  if (action === "return_last") {
+    const { error } = await supabase.rpc("qd_staff_return_ticket_to_last", { target_ticket_id: ticketId });
+    if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
+  } else {
+    const { error } = await supabase.rpc("qd_staff_update_ticket_status", { target_ticket_id: ticketId, target_action: action });
+    if (error) redirect(queueRedirectUrl(branchId, serviceId, "error", error.message));
   }
 
-  revalidatePath("/dashboard/queues");
-  redirect(
-    queueRedirectUrl(branchId, serviceId, "success", "Queue updated"),
-  );
-}
-
-export async function updateCustomerDetailsAction(formData: FormData) {
-  const branchId = String(formData.get("branch_id") ?? "");
-  const serviceId = String(formData.get("service_id") ?? "");
-  const ticketId = String(formData.get("ticket_id") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-
-  if (!branchId || !ticketId) {
-    redirect("/dashboard/queues?error=Missing%20ticket%20details");
-  }
-
-  if (!/^[0-9]{1,20}$/.test(phone)) {
-    redirect(
-      queueRedirectUrl(
-        branchId,
-        serviceId,
-        "error",
-        "Mobile number must contain numbers only.",
-      ),
-    );
-  }
-
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fqueues");
-
-  const { error } = await supabase.rpc(
-    "update_ticket_customer_by_operator",
-    {
-      target_ticket_id: ticketId,
-      target_name: name,
-      target_phone: phone,
-    },
-  );
-
-  if (error) {
-    redirect(
-      queueRedirectUrl(branchId, serviceId, "error", error.message),
-    );
-  }
-
-  revalidatePath("/dashboard/queues");
-  redirect(
-    queueRedirectUrl(
-      branchId,
-      serviceId,
-      "success",
-      "Customer queue details updated",
-    ),
-  );
-}
-
-export async function staffAssistedJoinAction(
-  _previousState: AssistedJoinState,
-  formData: FormData,
-): Promise<AssistedJoinState> {
-  const branchId = String(formData.get("branch_id") ?? "").trim();
-  const serviceId = String(formData.get("service_id") ?? "").trim();
-  const name = String(formData.get("name") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-
-  if (!branchId || !serviceId) {
-    return { ok: false, message: "Branch and service are required." };
-  }
-
-  if (name.length < 1 || name.length > 100 || /[<>{}\[\]]/.test(name)) {
-    return { ok: false, message: "Enter a valid customer name." };
-  }
-  if (!phone) {
-    return { ok: false, message: "Mobile number is required." };
-  }
-  if (!/^[0-9]{1,20}$/.test(phone)) {
-    return {
-      ok: false,
-      message: "Mobile number must contain numbers only.",
-    };
-  }
-
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-
-  if (!userData.user) {
-    return { ok: false, message: "Your staff session has expired." };
-  }
-
-  const { data, error } = await supabase.rpc("staff_assisted_join_queue", {
-    target_branch_id: branchId,
-    target_service_id: serviceId,
-    customer_name: name,
-    customer_phone: phone,
-  });
-
-  if (error) {
-    return {
-      ok: false,
-      message: error.message || "Unable to add the customer to the queue.",
-    };
-  }
-
-  const result = data as { display_number?: string } | null;
-
-  revalidatePath("/dashboard/queues");
-
-  return {
-    ok: true,
-    message: result?.display_number
-      ? `${result.display_number} added to the queue.`
-      : "Customer added to the queue.",
-  };
+  after(() => dispatchSmsAfterQueueChange(branchId));
 }
 
 export type ServiceHistoryTicket = {
@@ -212,8 +201,6 @@ export type ServiceHistoryTicket = {
   branch_id: string;
   branch_name: string;
   service_name: string;
-  customer_name: string;
-  customer_phone: string;
   joined_at: string;
   called_at: string | null;
   serving_at: string | null;
@@ -221,126 +208,53 @@ export type ServiceHistoryTicket = {
   cancelled_at: string | null;
 };
 
-export type TicketCustomerChange = {
-  id: string;
-  field_name: "name" | "mobile";
-  old_value: string | null;
-  new_value: string | null;
-  changed_by_type: string;
-  created_at: string;
-};
-
 function relationOne<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-export async function loadTicketChangeHistoryAction(
-  ticketId: string,
-): Promise<TicketCustomerChange[]> {
-  if (!ticketId) return [];
+export async function loadServiceHistoryAction(selectedBranchId: string): Promise<ServiceHistoryTicket[]> {
+  const { supabase, user } = await requireUser();
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return [];
-
-  const { data, error } = await supabase
-    .from("ticket_customer_changes")
-    .select(
-      "id, field_name, old_value, new_value, changed_by_type, created_at",
-    )
-    .eq("ticket_id", ticketId)
-    .order("created_at", { ascending: false });
-
-  if (error) return [];
-  return (data ?? []) as TicketCustomerChange[];
-}
-
-export async function loadServiceHistoryAction(
-  selectedBranchId: string,
-): Promise<ServiceHistoryTicket[]> {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
-  if (!user) return [];
-
-  const { data: membership } = await supabase
-    .from("business_users")
-    .select("business_id, role")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
+  const { data: membership } = await supabase.from("business_users").select("business_id, role, can_view_history").eq("user_id", user.id).eq("is_active", true).limit(1).maybeSingle();
   if (!membership) return [];
+  if (membership.role !== "owner" && membership.role !== "admin" && !membership.can_view_history) return [];
 
   const role = membership.role as "owner" | "admin" | "manager" | "staff";
   let branchIds: string[] = [];
-
   if (role === "owner" || role === "admin") {
-    const { data: branches } = await supabase
-      .from("branches")
-      .select("id")
-      .eq("business_id", membership.business_id);
-    branchIds = (branches ?? []).map((branch) => branch.id);
+    const { data } = await supabase.from("branches").select("id").eq("business_id", membership.business_id);
+    branchIds = (data ?? []).map((row) => row.id);
   } else if (role === "manager") {
-    const { data: assignments } = await supabase
-      .from("branch_users")
-      .select("branch_id")
-      .eq("user_id", user.id);
-    branchIds = (assignments ?? []).map((row) => row.branch_id);
+    const { data } = await supabase.from("branch_users").select("branch_id").eq("user_id", user.id);
+    branchIds = (data ?? []).map((row) => row.branch_id);
   } else {
-    const { data: assignment } = await supabase
-      .from("branch_users")
-      .select("branch_id")
-      .eq("user_id", user.id)
-      .eq("branch_id", selectedBranchId)
-      .maybeSingle();
-    branchIds = assignment ? [selectedBranchId] : [];
+    const { data } = await supabase.from("branch_users").select("branch_id").eq("user_id", user.id).eq("branch_id", selectedBranchId).maybeSingle();
+    branchIds = data ? [selectedBranchId] : [];
   }
-
   if (!branchIds.length) return [];
 
   const [{ data: branches }, { data: rawHistory }] = await Promise.all([
-    supabase
-      .from("branches")
-      .select("id, name")
-      .in("id", branchIds),
-    supabase
-      .from("tickets")
-      .select(
-        "id, display_number, status, joined_at, called_at, serving_at, completed_at, cancelled_at, branch_id, customer_name_override, customer_phone_override, customers(name, phone), services(name)",
-      )
+    supabase.from("branches").select("id, name").in("id", branchIds),
+    supabase.from("tickets")
+      .select("id, display_number, status, joined_at, called_at, serving_at, completed_at, cancelled_at, branch_id, services(name)")
       .in("branch_id", branchIds)
       .in("status", ["completed", "cancelled", "no_show"])
       .order("created_at", { ascending: false })
       .limit(500),
   ]);
 
-  const branchNameById = new Map(
-    (branches ?? []).map((branch) => [branch.id, branch.name]),
-  );
-
-  return (rawHistory ?? []).map((ticket) => {
-    const customer = relationOne(ticket.customers);
-    const service = relationOne(ticket.services);
-
-    return {
-      id: ticket.id,
-      display_number: ticket.display_number,
-      status: ticket.status as "completed" | "cancelled" | "no_show",
-      branch_id: ticket.branch_id,
-      branch_name: branchNameById.get(ticket.branch_id) ?? "Branch",
-      service_name: service?.name ?? "Service",
-      customer_name:
-        ticket.customer_name_override ?? customer?.name ?? "Customer",
-      customer_phone:
-        ticket.customer_phone_override ?? customer?.phone ?? "—",
-      joined_at: ticket.joined_at,
-      called_at: ticket.called_at,
-      serving_at: ticket.serving_at,
-      completed_at: ticket.completed_at,
-      cancelled_at: ticket.cancelled_at,
-    };
-  });
+  const branchNameById = new Map((branches ?? []).map((branch) => [branch.id, branch.name]));
+  return (rawHistory ?? []).map((ticket) => ({
+    id: ticket.id,
+    display_number: ticket.display_number,
+    status: ticket.status as "completed" | "cancelled" | "no_show",
+    branch_id: ticket.branch_id,
+    branch_name: branchNameById.get(ticket.branch_id) ?? "Branch",
+    service_name: relationOne(ticket.services)?.name ?? "Service",
+    joined_at: ticket.joined_at,
+    called_at: ticket.called_at,
+    serving_at: ticket.serving_at,
+    completed_at: ticket.completed_at,
+    cancelled_at: ticket.cancelled_at,
+  }));
 }
-

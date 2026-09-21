@@ -1,57 +1,71 @@
 # QueueDrop
 
-QueueDrop is a multi-tenant web-based queue management SaaS built with Next.js, TypeScript, Tailwind CSS, and Supabase.
+QueueDrop is a multi-tenant queue management SaaS for service businesses. It supports branch/service queues, stub-first terminals, customer status pages, staff queue operations, role/branch access, notifications, reports, subscriptions, and terminal branding.
 
-## Environment model
+## Stack
 
-- DEV: local Next.js + local Supabase via Docker
-- TEST: cloud Supabase / cloud web deployment
-- PROD: isolated production cloud environment
+- Next.js 16 + React 19 + TypeScript
+- Supabase Auth, PostgreSQL, RLS, RPC, Realtime and Storage
+- Cloud deployment for TEST/PROD; local Next.js + Supabase for DEV
 
-## Current development milestone
+## Repository map
 
-Milestone 2 adds secure owner business onboarding on top of the authentication foundation:
-
-1. User signs up / signs in.
-2. Authenticated user creates the initial business workspace.
-3. One atomic PostgreSQL RPC creates the business, owner membership, first branch, branch membership, queue defaults, and audit record.
-4. The dashboard reads the new workspace through the existing RLS policies.
+```text
+app/                 Next.js routes, server actions and UI
+lib/                 reusable domain/application helpers and Supabase clients
+supabase/migrations/ ordered database changes; source of truth for schema evolution
+supabase/seed.sql     local/test seed support
+tests/unit/           fast deterministic business-logic tests
+tests/integration/    TEST Supabase/schema and service integration checks
+tests/e2e/            browser smoke/regression structure
+tests/visual/         responsive/screenshot regression structure
+docs/                 architecture, development, testing and deployment docs
+.github/workflows/    automated quality and scheduled deployment checks
+```
 
 ## Local development
 
+1. Copy `.env.example` to `.env.local` and fill only your local/DEV values.
+2. Install dependencies: `npm ci` (or `npm install` when intentionally updating the lockfile).
+3. Start local Supabase when working against DEV: `npx supabase start`.
+4. Apply local migrations: `npx supabase migration up --local`.
+5. Run the app: `npm run dev`.
+
+Never commit `.env.local`, service-role keys, passwords, device tokens or production data.
+
+## Quality commands
+
 ```bash
-npm install
-npx supabase start
-npx supabase migration up --local
-npm run dev
+npm run test:unit          # fast unit suite
+npm run test:unit:coverage # unit suite + Node coverage
+npm run test:integration   # integration checks; skips cloud checks if TEST secrets are absent
+npm run test:smoke         # deployment smoke checks when QUEUEDROP_TEST_BASE_URL is set
+npm run quality            # lint + typecheck + unit tests
+npm run verify             # quality + integration + production build
 ```
 
-Local environment values belong in `.env.local` and must never be committed.
+Run `npm run test:unit:watch` while changing pure business logic. Run `npm run verify` before a release candidate.
 
-### Milestone 3
-Branch and service management is available in local DEV under `/dashboard/branches` and `/dashboard/services`. New branches are created transactionally with their queue defaults, and services support branch-specific prefixes, ETA values, and active/inactive state.
+## Branch and release flow
 
-## Milestone 4 — Public Queue Engine
+```text
+feature/* or fix/*
+        ↓ Pull Request
+lint + typecheck + unit + build
+        ↓ reviewed merge
+       test
+        ↓ deploy TEST
+integration + smoke + browser regression
+        ↓ approval
+       main / production
+```
 
-QueueDrop now contains the first usable queue loop in local DEV. Business owners can create branches and services, open `/dashboard/queues`, and launch a public customer join page. Customers can select a service, enter a name and international mobile number, receive a service-prefixed queue number, and keep a private status URL that refreshes their current position.
+Direct pushes to production should be treated as emergency-only. Database migrations must be reviewed and applied to TEST before PROD.
 
-Database migration: `supabase/migrations/20260822134000_public_queue_engine.sql`.
+## Documentation
 
-The next milestone adds authenticated staff queue actions and the queue state machine (call, serve, complete, no-show, cancel), plus stronger operational controls.
+Start with `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`, `docs/TESTING.md`, and `docs/DEPLOYMENT.md`. Security/access rules are summarized in `docs/AUTHORIZATION.md`. Important architectural decisions are recorded under `docs/adr/`.
 
-### Milestone 5
+## Automated test environment
 
-Staff queue operations are now available from `/dashboard/queues`: call next by service, recall a called customer, start serving, complete, mark no-show, or cancel. Queue state transitions are validated inside PostgreSQL and recorded in ticket events/audit logs.
-
-### Branch-scoped access
-Owner/Admin accounts can view and operate all branches in their business. Manager/Staff accounts are limited to branches explicitly assigned through `branch_users`; queue operations enforce the same rule in PostgreSQL.
-
-### Milestone 6: Team management
-
-Business owners/admins can manage team members at `/dashboard/team`. Admins have business-wide access; managers and staff are explicitly assigned to one or more branches. QueueDrop enforces inactive membership and branch scope in PostgreSQL helper functions as well as in the application UI.
-
-### Queue configuration (Milestone 7)
-Business owners/admins can configure each branch under `/dashboard/settings`: numbering, queue availability, public/QR joining, no-show grace period, branch contact visibility, timezone, and weekly operating hours. Public queue joining is rejected by PostgreSQL outside configured hours.
-
-### Queue settings (Milestone 7.1)
-QueueDrop supports per-branch position notification rules and per-role permissions for editing queue customer name/mobile. Customer edits are stored as ticket-level overrides with change history. Position rules are configuration-only until SMS/browser push delivery is connected.
+Unit tests run without infrastructure credentials. Integration/smoke runners automatically load local env files and only use explicit TEST-prefixed infrastructure variables. See `docs/TEST_ENVIRONMENT.md`. Use `npm run test:integration:required` for CI/release gates where skipped integration checks are not acceptable.

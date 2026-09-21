@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { signUp } from "../actions";
+import { PasswordInput } from "../_components/password-input";
+import { AuthSubmitButton } from "../_components/auth-submit-button";
 
 type Props = { searchParams: Promise<{ error?: string }> };
 
@@ -18,10 +20,10 @@ export default async function SignupPage({ searchParams }: Props) {
 
         {error ? <div className="notice notice-error">{error}</div> : null}
 
-        <form action={signUp} className="form-stack">
+        <form action={signUp} className="form-stack" data-no-global-loading="true">
           <label>
             Full name
-            <input name="full_name" type="text" maxLength={100} required placeholder="Maria Santos" />
+            <input name="full_name" type="text" maxLength={100} required autoComplete="off" data-lpignore="true" data-1p-ignore="true" />
           </label>
           <label>
             Email
@@ -29,9 +31,9 @@ export default async function SignupPage({ searchParams }: Props) {
           </label>
           <label>
             Password
-            <input name="password" type="password" minLength={8} autoComplete="new-password" required placeholder="At least 8 characters" />
+            <PasswordInput autoComplete="new-password" placeholder="At least 8 characters" />
           </label>
-          <button className="button button-primary" type="submit">Create account</button>
+          <AuthSubmitButton pendingLabel="Creating account...">Create account</AuthSubmitButton>
         </form>
 
         <p className="auth-footer">Already have an account? <Link href="/auth/login">Sign in</Link></p>

@@ -81,7 +81,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             <p className="eyebrow">QueueDrop workspace</p>
             <h1>Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}</h1>
           </div>
-          <span className="env-badge">DEV</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </header>
 
         {!hasWorkspace ? (
@@ -105,12 +105,12 @@ export default async function DashboardPage({ searchParams }: Props) {
               <article className="stat-card">
                 <p className="stat-label">{businessWide ? "Branches" : "Assigned branches"}</p>
                 <div className="metric-number">{branches.length}</div>
-                <Link className="text-link stat-link" href="/dashboard/branches">{businessWide ? "Manage locations" : "View assignment"}</Link>
+                <Link className="text-link stat-link" href="/dashboard/settings?view=branch-general">{businessWide ? "Manage branches" : "View assignment"}</Link>
               </article>
               <article className="stat-card">
                 <p className="stat-label">Services</p>
                 <div className="metric-number">{serviceCount ?? 0}</div>
-                <Link className="text-link stat-link" href="/dashboard/services">{businessWide ? "Manage services" : "View services"}</Link>
+                <Link className="text-link stat-link" href="/dashboard/settings?view=services">{businessWide ? "Manage services" : "View services"}</Link>
               </article>
               <article className="stat-card">
                 <p className="stat-label">Business status</p>
@@ -125,8 +125,8 @@ export default async function DashboardPage({ searchParams }: Props) {
                 <span className="coming-badge">Milestone 5</span>
               </div>
               <div className="quick-actions">
-                <Link href="/dashboard/branches" className="quick-action-card"><strong>{businessWide ? "Branches" : "My branch"}</strong><span>{businessWide ? "Add locations and review queue defaults." : "View only the branch locations assigned to you."}</span><b>Open →</b></Link>
-                <Link href="/dashboard/services" className="quick-action-card"><strong>Services</strong><span>{businessWide ? "Create queue categories, prefixes, and ETA settings." : "View services for your assigned branch."}</span><b>Open →</b></Link>
+                <Link href="/dashboard/settings?view=branch-general" className="quick-action-card"><strong>{businessWide ? "Branches" : "My branch"}</strong><span>{businessWide ? "Add locations and review queue defaults." : "View only the branch locations assigned to you."}</span><b>Open →</b></Link>
+                <Link href="/dashboard/settings?view=services" className="quick-action-card"><strong>Services</strong><span>{businessWide ? "Create queue categories, prefixes, and ETA settings." : "View services for your assigned branch."}</span><b>Open →</b></Link>
               </div>
               <div className="quick-actions quick-actions-single">
                 <Link href="/dashboard/queues" className="quick-action-card"><strong>Live queue</strong><span>{businessWide ? "Operate queues across your business branches." : "Operate queues only for your assigned branch."}</span><b>Open queues →</b></Link>
@@ -142,7 +142,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             <div><span className="status-dot" />RLS-protected database</div>
             <div><span className="status-dot" />Atomic owner onboarding</div>
             <div><span className="status-dot" />Branch-scoped staff access</div>
-            <div><span className="status-dot" />Public customer queue joining</div>
+            <div><span className="status-dot" />Terminal-issued anonymous stub queue</div>
           </div>
         </section>
       </section>

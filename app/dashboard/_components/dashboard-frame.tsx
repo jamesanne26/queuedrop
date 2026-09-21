@@ -7,18 +7,24 @@ type Role = "owner" | "admin" | "manager" | "staff";
 
 type Props = {
   role: Role | null;
+  canViewQueue: boolean;
+  canViewSettings: boolean;
+  canViewReports: boolean;
+  canManageTeam: boolean;
+  canManageServices: boolean;
+  canManageBranches: boolean;
   children: React.ReactNode;
 };
 
-export function DashboardFrame({ role, children }: Props) {
+export function DashboardFrame({ role, canViewQueue, canViewSettings, canViewReports, canManageTeam, canManageServices, canManageBranches, children }: Props) {
   const pathname = usePathname();
-  const liveQueue = pathname === "/dashboard/queues";
+  const fullScreenRoute = pathname === "/dashboard/queues" || pathname === "/dashboard/tv";
 
-  if (liveQueue) return <>{children}</>;
+  if (fullScreenRoute) return <>{children}</>;
 
   return (
     <main className="dashboard-shell">
-      <DashboardSidebar role={role} />
+      <DashboardSidebar role={role} canViewQueue={canViewQueue} canViewSettings={canViewSettings} canViewReports={canViewReports} canManageTeam={canManageTeam} canManageServices={canManageServices} canManageBranches={canManageBranches} />
       <div className="dashboard-route-content">{children}</div>
     </main>
   );

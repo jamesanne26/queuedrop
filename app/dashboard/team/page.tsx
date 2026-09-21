@@ -1,55 +1,40 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
-import {
-  createTeamMember,
-  deleteTeamMember,
-  updateTeamMember,
-} from "./actions";
-import { DeleteMemberButton } from "./delete-member-button";
-import {
-  BranchAssignmentFields,
-  ManagerStaffCreateFields,
-} from "./team-forms";
+import { RoleManagement } from "./role-management";
+import accessStyles from "./team-access.module.css";
+import { TeamWorkspace } from "./team-workspace";
 
 type Props = {
   searchParams: Promise<{
     message?: string;
     error?: string;
     branch?: string;
+    tab?: "employees" | "roles" | "permissions";
+    role?: string;
   }>;
 };
 
 type Role = "owner" | "admin" | "manager" | "staff";
-
 type Member = {
-  id: string;
-  user_id: string;
-  role: Role;
-  is_active: boolean;
-  created_at: string;
+  id: string; user_id: string; role: Role; role_id: string | null; is_active: boolean; created_at: string; custom_role_name: string | null;
+  can_set_branch_status: boolean; can_manage_services: boolean; can_manage_operating_hours: boolean; can_manage_team: boolean;
+  can_manage_kiosk_display: boolean; can_call_customer: boolean;
+  can_serve_customer: boolean; can_complete_ticket: boolean; can_cancel_ticket: boolean; can_mark_no_show: boolean;
+  can_view_customer_contact: boolean; can_view_reports: boolean; can_export_reports: boolean; can_view_audit_logs: boolean;
+  can_view_queue_information_editing: boolean; can_view_position_notifications: boolean;
 };
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
+type Profile = { id: string; full_name: string | null; email: string | null; phone: string | null };
+type Branch = { id: string; name: string; status: string };
+type BranchUser = { user_id: string; branch_id: string };
+type BusinessRole = {
+  id: string; name: string; description: string | null; base_role: Role;
+  branch_scope: "own_branch_only" | "selected_branches" | "all_branches";
+  is_system: boolean; is_protected: boolean;
 };
-
-type Branch = {
-  id: string;
-  name: string;
-  status: string;
-};
-
-type BranchUser = {
-  user_id: string;
-  branch_id: string;
-};
+type Permission = { code: string; label: string; description: string | null; category: string; sort_order: number };
 
 export default async function TeamPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -61,7 +46,7 @@ export default async function TeamPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, is_active, businesses(name)")
+    .select("business_id, role, can_manage_team, can_manage_roles, businesses(name)")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .limit(1)
@@ -70,494 +55,140 @@ export default async function TeamPage({ searchParams }: Props) {
   if (!membership) redirect("/onboarding");
 
   const actorRole = membership.role as Role;
-  if (!["owner", "admin", "manager"].includes(actorRole)) {
-    redirect("/dashboard");
-  }
+  const businessWide = actorRole === "owner" || actorRole === "admin";
+  const canManageTeam = businessWide || Boolean(membership.can_manage_team);
+  const canManageRoles = businessWide || Boolean(membership.can_manage_roles);
+  if (!canManageTeam && !canManageRoles) redirect("/dashboard");
 
-  const business = Array.isArray(membership.businesses)
-    ? membership.businesses[0]
-    : membership.businesses;
+  const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
+  const requestedTab = params.tab ?? "employees";
+  const activeTab = requestedTab === "roles" || requestedTab === "permissions"
+    ? (canManageRoles ? requestedTab : "employees")
+    : "employees";
 
-  const isManager = actorRole === "manager";
-
-  const { data: actorAssignments } = isManager
-    ? await supabase
-        .from("branch_users")
-        .select("branch_id")
-        .eq("user_id", user.id)
+  const delegatedManager = !businessWide;
+  const { data: actorAssignments } = delegatedManager
+    ? await supabase.from("branch_users").select("branch_id").eq("user_id", user.id)
     : { data: [] as { branch_id: string }[] };
-
-  const managerBranchIds = (actorAssignments ?? []).map(
-    (row) => row.branch_id,
-  );
+  const managerBranchIds = (actorAssignments ?? []).map((row) => row.branch_id);
 
   let branchQuery = supabase
     .from("branches")
     .select("id, name, status")
     .eq("business_id", membership.business_id)
     .order("created_at", { ascending: true });
-
-  if (isManager) {
-    branchQuery = branchQuery.in(
-      "id",
-      managerBranchIds.length
-        ? managerBranchIds
-        : ["00000000-0000-0000-0000-000000000000"],
-    );
+  if (delegatedManager) {
+    branchQuery = branchQuery.in("id", managerBranchIds.length ? managerBranchIds : ["00000000-0000-0000-0000-000000000000"]);
   }
 
   let memberQuery = supabase
     .from("business_users")
-    .select("id, user_id, role, is_active, created_at")
+    .select("id, user_id, role, role_id, is_active, created_at, custom_role_name, can_set_branch_status, can_manage_services, can_manage_operating_hours, can_manage_team, can_manage_kiosk_display, can_add_customer, can_edit_customer, can_call_customer, can_serve_customer, can_complete_ticket, can_cancel_ticket, can_mark_no_show, can_view_customer_contact, can_view_reports, can_export_reports, can_view_audit_logs, can_view_queue_information_editing, can_view_position_notifications")
     .eq("business_id", membership.business_id)
     .order("created_at", { ascending: true });
+  if (delegatedManager) memberQuery = memberQuery.eq("role", "staff");
 
-  if (isManager) memberQuery = memberQuery.eq("role", "staff");
-
-  const [{ data: branches }, { data: rawMembers }] = await Promise.all([
+  const [branchesResult, membersResult, rolesResult, permissionsResult, rolePermissionsResult] = await Promise.all([
     branchQuery,
     memberQuery,
+    supabase.from("roles").select("id, name, description, base_role, branch_scope, is_system, is_protected").eq("business_id", membership.business_id).order("is_system", { ascending: false }).order("created_at", { ascending: true }),
+    supabase.from("permissions").select("code, label, description, category, sort_order").order("sort_order", { ascending: true }),
+    supabase.from("role_permissions").select("role_id, permission_code"),
   ]);
 
-  const visibleBranches = (branches ?? []) as Branch[];
+  const visibleBranches = (branchesResult.data ?? []) as Branch[];
   const visibleBranchIds = visibleBranches.map((branch) => branch.id);
-  let members = (rawMembers ?? []) as Member[];
+  const businessRoles = (rolesResult.data ?? []) as BusinessRole[];
+  // The business owner is an account authority, not an employee role the client needs to manage.
+  // Keep it in the database for access control, but hide it from the client-facing Roles UI.
+  const clientVisibleRoles = businessRoles.filter((role) => role.base_role !== "owner");
+  const roleById = new Map(businessRoles.map((role) => [role.id, role]));
+  let members = (membersResult.data ?? []) as Member[];
+  members = members.map((member) => ({ ...member, custom_role_name: member.role_id ? roleById.get(member.role_id)?.name ?? member.custom_role_name : member.custom_role_name }));
   const candidateUserIds = members.map((member) => member.user_id);
 
   const [assignmentsResult, profilesResult] = await Promise.all([
     visibleBranchIds.length && candidateUserIds.length
-      ? supabase
-          .from("branch_users")
-          .select("user_id, branch_id")
-          .in("branch_id", visibleBranchIds)
-          .in("user_id", candidateUserIds)
+      ? supabase.from("branch_users").select("user_id, branch_id").in("branch_id", visibleBranchIds).in("user_id", candidateUserIds)
       : Promise.resolve({ data: [] as BranchUser[] }),
     candidateUserIds.length
-      ? supabase
-          .from("profiles")
-          .select("id, full_name, email, phone")
-          .in("id", candidateUserIds)
+      ? supabase.from("profiles").select("id, full_name, email, phone").in("id", candidateUserIds)
       : Promise.resolve({ data: [] as Profile[] }),
   ]);
 
   const assignments = (assignmentsResult.data ?? []) as BranchUser[];
-
-  if (isManager) {
-    const visibleStaffIds = new Set(
-      assignments.map((assignment) => assignment.user_id),
-    );
-    members = members.filter((member) =>
-      visibleStaffIds.has(member.user_id),
-    );
+  if (delegatedManager) {
+    const visibleStaffIds = new Set(assignments.map((assignment) => assignment.user_id));
+    members = members.filter((member) => visibleStaffIds.has(member.user_id));
   }
-
   const visibleMemberIds = new Set(members.map((member) => member.user_id));
-  const rawProfiles = (profilesResult.data ?? []).filter((profile) =>
-    visibleMemberIds.has(profile.id),
-  );
+  const profiles = ((profilesResult.data ?? []) as Profile[]).filter((profile) => visibleMemberIds.has(profile.id));
 
-  const profiles = (rawProfiles ?? []) as Profile[];
-  const profileById = new Map(
-    profiles.map((profile) => [profile.id, profile]),
-  );
-
-  const branchById = new Map(
-    visibleBranches.map((branch) => [branch.id, branch]),
-  );
-
-  const branchesByUser = new Map<string, string[]>();
-  for (const assignment of assignments) {
-    const list = branchesByUser.get(assignment.user_id) ?? [];
-    list.push(assignment.branch_id);
-    branchesByUser.set(assignment.user_id, list);
-  }
-
-  const selectedBranchId =
-    params.branch &&
-    visibleBranches.some((branch) => branch.id === params.branch)
-      ? params.branch
+  const initialBranchId = params.branch && visibleBranches.some((branch) => branch.id === params.branch)
+    ? params.branch
+    : visibleBranches.length === 1
+      ? visibleBranches[0].id
       : "all";
-
-  const memberCountByBranch = new Map<string, number>();
-  for (const branch of visibleBranches) {
-    const count = members.filter((member) =>
-      (branchesByUser.get(member.user_id) ?? []).includes(branch.id),
-    ).length;
-    memberCountByBranch.set(branch.id, count);
-  }
-
-  const displayedMembers =
-    selectedBranchId === "all"
-      ? members
-      : members.filter((member) =>
-          (branchesByUser.get(member.user_id) ?? []).includes(
-            selectedBranchId,
-          ),
-        );
-
-  const canManageMember = (memberRole: Role) => {
-    if (isManager) return memberRole === "staff";
-    return memberRole === "manager" || memberRole === "staff";
-  };
-
-  const activeBranches = visibleBranches.filter(
-    (branch) => branch.status === "active",
-  );
+  const assignableRoles = businessRoles.filter((role) => !["owner", "admin"].includes(role.base_role));
 
   return (
     <>
       <PreserveDashboardScroll />
       <DashboardResultModal success={params.message} error={params.error} />
-      <section className="dashboard-content">
-        <header className="dashboard-header">
+      <section className={`dashboard-content ${accessStyles.page}`}>
+        <header className="dashboard-header team-page-header">
           <div>
-            <p className="eyebrow">Team & access</p>
-            <h1>{business?.name ?? "QueueDrop"}</h1>
-            <p className="muted page-lead">
-              {isManager
-                ? "Managers can manage staff only in their assigned branches. Every staff account belongs to exactly one branch."
-                : "Owners/admins can manage managers and staff. Staff belongs to exactly one branch; managers may manage one or more branches."}
-            </p>
+            <p className="eyebrow">Settings · Users & Access · {business?.name ?? "QueueDrop"}</p>
+            <h1>Users & Access</h1>
+            <p className="muted page-lead">Manage users separately from reusable business roles. Assign a role to an employee; permissions on that role determine the employee&apos;s authority.</p>
           </div>
-          <span className="env-badge">DEV</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </header>
 
-        <section className="dashboard-section team-branch-tabs-card">
-          <div className="service-branch-tabs">
-            <Link
-              href="/dashboard/team?branch=all"
-              scroll={false}
-              className={
-                selectedBranchId === "all"
-                  ? "service-branch-tab service-branch-tab-active"
-                  : "service-branch-tab"
-              }
-            >
-              <strong>View all team</strong>
-              <span>{members.length} total</span>
-            </Link>
+        <nav className={accessStyles.tabs} aria-label="Team and roles sections">
+          <Link className={`${accessStyles.tab} ${activeTab === "employees" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=employees">Users</Link>
+          {canManageRoles ? <Link className={`${accessStyles.tab} ${activeTab === "roles" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=roles">Roles</Link> : null}
+          {canManageRoles ? <Link className={`${accessStyles.tab} ${activeTab === "permissions" ? accessStyles.tabActive : ""}`} href="/dashboard/team?tab=permissions">Permissions</Link> : null}
+        </nav>
 
-            {visibleBranches.map((branch) => (
-              <Link
-                key={branch.id}
-                href={`/dashboard/team?branch=${branch.id}`}
-                scroll={false}
-                className={
-                  selectedBranchId === branch.id
-                    ? "service-branch-tab service-branch-tab-active"
-                    : "service-branch-tab"
-                }
-              >
-                <strong>{branch.name}</strong>
-                <span>
-                  {memberCountByBranch.get(branch.id) ?? 0} people
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {activeTab === "employees" ? (
+          <TeamWorkspace
+            members={members}
+            profiles={profiles}
+            branches={visibleBranches}
+            assignments={assignments}
+            actorRole={actorRole}
+            initialBranchId={initialBranchId}
+            businessRoles={assignableRoles}
+          />
+        ) : null}
 
-        <div className="team-layout">
-          <section className="dashboard-section dashboard-section-stack management-list-card">
-            <div className="section-row">
-              <div>
-                <p className="eyebrow">
-                  {isManager ? "Staff in your branches" : "Business users"}
-                </p>
-                <h2>
-                  {displayedMembers.length} team member
-                  {displayedMembers.length === 1 ? "" : "s"}
-                </h2>
-              </div>
+        {activeTab === "roles" ? (
+          <RoleManagement
+            roles={clientVisibleRoles}
+            permissions={(permissionsResult.data ?? []) as Permission[]}
+            rolePermissions={(rolePermissionsResult.data ?? []).filter((item) => roleById.has(item.role_id))}
+            selectedRoleId={params.role}
+          />
+        ) : null}
+
+        {activeTab === "permissions" ? (
+          <section className={accessStyles.catalog}>
+            <div className={accessStyles.toolbar}>
+              <div className={accessStyles.toolbarCopy}><p className={accessStyles.eyebrow}>Access capabilities</p><h2>Permission Library</h2><p>Reference the permissions you can assign to custom roles. Permission codes stay internal to QueueDrop.</p></div>
             </div>
-
-            <div className="team-list">
-              {displayedMembers.map((member) => {
-                const profile = profileById.get(member.user_id);
-                const assignedIds =
-                  branchesByUser.get(member.user_id) ?? [];
-                const assignedNames = assignedIds
-                  .map((id) => branchById.get(id)?.name)
-                  .filter(Boolean);
-
-                const editable = canManageMember(member.role);
-                const protectedRole =
-                  member.role === "owner" || member.role === "admin";
-
-                return (
-                  <article className="team-card" key={member.id}>
-                    <div className="team-card-header">
-                      <div>
-                        <strong>
-                          {profile?.full_name ?? "Team member"}
-                        </strong>
-                        <span>
-                          {profile?.email ?? "No email"}
-                          {profile?.phone ? ` · ${profile.phone}` : ""}
-                        </span>
-                      </div>
-
-                      <div className="team-chip-row">
-                        <span className="status-chip">{member.role}</span>
-                        <span
-                          className={
-                            member.is_active
-                              ? "status-chip"
-                              : "status-chip status-chip-off"
-                          }
-                        >
-                          {member.is_active ? "active" : "inactive"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {protectedRole || !editable ? (
-                      <div className="team-owner-note">
-                        {member.role === "owner"
-                          ? "Business owner · protected"
-                          : member.role === "admin"
-                            ? "Business admin · protected"
-                            : "You cannot manage this account"}
-                      </div>
-                    ) : (
-                      <>
-                        <form
-                          action={updateTeamMember}
-                          className="team-edit-form"
-                        >
-                          <input
-                            type="hidden"
-                            name="user_id"
-                            value={member.user_id}
-                          />
-                          <input
-                            type="hidden"
-                            name="view_branch"
-                            value={selectedBranchId}
-                          />
-
-                          {isManager ? (
-                            <>
-                              <input
-                                type="hidden"
-                                name="role"
-                                value="staff"
-                              />
-                              <div className="form-split">
-                                <label>
-                                  Role
-                                  <input value="Staff" disabled />
-                                </label>
-
-                                <label>
-                                  Access
-                                  <select
-                                    name="is_active"
-                                    defaultValue={
-                                      member.is_active ? "true" : "false"
-                                    }
-                                  >
-                                    <option value="true">Active</option>
-                                    <option value="false">Inactive</option>
-                                  </select>
-                                </label>
-                              </div>
-
-                              <label>
-                                Assigned branch
-                                <select
-                                  name="branch_ids"
-                                  defaultValue={assignedIds[0] ?? ""}
-                                  required
-                                >
-                                  <option value="" disabled>
-                                    Select one branch
-                                  </option>
-                                  {activeBranches.map((branch) => (
-                                    <option
-                                      key={branch.id}
-                                      value={branch.id}
-                                    >
-                                      {branch.name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <small>
-                                  Staff can belong to one branch only.
-                                </small>
-                              </label>
-                            </>
-                          ) : (
-                            <>
-                              <BranchAssignmentFields
-                                branches={activeBranches}
-                                initialRole={
-                                  member.role === "manager"
-                                    ? "manager"
-                                    : "staff"
-                                }
-                                initialBranchIds={assignedIds}
-                              />
-
-                              <label>
-                                Access
-                                <select
-                                  name="is_active"
-                                  defaultValue={
-                                    member.is_active ? "true" : "false"
-                                  }
-                                >
-                                  <option value="true">Active</option>
-                                  <option value="false">Inactive</option>
-                                </select>
-                              </label>
-                            </>
-                          )}
-
-                          <div className="team-form-footer">
-                            <span>
-                              {assignedNames.length
-                                ? assignedNames.join(", ")
-                                : "No branch assigned"}
-                            </span>
-                            <button
-                              className="button button-secondary button-small"
-                              type="submit"
-                            >
-                              Save changes
-                            </button>
-                          </div>
-                        </form>
-
-                        <form action={deleteTeamMember}>
-                          <input
-                            type="hidden"
-                            name="user_id"
-                            value={member.user_id}
-                          />
-                          <input
-                            type="hidden"
-                            name="view_branch"
-                            value={selectedBranchId}
-                          />
-                          <DeleteMemberButton
-                            memberName={
-                              profile?.full_name ?? "this team member"
-                            }
-                          />
-                        </form>
-                      </>
-                    )}
-                  </article>
-                );
-              })}
-              {!displayedMembers.length ? (
-                <div className="mini-empty">
-                  <strong>No team members in this branch.</strong>
-                  <span>
-                    Create or assign a manager/staff member to this branch.
-                  </span>
-                </div>
-              ) : null}
+            <div className={accessStyles.catalogGrid}>
+              {[...new Set(((permissionsResult.data ?? []) as Permission[]).map((permission) => permission.category))].map((category) => (
+                <article key={category} className={accessStyles.catalogGroup}>
+                  <h3>{category}</h3>
+                  {((permissionsResult.data ?? []) as Permission[]).filter((permission) => permission.category === category).map((permission) => (
+                    <div className={accessStyles.catalogRow} key={permission.code}><div className={accessStyles.catalogRowCopy}><strong>{permission.label}</strong><span>{permission.description}</span></div><span className={accessStyles.permissionAvailable}>Available</span></div>
+                  ))}
+                </article>
+              ))}
             </div>
           </section>
-
-          <section className="dashboard-section dashboard-section-stack management-form-card">
-            <div>
-              <p className="eyebrow">Add team member</p>
-              <h2>
-                {isManager ? "Create staff account" : "Create team account"}
-              </h2>
-              <p className="muted">
-                {isManager
-                  ? "Create staff for one of your assigned branches."
-                  : "Create a manager or staff account. Staff must belong to one branch only."}
-              </p>
-            </div>
-
-            <form
-              action={createTeamMember}
-              className="form-stack management-form"
-              autoComplete="off"
-              data-lpignore="true"
-              data-1p-ignore="true"
-            >
-              <input
-                type="hidden"
-                name="view_branch"
-                value={selectedBranchId}
-              />
-
-              <label>
-                Full name
-                <input
-                  name="full_name"
-                  required
-                  minLength={2}
-                  maxLength={100}
-                  placeholder="e.g. Maria Santos"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <label>
-                Email
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  maxLength={254}
-                  placeholder="maria@example.com"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                  spellCheck={false}
-                />
-              </label>
-
-              <label>
-                Mobile <em>optional</em>
-                <DigitsOnlyInput
-                  name="phone"
-                  maxLength={20}
-                  placeholder="09171234567"
-                  autoComplete="off"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <label>
-                Temporary password
-                <input
-                  name="temporary_password"
-                  type="password"
-                  required
-                  minLength={10}
-                  maxLength={72}
-                  placeholder="At least 10 characters"
-                  autoComplete="new-password"
-                  data-lpignore="true"
-                  data-1p-ignore="true"
-                />
-              </label>
-
-              <ManagerStaffCreateFields
-                branches={activeBranches}
-                managerMode={isManager}
-              />
-
-              <button
-                className="button button-primary"
-                type="submit"
-              >
-                Create team member
-              </button>
-            </form>
-          </section>
-        </div>
+        ) : null}
       </section>
     </>
   );

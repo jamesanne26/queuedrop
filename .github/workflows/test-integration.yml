@@ -1,0 +1,49 @@
+name: TEST Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [test]
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      QUEUEDROP_TEST_SUPABASE_ANON_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+      E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
+      E2E_FORBIDDEN_BUSINESS_ID: ${{ secrets.E2E_FORBIDDEN_BUSINESS_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check integration configuration
+        id: integration-config
+        shell: bash
+        run: |
+          if [[ -n "$QUEUEDROP_TEST_SUPABASE_URL" && -n "$QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY" && -n "$QUEUEDROP_TEST_SUPABASE_ANON_KEY" && -n "$E2E_OWNER_EMAIL" && -n "$E2E_OWNER_PASSWORD" && -n "$E2E_FORBIDDEN_BUSINESS_ID" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run integration tests
+        if: steps.integration-config.outputs.configured == 'true'
+        run: npm run test:integration:required
+
+      - name: Integration tests not configured
+        if: steps.integration-config.outputs.configured != 'true'
+        run: echo "Dedicated TEST integration secrets are not configured yet. Skipping integration tests."

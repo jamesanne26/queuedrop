@@ -5,6 +5,7 @@ import { BranchManagementList } from "./branch-management-list";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
 import { createClient } from "@/lib/supabase/server";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
 type Role = "owner" | "admin" | "manager" | "staff";
@@ -18,7 +19,7 @@ export default async function BranchesPage({ searchParams }: Props) {
 
   const { data: membership } = await supabase
     .from("business_users")
-    .select("business_id, role, businesses(name)")
+    .select("business_id, role, can_set_branch_status, can_manage_operating_hours, can_manage_kiosk_display, businesses(name)")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
@@ -26,7 +27,8 @@ export default async function BranchesPage({ searchParams }: Props) {
   if (!membership) redirect("/onboarding");
 
   const role = membership.role as Role;
-  const canManage = role === "owner" || role === "admin";
+  const canManage = role === "owner" || role === "admin" || Boolean(membership.can_set_branch_status || membership.can_manage_operating_hours || membership.can_manage_kiosk_display);
+  const canSetStatus = canManage || Boolean(membership.can_set_branch_status);
   const business = Array.isArray(membership.businesses) ? membership.businesses[0] : membership.businesses;
 
   let allowedBranchIds: string[] | null = null;
@@ -63,7 +65,7 @@ export default async function BranchesPage({ searchParams }: Props) {
   const { data: configs } = branchIds.length
     ? await supabase
         .from("queue_configurations")
-        .select("branch_id, ticket_prefix, starting_number, no_show_minutes, allow_qr_join, is_active")
+        .select("branch_id, ticket_prefix, starting_number, no_show_minutes, is_active")
         .in("branch_id", branchIds)
     : { data: [] };
 
@@ -80,7 +82,7 @@ export default async function BranchesPage({ searchParams }: Props) {
             <h1>{business?.name ?? "QueueDrop"}</h1>
             <p className="muted page-lead">{canManage ? "Manage physical locations and the default queue settings created for each branch." : "You can only view the branch locations assigned to your staff account."}</p>
           </div>
-          <span className="env-badge">DEV</span>
+          {process.env.VERCEL_ENV === "production" ? null : <span className="env-badge">TEST</span>}
         </header>
 
         <div className="management-grid">
@@ -91,6 +93,7 @@ export default async function BranchesPage({ searchParams }: Props) {
             </div>
             <BranchManagementList
               canManage={canManage}
+              canSetStatus={canSetStatus}
               branches={branches.map((branch) => {
                 const config = configByBranch.get(branch.id);
                 return {
@@ -99,7 +102,7 @@ export default async function BranchesPage({ searchParams }: Props) {
                   status: branch.status,
                   address: branch.address,
                   phone: branch.phone,
-                  queueSummary: `Queue: ${config?.ticket_prefix ?? "Q"} · starts at ${config?.starting_number ?? 1} · no-show ${config?.no_show_minutes ?? 5} min`,
+                  queueSummary: `Queue: ${config?.ticket_prefix ?? "Q"} - starts at ${config?.starting_number ?? 1} - no-show ${config?.no_show_minutes ?? 5} min`,
                 };
               })}
             />
@@ -111,7 +114,7 @@ export default async function BranchesPage({ searchParams }: Props) {
               <form action={createBranch} className="form-stack management-form">
                 <label>Branch name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Cubao Branch" /></label>
                 <label>Address <em>optional</em><input name="address" maxLength={300} placeholder="Branch address" /></label>
-                <label>Contact number <em>optional</em><input name="phone" maxLength={32} placeholder="+63 917 123 4567" /></label>
+                <label>Contact number <em>optional</em><DigitsOnlyInput name="phone" maxLength={20} placeholder="09171234567" autoComplete="tel" /></label>
                 <button className="button button-primary" type="submit">Create branch</button>
               </form>
             </section>

@@ -18,6 +18,19 @@ export function DashboardResultModal({ success, error }: Props) {
 
   useEffect(() => {
     document.body.dataset.qdModalOpen = open ? "true" : "false";
+    if (open) {
+      // The global loader can mount after this effect during a server-action
+      // navigation, so dispatch once more on the next task as a reliable
+      // hand-off to the root loading controller.
+      window.dispatchEvent(new Event("qd:result-modal-open"));
+      const timer = window.setTimeout(() => {
+        window.dispatchEvent(new Event("qd:result-modal-open"));
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+        delete document.body.dataset.qdModalOpen;
+      };
+    }
     return () => {
       delete document.body.dataset.qdModalOpen;
     };
@@ -40,7 +53,7 @@ export function DashboardResultModal({ success, error }: Props) {
   }
 
   return (
-    <div className="qd-modal-backdrop" role="presentation">
+    <div className="qd-modal-backdrop qd-result-modal-backdrop" role="presentation">
       <section
         className="qd-modal qd-confirm-modal"
         role="dialog"
@@ -59,7 +72,7 @@ export function DashboardResultModal({ success, error }: Props) {
 
         <div className="qd-confirm-copy">
           <h2 id="dashboard-result-title">
-            {isError ? "Unable to save" : "Saved successfully"}
+            {isError ? "Unable to save" : "Successfully saved"}
           </h2>
           <p>{message}</p>
         </div>

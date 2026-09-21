@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteBranch, updateBranch } from "./actions";
+import { deleteBranch, updateBranch, updateBranchStatus } from "./actions";
+import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 
 type BranchRow = {
   id: string;
@@ -15,17 +16,24 @@ type BranchRow = {
 type Props = {
   branches: BranchRow[];
   canManage: boolean;
+  canSetStatus: boolean;
 };
 
 type Modal = null | { kind: "edit"; branch: BranchRow } | { kind: "delete"; branch: BranchRow };
 
-export function BranchManagementList({ branches, canManage }: Props) {
+export function BranchManagementList({ branches, canManage, canSetStatus }: Props) {
   const [modal, setModal] = useState<Modal>(null);
 
   useEffect(() => {
     document.body.dataset.qdModalOpen = modal ? "true" : "false";
     return () => { delete document.body.dataset.qdModalOpen; };
   }, [modal]);
+
+  useEffect(() => {
+    const handleResultModalOpen = () => setModal(null);
+    window.addEventListener("qd:result-modal-open", handleResultModalOpen);
+    return () => window.removeEventListener("qd:result-modal-open", handleResultModalOpen);
+  }, []);
 
   return (
     <>
@@ -45,6 +53,14 @@ export function BranchManagementList({ branches, canManage }: Props) {
                   <button className="button button-secondary button-small" type="button" onClick={() => setModal({ kind: "edit", branch })}>Edit</button>
                   <button className="button button-danger-outline button-small" type="button" onClick={() => setModal({ kind: "delete", branch })}>Delete</button>
                 </div>
+              ) : canSetStatus ? (
+                <form action={updateBranchStatus} className="branch-status-form">
+                  <input type="hidden" name="branch_id" value={branch.id} />
+                  <input type="hidden" name="status" value={branch.status === "active" ? "inactive" : "active"} />
+                  <button className="button button-secondary button-small" type="submit">
+                    Set {branch.status === "active" ? "inactive" : "active"}
+                  </button>
+                </form>
               ) : null}
             </div>
           </article>
@@ -65,7 +81,7 @@ export function BranchManagementList({ branches, canManage }: Props) {
               <input type="hidden" name="branch_id" value={modal.branch.id} />
               <label>Branch name<input name="name" required minLength={2} maxLength={120} defaultValue={modal.branch.name} /></label>
               <label>Address <em>optional</em><input name="address" maxLength={300} defaultValue={modal.branch.address ?? ""} /></label>
-              <label>Contact number <em>optional</em><input name="phone" maxLength={32} defaultValue={modal.branch.phone ?? ""} placeholder="09171234567" /></label>
+              <label>Contact number <em>optional</em><DigitsOnlyInput name="phone" maxLength={20} defaultValue={modal.branch.phone ?? ""} placeholder="09171234567" autoComplete="tel" /></label>
               <label>Status<select name="status" defaultValue={modal.branch.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
               <div className="qd-modal-actions">
                 <button className="button button-secondary" type="button" onClick={() => setModal(null)}>Cancel</button>

@@ -43,4 +43,18 @@ next-env.d.ts
 supabase/.temp/
 supabase/.branches/
 
+# local database snapshots / troubleshooting artifacts
+/test-latest-*.sql
+/*.zip
+
+# test artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+
+# keep the sanitized environment template in source control
+!.env.example
+!.env.test.local.example
+
+# local agent archive
 AGENTS.zip

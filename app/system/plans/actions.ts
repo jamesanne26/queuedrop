@@ -1,0 +1,175 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSystemOwner } from "@/lib/auth/system-owner";
+
+function text(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function nullableInt(formData: FormData, key: string) {
+  const raw = text(formData, key);
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) throw new Error(`${key} must be a whole number.`);
+  return value;
+}
+
+function nullableMoney(formData: FormData, key: string) {
+  const raw = text(formData, key);
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) throw new Error(`${key} must be zero or higher.`);
+  return Math.round(value * 100) / 100;
+}
+
+function plansUrl(kind: "message" | "error", value: string) {
+  return `/system/plans?${kind}=${encodeURIComponent(value)}`;
+}
+
+export async function savePlan(formData: FormData) {
+  const actor = await requireSystemOwner();
+  const admin = createAdminClient();
+  const id = text(formData, "plan_id");
+  const name = text(formData, "name");
+  const description = text(formData, "description");
+  const currency = (text(formData, "currency") || "PHP").toUpperCase();
+  const applyExisting = formData.get("apply_existing_price") === "on";
+  const taxMode = text(formData, "tax_mode") === "vat" ? "vat" : "non_vat";
+  const taxPriceMode = text(formData, "tax_price_mode") === "exclusive" ? "exclusive" : "inclusive";
+
+  try {
+    if (name.length < 2 || name.length > 80) throw new Error("Plan name must be 2-80 characters.");
+    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Currency must be a 3-letter code such as PHP.");
+
+    const priceMonthly = nullableMoney(formData, "price_monthly") ?? 0;
+    const priceYearly = nullableMoney(formData, "price_yearly");
+    const minBranches = nullableInt(formData, "min_branches") ?? 1;
+    const maxBranches = nullableInt(formData, "max_branches");
+    const maxActiveQueues = nullableInt(formData, "max_active_queues_per_branch");
+    const maxServices = nullableInt(formData, "max_services_per_branch");
+    const trialDays = nullableInt(formData, "trial_days") ?? 14;
+    const sortOrder = nullableInt(formData, "sort_order") ?? 0;
+    const vatRate = nullableMoney(formData, "vat_rate") ?? 0;
+    if (vatRate > 100) throw new Error("VAT rate must be between 0 and 100.");
+    if (maxBranches !== null && maxBranches < minBranches) throw new Error("Maximum branches cannot be lower than minimum branches.");
+
+    const payload = {
+      name,
+      description: description || null,
+      currency,
+      price_monthly: priceMonthly,
+      price_yearly: priceYearly,
+      min_branches: minBranches,
+      max_branches: maxBranches,
+      max_active_queues_per_branch: maxActiveQueues,
+      max_services_per_branch: maxServices,
+      trial_days: trialDays,
+      sort_order: sortOrder,
+      is_active: formData.get("is_active") === "on",
+      is_public: formData.get("is_public") === "on",
+      accepts_new_subscriptions: formData.get("accepts_new_subscriptions") === "on",
+      allow_auto_renew: formData.get("allow_auto_renew") === "on",
+      tax_mode: taxMode,
+      vat_rate: taxMode === "vat" ? vatRate : 0,
+      tax_price_mode: taxPriceMode,
+      updated_at: new Date().toISOString(),
+    };
+
+    let planId = id;
+    if (id) {
+      const { error } = await admin.from("plans").update(payload).eq("id", id);
+      if (error) throw error;
+    } else {
+      const { data, error } = await admin.from("plans").insert(payload).select("id").single();
+      if (error || !data) throw error ?? new Error("Unable to create plan.");
+      planId = data.id;
+    }
+
+    if (applyExisting && planId) {
+      const { error } = await admin
+        .from("business_subscriptions")
+        .update({ billing_price_monthly: priceMonthly, billing_price_yearly: priceYearly, billing_currency: currency, updated_at: new Date().toISOString() })
+        .eq("plan_id", planId)
+        .in("status", ["active", "trialing"]);
+      if (error) throw error;
+    }
+
+    if (planId) {
+      await admin.from("system_audit_logs").insert({
+        actor_user_id: actor.id, action: id ? "plan.updated" : "plan.created", entity_type: "plan", entity_id: planId,
+        details: { name, price_monthly: priceMonthly, price_yearly: priceYearly, allow_auto_renew: payload.allow_auto_renew, tax_mode: taxMode, vat_rate: taxMode === "vat" ? vatRate : 0, tax_price_mode: taxPriceMode, currency, max_branches: maxBranches, max_active_queues_per_branch: maxActiveQueues, max_services_per_branch: maxServices, apply_existing_price: applyExisting },
+      });
+    }
+  } catch (error) {
+    redirect(plansUrl("error", error instanceof Error ? error.message : "Unable to save plan."));
+  }
+
+  revalidatePath("/system");
+  revalidatePath("/system/plans");
+  revalidatePath("/pricing");
+  revalidatePath("/client/subscription");
+  redirect(plansUrl("message", id ? "Plan updated." : "Plan created."));
+}
+
+export async function deletePlan(formData: FormData) {
+  const actor = await requireSystemOwner();
+  const admin = createAdminClient();
+  const id = text(formData, "plan_id");
+  if (!id) redirect(plansUrl("error", "Plan ID is missing."));
+
+  try {
+    const { data: plan, error: planError } = await admin
+      .from("plans")
+      .select("id,name")
+      .eq("id", id)
+      .maybeSingle();
+    if (planError) throw planError;
+    if (!plan) throw new Error("Plan was not found.");
+
+    const [{ count: liveSubscriptionCount, error: usageError }, { count: openOrderCount, error: orderError }] = await Promise.all([
+      admin
+        .from("business_subscriptions")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_id", id)
+        .in("status", ["trialing", "active", "past_due"]),
+      admin
+        .from("subscription_orders")
+        .select("id", { count: "exact", head: true })
+        .eq("plan_id", id)
+        .in("status", ["pending", "checkout_created"]),
+    ]);
+    if (usageError) throw usageError;
+    if (orderError) throw orderError;
+    if ((liveSubscriptionCount ?? 0) > 0) {
+      throw new Error("This plan is still used by an active client subscription. Reassign that client first, then delete the plan.");
+    }
+    if ((openOrderCount ?? 0) > 0) {
+      throw new Error("This plan still has an unfinished checkout. Finish or cancel that order first, then delete the plan.");
+    }
+
+    // Historical cancelled/expired subscriptions and completed/failed orders
+    // are preserved. The database migration changes those plan references to
+    // ON DELETE SET NULL, so their billing history remains intact.
+    const { error } = await admin.from("plans").delete().eq("id", id);
+    if (error) throw error;
+
+    await admin.from("system_audit_logs").insert({
+      actor_user_id: actor.id,
+      action: "plan.deleted",
+      entity_type: "plan",
+      entity_id: id,
+      details: { name: plan.name },
+    });
+  } catch (error) {
+    redirect(plansUrl("error", error instanceof Error ? error.message : "Unable to delete plan."));
+  }
+
+  revalidatePath("/system");
+  revalidatePath("/system/plans");
+  revalidatePath("/pricing");
+  revalidatePath("/client/subscription");
+  redirect(plansUrl("message", "Plan deleted."));
+}

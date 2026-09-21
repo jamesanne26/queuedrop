@@ -1,71 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
 
-type NavKey = "overview" | "branches" | "services" | "queues" | "team" | "settings";
+type NavKey = "overview" | "queues" | "reports" | "tv" | "settings";
 
 type Props = {
   active?: NavKey;
   role?: "owner" | "admin" | "manager" | "staff" | null;
+  canViewQueue?: boolean;
+  canViewSettings?: boolean;
+  canViewReports?: boolean;
+  canManageTeam?: boolean;
+  canManageServices?: boolean;
+  canManageBranches?: boolean;
 };
 
-export function DashboardSidebar({ active, role = "owner" }: Props) {
+export function DashboardSidebar({ active, role = "owner", canViewQueue, canViewSettings, canViewReports }: Props) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
   const pathname = usePathname();
 
-  const routeActive: NavKey = pathname.startsWith("/dashboard/branches")
-    ? "branches"
-    : pathname.startsWith("/dashboard/services")
-      ? "services"
+  const settingsArea = pathname.startsWith("/dashboard/settings")
+    || pathname.startsWith("/dashboard/branches")
+    || pathname.startsWith("/dashboard/services")
+    || pathname.startsWith("/dashboard/team")
+    || pathname.startsWith("/dashboard/terminals");
+
+  const routeActive: NavKey = pathname.startsWith("/dashboard/reports")
+    ? "reports"
+    : pathname.startsWith("/dashboard/tv")
+      ? "tv"
       : pathname.startsWith("/dashboard/queues")
         ? "queues"
-        : pathname.startsWith("/dashboard/team")
-          ? "team"
-          : pathname.startsWith("/dashboard/settings")
-            ? "settings"
-            : "overview";
+        : settingsArea
+          ? "settings"
+          : "overview";
   const currentActive = active ?? routeActive;
 
-  useEffect(() => {
-    const routes = [
-      "/dashboard",
-      "/dashboard/branches",
-      "/dashboard/services",
-      "/dashboard/queues",
-      "/dashboard/team",
-      "/dashboard/settings",
-    ];
-
-    const prefetch = () => {
-      for (const route of routes) router.prefetch(route);
-    };
-
-    const idleCallback = window.requestIdleCallback;
-
-    if (typeof idleCallback === "function") {
-      const idleId = idleCallback(prefetch, { timeout: 1200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timeoutId = globalThis.setTimeout(prefetch, 250);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [router]);
-
-  const canManageTeam = role === "owner" || role === "admin" || role === "manager";
-  const canViewSettings = role === "owner" || role === "admin" || role === "manager";
+  const queueVisible = canViewQueue ?? (role === "owner" || role === "admin" || role === "manager" || role === "staff");
+  const settingsVisible = canViewSettings ?? (role === "owner" || role === "admin" || role === "manager");
+  const reportsVisible = canViewReports ?? (role === "owner" || role === "admin");
 
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      <Link className={`nav-item ${currentActive === "branches" ? "nav-item-active" : ""}`} href="/dashboard/branches" onClick={() => setOpen(false)}>Branches</Link>
-      <Link className={`nav-item ${currentActive === "services" ? "nav-item-active" : ""}`} href="/dashboard/services" onClick={() => setOpen(false)}>Services</Link>
-      <Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queues</Link>
-      {canManageTeam ? <Link className={`nav-item ${currentActive === "team" ? "nav-item-active" : ""}`} href="/dashboard/team" onClick={() => setOpen(false)}>Team</Link> : null}
-      {canViewSettings ? <Link className={`nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
+      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</Link></> : null}
+      {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
 
@@ -87,9 +69,20 @@ export function DashboardSidebar({ active, role = "owner" }: Props) {
         </div>
         <Link href="/dashboard" className="brand-mark brand-light sidebar-desktop-brand">QueueDrop</Link>
         <nav>{nav}</nav>
-        <form action={signOut} className="sidebar-footer">
-          <button className="button button-ghost-light" type="submit">Sign out</button>
-        </form>
+        <div className="sidebar-footer sidebar-footer-account-settings">
+          <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
+            {settingsVisible ? <Link className={`nav-item sidebar-bottom-nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
+          </div>
+          <details className="sidebar-account-menu">
+            <summary className="nav-item sidebar-account-trigger">Account <span>⌃</span></summary>
+            <div className="sidebar-account-popover">
+              <Link className="nav-item" href="/dashboard/account" onClick={() => setOpen(false)}>My Account</Link>
+              <form action={signOut} data-no-global-loading="true">
+                <button className="nav-item sidebar-signout-button" type="submit">Sign out</button>
+              </form>
+            </div>
+          </details>
+        </div>
       </aside>
     </>
   );
