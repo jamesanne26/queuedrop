@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createTerminal, deleteTerminal, updateKioskExitPin, updateTerminal } from "./actions";
 import { TerminalForm } from "./terminal-form";
@@ -42,8 +42,8 @@ export default async function TerminalsPage({ searchParams }: Props) {
         <span>Select the branch whose terminal exit PIN you want to set or replace.</span>
       </div>
       <form action={updateKioskExitPin} className="kiosk-pin-form">
-        <label>Branch<select name="branch_id" required defaultValue={safeBranches[0]?.id ?? ""}><option value="" disabled>Select branch</option>{safeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.kiosk_exit_pin_hash ? " Â· PIN configured" : " Â· No PIN"}</option>)}</select></label>
-        <label>New PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4â€“8 digits" /></label>
+        <label>Branch<select name="branch_id" required defaultValue={safeBranches[0]?.id ?? ""}><option value="" disabled>Select branch</option>{safeBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}{branch.kiosk_exit_pin_hash ? " · PIN configured" : " · No PIN"}</option>)}</select></label>
+        <label>New PIN<input name="kiosk_exit_pin" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="4–8 digits" /></label>
         <label>Confirm PIN<input name="kiosk_exit_pin_confirm" inputMode="numeric" autoComplete="new-password" pattern="[0-9]{4,8}" minLength={4} maxLength={8} required placeholder="Repeat PIN" /></label>
         <button className="button button-primary" type="submit" disabled={!safeBranches.length}>Save PIN</button>
       </form>
@@ -60,18 +60,10 @@ export default async function TerminalsPage({ searchParams }: Props) {
         {(terminals ?? []).length ? (terminals ?? []).map((t)=>{
           const branch=Array.isArray(t.branches)?t.branches[0]:t.branches; const service=Array.isArray(t.services)?t.services[0]:t.services;
           return <article className="terminal-card terminal-card-editable" key={t.id}>
-            <div className="terminal-card-summary"><div><strong>{t.name}</strong><span>{branch?.name ?? "Branch not assigned"} Â· {service?.name ?? "Service not assigned"}</span></div><small>{t.last_seen_at ? `Last seen ${new Date(t.last_seen_at).toLocaleString()}` : "Not connected yet"}</small></div>
+            <div className="terminal-card-summary"><div><strong>{t.name}</strong><span>{branch?.name ?? "Branch not assigned"} · {service?.name ?? "Service not assigned"}</span></div><small>{t.last_seen_at ? `Last seen ${new Date(t.last_seen_at).toLocaleString()}` : "Not connected yet"}</small></div>
             <details className="terminal-assignment-panel"><summary>Branch & default service</summary><TerminalForm branches={safeBranches} action={updateTerminal} submitLabel="Save assignment" terminalId={t.id} defaultName={t.name} defaultBranchId={t.branch_id} defaultServiceId={t.service_id ?? ""} compact /></details>
-            <div className="terminal-mode-links">
-  <a className="button button-secondary" href={`/kiosk/${t.device_token}?from=dashboard`}>Open Terminal</a>
-</div>
-<div className="terminal-device-token">
-  <div>
-    <small className="muted">Device Token</small>
-    <code>{t.device_token}</code>
-  </div>
-  <CopyTokenButton token={t.device_token} />
-</div>
+            <div className="terminal-mode-links"><a className="button button-secondary" href={`/kiosk/${t.device_token}?from=dashboard`}>Open Terminal</a></div>
+            <div className="terminal-token-panel"><span>Device token for Android APK</span><code>{t.device_token}</code><CopyTokenButton token={t.device_token} /></div>
             <form action={deleteTerminal}><input type="hidden" name="id" value={t.id}/><button className="button button-danger" type="submit">Remove</button></form>
           </article>;
         }) : <div className="mini-empty"><strong>No ticket terminals yet.</strong><span>Create your first QueueDrop terminal above.</span></div>}
@@ -79,4 +71,3 @@ export default async function TerminalsPage({ searchParams }: Props) {
     </section>
   </div>;
 }
-
