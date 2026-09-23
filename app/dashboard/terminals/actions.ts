@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,32 +22,13 @@ export async function createTerminal(_previousState: CreateTerminalState, formDa
   if (!/^\d{4,8}$/.test(pin)) return { status: "error", message: "Terminal PIN must contain 4 to 8 digits." };
   if (pin !== confirmPin) return { status: "error", message: "Terminal PIN confirmation does not match." };
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { status: "error", message: "Your session expired. Sign in again and retry." };
-  const { data: membership } = await supabase.from("business_users")
-    .select("business_id,role").eq("user_id", auth.user.id).eq("is_active", true).limit(1).maybeSingle();
-  if (!membership || !["owner", "admin"].includes(membership.role)) return { status: "error", message: "You do not have permission to create terminals." };
-  const { data: branch } = await supabase.from("branches").select("id").eq("id", branchId).eq("business_id", membership.business_id).maybeSingle();
-  if (!branch) return { status: "error", message: "The selected branch is not available to this business." };
-  const { data: service, error: serviceError } = await supabase.from("services")
-    .select("id,branch_id")
-    .eq("id", serviceId)
-    .eq("branch_id", branchId)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (serviceError || !service) return { status: "error", message: "Selected default service does not belong to the selected branch." };
-  const { error: pinError } = await supabase.rpc("set_branch_kiosk_exit_pin", { target_branch_id: branchId, target_pin: pin });
-  if (pinError) return { status: "error", message: pinError.message };
-  const { error } = await supabase.from("devices").insert({
-    branch_id: branchId,
-    service_id: serviceId,
-    name,
-    device_type: "ticket_terminal",
-    is_active: true,
+  const { error } = await supabase.rpc("create_stub_terminal", {
+    target_branch_id: branchId,
+    target_service_id: serviceId,
+    target_name: name,
+    target_pin: pin,
   });
   if (error) return { status: "error", message: error.message };
-  revalidatePath("/dashboard/terminals");
-  revalidatePath("/dashboard/settings");
   return { status: "success", message: "QueueDrop terminal created.", terminalName: name, pin };
 }
 
@@ -68,10 +48,6 @@ export async function updateTerminal(formData: FormData) {
   if (serviceError || !service) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent("Selected default service does not belong to the selected branch.")}`);
   const { error } = await supabase.from("devices").update({ branch_id: branchId, service_id: serviceId, name }).eq("id", id).eq("device_type", "ticket_terminal");
   if (error) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/dashboard/terminals");
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/get-stub");
-  revalidatePath("/dashboard/get-queue");
   redirect(`/dashboard/settings?view=branch-terminals&message=${encodeURIComponent("Terminal branch and default service updated.")}`);
 }
 
@@ -81,8 +57,6 @@ export async function deleteTerminal(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("devices").delete().eq("id", id).eq("device_type", "ticket_terminal");
   if (error) redirect(`/dashboard/settings?view=branch-terminals&error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/dashboard/terminals");
-  revalidatePath("/dashboard/settings");
   redirect(`/dashboard/settings?view=branch-terminals&message=${encodeURIComponent("Terminal removed.")}`);
 }
 
@@ -118,8 +92,6 @@ export async function updateKioskExitPin(formData: FormData) {
     redirect(`/dashboard/settings?view=branch-terminals${branch}&error=${encodeURIComponent(error.message)}#kiosk-security`);
   }
 
-  revalidatePath("/dashboard/terminals");
-  revalidatePath("/dashboard/settings");
   const branch = branchId ? `&branch=${encodeURIComponent(branchId)}` : "";
   redirect(`/dashboard/settings?view=branch-terminals${branch}&message=${encodeURIComponent(branchId ? "Branch terminal exit PIN updated." : "Terminal exit PIN updated.")}#kiosk-security`);
 }

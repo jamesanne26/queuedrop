@@ -293,6 +293,33 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
     try {
       const result = await simulateGetStubInlineAction(selectedBranchId, serviceId);
       setFlash({ type: result.ok ? "success" : "error", message: result.message });
+      if (result.ok && result.ticket?.id) {
+        const issuedTicket = result.ticket;
+        const now = new Date().toISOString();
+        setLiveTickets((current) => {
+          if (current.some((ticket) => ticket.id === issuedTicket.id)) return current;
+          const highestTicketNumber = current
+            .filter((ticket) => ticket.service_id === serviceId)
+            .reduce((highest, ticket) => Math.max(highest, ticket.ticket_number), 0);
+          const optimisticTicket: Ticket = {
+            id: issuedTicket.id,
+            display_number: issuedTicket.display_number,
+            status: issuedTicket.status,
+            position: issuedTicket.position,
+            service_id: issuedTicket.service_id,
+            service_name: issuedTicket.service_name,
+            session_token: issuedTicket.session_token,
+            ticket_number: highestTicketNumber + 1,
+            sms_enabled: false,
+            sms_phone: null,
+            joined_at: now,
+            called_at: null,
+            serving_at: null,
+            updated_at: now,
+          };
+          return recalculateQueuePositions([...current, optimisticTicket]);
+        });
+      }
     } catch (error) {
       setFlash({ type: "error", message: error instanceof Error ? error.message : "Unable to issue test stub." });
     } finally {
