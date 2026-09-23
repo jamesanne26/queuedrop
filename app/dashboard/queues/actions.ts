@@ -126,10 +126,23 @@ export async function simulateGetStubInlineAction(branchId: string, serviceId: s
   // The live workspace receives this insert through Realtime and also runs a
   // lightweight reconciliation query. Invalidating the whole route here made
   // every test-stub request trigger an unnecessary server render.
-  const displayNumber = issued && typeof issued === "object" && "display_number" in issued
-    ? String((issued as { display_number?: unknown }).display_number ?? "")
+  const issuedTicket = issued && typeof issued === "object" ? issued as Record<string, unknown> : null;
+  const displayNumber = issuedTicket
+    ? String(issuedTicket.display_number ?? "")
     : "";
-  return { ok: true as const, message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued" };
+  return {
+    ok: true as const,
+    message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued",
+    ticket: issuedTicket ? {
+      id: String(issuedTicket.ticket_id ?? ""),
+      display_number: displayNumber || "Queue",
+      status: "waiting" as const,
+      position: Number(issuedTicket.position ?? 0) || null,
+      service_id: serviceId,
+      service_name: String(issuedTicket.service_name ?? "Service"),
+      session_token: issuedTicket.session_token ? String(issuedTicket.session_token) : null,
+    } : null,
+  };
 }
 
 export async function callNextAction(formData: FormData) {

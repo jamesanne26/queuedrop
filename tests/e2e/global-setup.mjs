@@ -1,4 +1,4 @@
-import { createAdminClient, getOwnerBusiness } from "./helpers/admin-db.mjs";
+import { createAdminClient, ensureE2ETerminalCapacity, getOwnerBusiness } from "./helpers/admin-db.mjs";
 
 const REQUIRED_CI_ENV = [
   "QUEUEDROP_TEST_BASE_URL",
@@ -26,7 +26,8 @@ export default async function globalSetup() {
   const email = process.env.E2E_OWNER_EMAIL.trim();
   const password = process.env.E2E_OWNER_PASSWORD;
 
-  await getOwnerBusiness(admin, email);
+  const owner = await getOwnerBusiness(admin, email);
+  await ensureE2ETerminalCapacity(admin, owner.businessId);
 
   const { error: loginError } = await admin.auth.signInWithPassword({ email, password });
   if (loginError) {

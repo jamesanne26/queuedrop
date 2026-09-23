@@ -157,6 +157,34 @@ test("live queue uses one realtime owner and avoids route-wide refreshes for inl
   assert.doesNotMatch(inlineAction, /revalidatePath/);
 });
 
+test("latency-sensitive terminal operations call secured Supabase RPCs from the browser", async () => {
+  const createForm = await readFile(new URL("../../app/dashboard/terminals/create-terminal-form.tsx", import.meta.url), "utf8");
+  const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
+  const stubTerminal = await readFile(new URL("../../app/kiosk/[deviceToken]/stub-terminal.tsx", import.meta.url), "utf8");
+  const queueTerminal = await readFile(new URL("../../app/queue/[deviceToken]/queue-terminal.tsx", import.meta.url), "utf8");
+  const migration = await readFile(new URL("../../supabase/migrations/20260923204500_direct_dashboard_terminal_operations.sql", import.meta.url), "utf8");
+
+  assert.match(createForm, /supabase\.rpc\("create_stub_terminal"/);
+  assert.match(createForm, /data-no-global-loading="true"/);
+  assert.match(workspace, /supabase\.rpc\("dashboard_issue_test_stub"/);
+  assert.doesNotMatch(workspace, /simulateGetStubInlineAction/);
+  assert.match(stubTerminal, /supabase\.rpc\("verify_kiosk_exit_pin"/);
+  assert.match(queueTerminal, /supabase\.rpc\("verify_kiosk_exit_pin"/);
+  assert.match(migration, /security definer/);
+  assert.match(migration, /v_role not in \('owner','admin'\)/);
+  assert.match(migration, /grant execute on function public\.dashboard_issue_test_stub\(uuid,uuid\) to authenticated/);
+  assert.doesNotMatch(migration, /grant execute[^;]+\b(?:anon|service_role)\b/);
+});
+
+test("dashboard test-stub RPC keeps record and role lookups separate", async () => {
+  const migration = await readFile(new URL("../../supabase/migrations/20260924013000_fix_dashboard_test_stub_record_lookup.sql", import.meta.url), "utf8");
+  assert.match(migration, /select \* into v_branch[\s\S]*select bu\.role into v_role/);
+  assert.match(migration, /v_branch\.id is null or v_role is null/);
+  assert.doesNotMatch(migration, /into v_branch\s*,\s*v_role/);
+  assert.doesNotMatch(migration, /insert into public\.devices/);
+  assert.doesNotMatch(migration, /insert into public\.print_jobs/);
+});
+
 test("settings only loads member profiles for user-assignment views", async () => {
   const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
   assert.match(page, /const needsMembers = \["users", "branch-users"\]/);

@@ -9,7 +9,9 @@ import { TeamWorkspace } from "@/app/dashboard/team/team-workspace";
 import { RoleManagement } from "@/app/dashboard/team/role-management";
 import accessStyles from "@/app/dashboard/team/team-access.module.css";
 import { TerminalForm } from "@/app/dashboard/terminals/terminal-form";
-import { createTerminal, deleteTerminal, updateTerminal } from "@/app/dashboard/terminals/actions";
+import { CreateTerminalForm } from "@/app/dashboard/terminals/create-terminal-form";
+import { CopyTokenButton } from "@/app/dashboard/terminals/copy-token-button";
+import { deleteTerminal, updateTerminal } from "@/app/dashboard/terminals/actions";
 import { startSubscriptionCheckout } from "@/app/client/subscription/actions";
 import { updateBusinessProfile, updateQueueSettings, updateTerminalAppearance } from "./actions";
 import { DAYS } from "./constants";
@@ -143,6 +145,16 @@ export default async function SettingsPage({ searchParams }: Props) {
 
   const allServices = servicesResult.data ?? [];
   const branchServiceLinks = branchServiceLinksResult.data ?? [];
+  const branchIdsByCatalogService = new Map<string, string[]>();
+  const linksByBranch = new Map<string, typeof branchServiceLinks>();
+  for (const link of branchServiceLinks) {
+    const assignedBranches = branchIdsByCatalogService.get(link.business_service_id) ?? [];
+    assignedBranches.push(link.branch_id);
+    branchIdsByCatalogService.set(link.business_service_id, assignedBranches);
+    const branchLinks = linksByBranch.get(link.branch_id) ?? [];
+    branchLinks.push(link);
+    linksByBranch.set(link.branch_id, branchLinks);
+  }
   const serviceCatalog = allServices.map((service) => ({
     key: service.id,
     name: service.name,
@@ -150,7 +162,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     description: service.description,
     queue_prefix: service.queue_prefix,
     estimated_minutes: service.estimated_minutes,
-    branch_ids: branchServiceLinks.filter((link) => link.business_service_id === service.id).map((link) => link.branch_id),
+    branch_ids: branchIdsByCatalogService.get(service.id) ?? [],
   }));
   const teamBranches = branches.map((branch) => ({ id: branch.id, name: branch.name, status: branch.status }));
   const roles = (rolesResult.data ?? []) as BusinessRole[];
@@ -171,8 +183,8 @@ export default async function SettingsPage({ searchParams }: Props) {
   const terminalBranches = branches.map((branch) => ({
     id: branch.id,
     name: branch.name,
-    services: branchServiceLinks
-      .filter((link) => link.branch_id === branch.id && link.service_id)
+    services: (linksByBranch.get(branch.id) ?? [])
+      .filter((link) => link.service_id)
       .map((link) => {
         const catalogService = serviceByCatalogId.get(link.business_service_id);
         return {
@@ -254,8 +266,8 @@ export default async function SettingsPage({ searchParams }: Props) {
   const terminalsPanel = businessWide && selectedBranch ? <section className="settings-new-section">
     <SectionHeading eyebrow="Branch · Stub Printer" title={`${selectedBranch.name} stub printers`} description="Create and manage the Android stub printers assigned to this branch." />
     {pinReveal ? <div className="terminal-pin-reveal" role="status"><div><strong>{pinReveal.terminalName} created</strong><span>Terminal PIN — save it now. This is shown only once.</span></div><code>{pinReveal.pin}</code></div> : null}
-    <div className="settings-terminal-create"><h3>Add stub printer</h3><TerminalForm branches={selectedTerminalBranches} action={createTerminal} submitLabel="Create stub printer" defaultBranchId={selectedBranch.id} hideBranchSelect requirePin /></div>
-    <div className="terminal-list">{selectedTerminals.map((terminal) => { const branch = Array.isArray(terminal.branches) ? terminal.branches[0] : terminal.branches; const service = Array.isArray(terminal.services) ? terminal.services[0] : terminal.services; return <article className="settings-terminal-row" key={terminal.id}><div><strong>{terminal.name}</strong><span>{branch?.name ?? selectedBranch.name} · {service?.name ?? "No service"}</span><small>{terminal.last_seen_at ? `Last seen ${new Date(terminal.last_seen_at).toLocaleString()}` : "Not connected yet"}</small></div><details><summary>Edit assignment</summary><TerminalForm branches={selectedTerminalBranches} action={updateTerminal} submitLabel="Save assignment" terminalId={terminal.id} defaultName={terminal.name} defaultBranchId={selectedBranch.id} defaultServiceId={terminal.service_id ?? ""} compact hideBranchSelect /></details><div className="settings-terminal-actions"><a className="button button-secondary" href={`/kiosk/${terminal.device_token}?from=dashboard`}>Open Terminal</a><form action={deleteTerminal}><input type="hidden" name="id" value={terminal.id} /><ConfirmDeleteSubmit className="button button-danger" message={`Remove terminal ${terminal.name}? This action cannot be undone.`}>Remove</ConfirmDeleteSubmit></form></div></article>; })}</div>
+    <div className="settings-terminal-create"><h3>Add stub printer</h3><CreateTerminalForm branches={selectedTerminalBranches} submitLabel="Create stub printer" defaultBranchId={selectedBranch.id} hideBranchSelect /></div>
+    <div className="terminal-list">{selectedTerminals.map((terminal) => { const branch = Array.isArray(terminal.branches) ? terminal.branches[0] : terminal.branches; const service = Array.isArray(terminal.services) ? terminal.services[0] : terminal.services; return <article className="settings-terminal-row" key={terminal.id}><div><strong>{terminal.name}</strong><span>{branch?.name ?? selectedBranch.name} · {service?.name ?? "No service"}</span><small>{terminal.last_seen_at ? `Last seen ${new Date(terminal.last_seen_at).toLocaleString()}` : "Not connected yet"}</small><div className="terminal-token-panel"><span>Device token for Android APK</span><code>{terminal.device_token}</code><CopyTokenButton token={terminal.device_token} /></div></div><details><summary>Edit assignment</summary><TerminalForm branches={selectedTerminalBranches} action={updateTerminal} submitLabel="Save assignment" terminalId={terminal.id} defaultName={terminal.name} defaultBranchId={selectedBranch.id} defaultServiceId={terminal.service_id ?? ""} compact hideBranchSelect /></details><div className="settings-terminal-actions"><a className="button button-secondary" href={`/kiosk/${terminal.device_token}?from=dashboard`}>Open Terminal</a><form action={deleteTerminal}><input type="hidden" name="id" value={terminal.id} /><ConfirmDeleteSubmit className="button button-danger" message={`Remove terminal ${terminal.name}? This action cannot be undone.`}>Remove</ConfirmDeleteSubmit></form></div></article>; })}</div>
   </section> : branchGeneralPanel;
 
   const businessPanel = <section className="settings-new-section settings-business-profile-section"><SectionHeading eyebrow="Business" title="Business profile" description="Manage the business identity used across QueueDrop." /><form action={updateBusinessProfile} className="settings-business-edit-form"><label>Business name<input name="business_name" defaultValue={business?.name ?? "QueueDrop"} minLength={2} maxLength={120} required /></label><button className="button button-primary" type="submit">Save business</button></form><div className="settings-business-summary settings-business-summary-compact"><div><span>Business ID</span><code>{membership.business_id}</code></div><div><span>Account role</span><strong>{actorRole}</strong></div><div><span>Branches</span><strong>{branches.length}</strong></div></div></section>;
@@ -263,8 +275,7 @@ export default async function SettingsPage({ searchParams }: Props) {
   const terms = (termsResult.data ?? null) as EffectiveTerms | null;
   const billingPanel = businessWide ? <section className="settings-new-section"><SectionHeading eyebrow="Billing & Subscription" title="Plan & billing" description="Review your current plan and change subscription without opening the old client page." /><div className="settings-billing-summary"><div><span>Current plan</span><strong>{terms?.plan_name ?? "No active subscription"}</strong></div><div><span>Status</span><strong>{terms?.status ?? "—"}</strong></div><div><span>Billing cycle</span><strong>{terms?.billing_interval === "yearly" ? "Annual" : "Monthly"}</strong></div><div><span>Current cycle</span><strong>{peso(terms?.current_cycle_price ?? terms?.monthly_price)}</strong></div></div><div className="settings-plan-list">{(plansResult.data ?? []).map((plan) => <article key={plan.id} className="settings-plan-row"><div><strong>{plan.name}</strong><span>{plan.description}</span><small>{peso(plan.price_monthly)}/month{plan.price_yearly ? ` · ${peso(plan.price_yearly)}/year` : ""}</small></div><form action={startSubscriptionCheckout}><input type="hidden" name="plan_id" value={plan.id} /><select name="billing_interval" defaultValue="monthly"><option value="monthly">Monthly</option>{plan.price_yearly ? <option value="yearly">Annual</option> : null}</select><select name="renewal_mode" defaultValue="manual"><option value="manual">Manual renewal</option>{plan.allow_auto_renew ? <option value="auto">Auto-renew</option> : null}</select><button className="button button-primary" type="submit">Choose plan</button></form></article>)}</div><div className="settings-recent-orders"><h3>Recent billing activity</h3>{(ordersResult.data ?? []).map((order) => { const relation = order.plans; const plan = Array.isArray(relation) ? relation[0] : relation; return <div key={order.id} className="settings-order-row"><span>{plan?.name ?? "Plan"} · {order.billing_interval}</span><strong>{order.status}</strong></div>; })}</div></section> : null;
 
-  const apkUrl = process.env.QUEUEDROP_ANDROID_APK_URL?.trim();
-  const androidAppPanel = businessWide ? <section className="settings-new-section"><SectionHeading eyebrow="Mobile Installers" title="QueueDrop mobile installers" description="Download the latest QueueDrop installer for a compatible Android device." /><div className="settings-field-panel-v2"><div className="settings-apk-download"><div><strong>QueueDrop Android installer</strong><p className="muted">Install the latest approved mobile version for your QueueDrop stub printer.</p></div>{apkUrl ? <a className="button button-primary" href={apkUrl} target="_blank" rel="noopener noreferrer" download>Download Mobile Installer</a> : <button className="button button-secondary" type="button" disabled>Download Mobile Installer</button>}</div></div></section> : null;
+  const androidAppPanel = businessWide ? <section className="settings-new-section"><SectionHeading eyebrow="Mobile Installers" title="QueueDrop mobile installers" description="Download the latest QueueDrop installer for a compatible Android device." /><div className="settings-field-panel-v2"><div className="settings-apk-download"><div><strong>QueueDrop Print Bridge v1.1.0</strong><p className="muted">Install the approved Android APK for your QueueDrop stub printer.</p></div><a className="button button-primary" href="/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk" download="QueueDrop-PrintBridge-v1.1.0.apk">Download Mobile Installer</a></div></div></section> : null;
 
   const addBranchPanel = businessWide ? (
     <details className="settings-add-branch-panel-v4">

@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createTerminal, deleteTerminal, updateKioskExitPin, updateTerminal } from "./actions";
+import { deleteTerminal, updateKioskExitPin, updateTerminal } from "./actions";
 import { TerminalForm } from "./terminal-form";
+import { CreateTerminalForm } from "./create-terminal-form";
+import { CopyTokenButton } from "./copy-token-button";
 
 type Props = { searchParams: Promise<{ message?: string; error?: string }> };
 
@@ -50,7 +52,7 @@ export default async function TerminalsPage({ searchParams }: Props) {
 
     <section className="dashboard-section dashboard-section-stack">
       <div><h2>Add terminal</h2><p className="muted">Select the branch first, then choose the service that should be preselected by default. The same service can be the default on more than one terminal.</p></div>
-      <TerminalForm branches={safeBranches} action={createTerminal} submitLabel="Create terminal" requirePin />
+      <CreateTerminalForm branches={safeBranches} />
     </section>
 
     <section className="dashboard-section dashboard-section-stack">
@@ -62,7 +64,7 @@ export default async function TerminalsPage({ searchParams }: Props) {
             <div className="terminal-card-summary"><div><strong>{t.name}</strong><span>{branch?.name ?? "Branch not assigned"} · {service?.name ?? "Service not assigned"}</span></div><small>{t.last_seen_at ? `Last seen ${new Date(t.last_seen_at).toLocaleString()}` : "Not connected yet"}</small></div>
             <details className="terminal-assignment-panel"><summary>Branch & default service</summary><TerminalForm branches={safeBranches} action={updateTerminal} submitLabel="Save assignment" terminalId={t.id} defaultName={t.name} defaultBranchId={t.branch_id} defaultServiceId={t.service_id ?? ""} compact /></details>
             <div className="terminal-mode-links"><a className="button button-secondary" href={`/kiosk/${t.device_token}?from=dashboard`}>Open Terminal</a></div>
-            <code>/kiosk/{t.device_token}</code>
+            <div className="terminal-token-panel"><span>Device token for Android APK</span><code>{t.device_token}</code><CopyTokenButton token={t.device_token} /></div>
             <form action={deleteTerminal}><input type="hidden" name="id" value={t.id}/><button className="button button-danger" type="submit">Remove</button></form>
           </article>;
         }) : <div className="mini-empty"><strong>No ticket terminals yet.</strong><span>Create your first QueueDrop terminal above.</span></div>}

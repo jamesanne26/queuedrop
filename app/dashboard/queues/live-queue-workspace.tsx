@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { recalculateQueuePositions } from "@/lib/queue/positions";
-import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubInlineAction, type ServiceHistoryTicket } from "./actions";
+import { callNextAction, updateTicketAction, loadServiceHistoryAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
 type Branch = { id: string; name: string; address: string | null; status?: string | null };
@@ -291,8 +291,55 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
     setStubBusy(true);
     setFlash(null);
     try {
-      const result = await simulateGetStubInlineAction(selectedBranchId, serviceId);
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("dashboard_issue_test_stub", {
+        target_branch_id: selectedBranchId,
+        target_service_id: serviceId,
+      });
+      if (error) throw new Error(error.message);
+      const issued = data && typeof data === "object" ? data as Record<string, unknown> : null;
+      const displayNumber = String(issued?.display_number ?? "");
+      const result = {
+        ok: true as const,
+        message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued",
+        ticket: issued ? {
+          id: String(issued.ticket_id ?? ""),
+          display_number: displayNumber || "Queue",
+          status: "waiting" as const,
+          position: Number(issued.position ?? 0) || null,
+          service_id: String(issued.service_id ?? serviceId),
+          service_name: String(issued.service_name ?? "Service"),
+          session_token: issued.session_token ? String(issued.session_token) : null,
+        } : null,
+      };
       setFlash({ type: result.ok ? "success" : "error", message: result.message });
+      if (result.ok && result.ticket?.id) {
+        const issuedTicket = result.ticket;
+        const now = new Date().toISOString();
+        setLiveTickets((current) => {
+          if (current.some((ticket) => ticket.id === issuedTicket.id)) return current;
+          const highestTicketNumber = current
+            .filter((ticket) => ticket.service_id === serviceId)
+            .reduce((highest, ticket) => Math.max(highest, ticket.ticket_number), 0);
+          const optimisticTicket: Ticket = {
+            id: issuedTicket.id,
+            display_number: issuedTicket.display_number,
+            status: issuedTicket.status,
+            position: issuedTicket.position,
+            service_id: issuedTicket.service_id,
+            service_name: issuedTicket.service_name,
+            session_token: issuedTicket.session_token,
+            ticket_number: highestTicketNumber + 1,
+            sms_enabled: false,
+            sms_phone: null,
+            joined_at: now,
+            called_at: null,
+            serving_at: null,
+            updated_at: now,
+          };
+          return recalculateQueuePositions([...current, optimisticTicket]);
+        });
+      }
     } catch (error) {
       setFlash({ type: "error", message: error instanceof Error ? error.message : "Unable to issue test stub." });
     } finally {

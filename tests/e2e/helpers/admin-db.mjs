@@ -37,6 +37,25 @@ export async function getOwnerBusiness(admin, ownerEmail) {
   return { userId: user.id, businessId: membership.business_id, role: membership.role };
 }
 
+export async function ensureE2ETerminalCapacity(admin, businessId, minimum = 20) {
+  const { data, error } = await admin
+    .from("business_subscriptions")
+    .select("id,custom_max_terminals")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || (data.custom_max_terminals ?? 0) >= minimum) return;
+
+  const { error: updateError } = await admin
+    .from("business_subscriptions")
+    .update({
+      custom_max_terminals: minimum,
+      override_reason: "Automated browser E2E terminal lifecycle capacity",
+    })
+    .eq("id", data.id);
+  if (updateError) throw updateError;
+}
+
 export async function findBranchByName(admin, businessId, name) {
   const { data, error } = await admin
     .from("branches")
