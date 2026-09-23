@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { recalculateQueuePositions } from "@/lib/queue/positions";
-import { callNextAction, updateTicketAction, loadServiceHistoryAction, simulateGetStubInlineAction, type ServiceHistoryTicket } from "./actions";
+import { callNextAction, updateTicketAction, loadServiceHistoryAction, type ServiceHistoryTicket } from "./actions";
 
 type Role = "owner" | "admin" | "manager" | "staff";
 type Branch = { id: string; name: string; address: string | null; status?: string | null };
@@ -291,7 +291,27 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
     setStubBusy(true);
     setFlash(null);
     try {
-      const result = await simulateGetStubInlineAction(selectedBranchId, serviceId);
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("dashboard_issue_test_stub", {
+        target_branch_id: selectedBranchId,
+        target_service_id: serviceId,
+      });
+      if (error) throw new Error(error.message);
+      const issued = data && typeof data === "object" ? data as Record<string, unknown> : null;
+      const displayNumber = String(issued?.display_number ?? "");
+      const result = {
+        ok: true as const,
+        message: displayNumber ? `Test stub ${displayNumber} issued` : "Test stub issued",
+        ticket: issued ? {
+          id: String(issued.ticket_id ?? ""),
+          display_number: displayNumber || "Queue",
+          status: "waiting" as const,
+          position: Number(issued.position ?? 0) || null,
+          service_id: String(issued.service_id ?? serviceId),
+          service_name: String(issued.service_name ?? "Service"),
+          session_token: issued.session_token ? String(issued.session_token) : null,
+        } : null,
+      };
       setFlash({ type: result.ok ? "success" : "error", message: result.message });
       if (result.ok && result.ticket?.id) {
         const issuedTicket = result.ticket;

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type ServiceOption = { id: string; name: string; queue_prefix?: string | null };
 type TerminalInfo = {
@@ -109,13 +110,13 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
     setExitBusy(true);
     setExitError("");
     try {
-      const response = await fetch(`/api/kiosk/${encodeURIComponent(deviceToken)}/exit`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pin }),
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("verify_kiosk_exit_pin", {
+        target_device_token: deviceToken,
+        target_pin: pin,
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Unable to exit kiosk mode.");
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Incorrect PIN.");
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
