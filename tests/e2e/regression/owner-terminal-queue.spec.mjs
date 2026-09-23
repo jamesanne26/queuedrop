@@ -119,9 +119,18 @@ test.describe("owner terminals and queue operations", () => {
       await createForm.locator('input[name="kiosk_exit_pin"]').fill("4826");
       await createForm.locator('input[name="kiosk_exit_pin_confirm"]').fill("4826");
       await createForm.getByRole("button", { name: "Create terminal", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-terminals" && Boolean(url.searchParams.get("message")), { timeout: 20_000 });
-      await expectNotice(page, /QueueDrop terminal created/);
-      await expect(page.getByRole("status")).toContainText("4826");
+
+      // Terminal creation is intentionally inline so operators do not lose their
+      // place to a full-page redirect. Synchronize on the visible result and the
+      // durable database write instead of waiting for the legacy Settings URL.
+      const creationStatus = page.getByRole("status");
+      await expect(creationStatus).toContainText(`${terminalName} created`, { timeout: 20_000 });
+      await expect(creationStatus).toContainText("4826");
+      await expect(page).toHaveURL(/\/dashboard\/terminals(?:\?|$)/);
+      await expect.poll(
+        async () => Boolean(await findTerminalByName(admin, branch.id, terminalName)),
+        { timeout: 20_000 },
+      ).toBe(true);
 
       let terminal = await findTerminalByName(admin, branch.id, terminalName);
       expect(terminal).not.toBeNull();
