@@ -176,6 +176,15 @@ test("latency-sensitive terminal operations call secured Supabase RPCs from the 
   assert.doesNotMatch(migration, /grant execute[^;]+\b(?:anon|service_role)\b/);
 });
 
+test("dashboard test-stub RPC keeps record and role lookups separate", async () => {
+  const migration = await readFile(new URL("../../supabase/migrations/20260924013000_fix_dashboard_test_stub_record_lookup.sql", import.meta.url), "utf8");
+  assert.match(migration, /select \* into v_branch[\s\S]*select bu\.role into v_role/);
+  assert.match(migration, /v_branch\.id is null or v_role is null/);
+  assert.doesNotMatch(migration, /into v_branch\s*,\s*v_role/);
+  assert.doesNotMatch(migration, /insert into public\.devices/);
+  assert.doesNotMatch(migration, /insert into public\.print_jobs/);
+});
+
 test("settings only loads member profiles for user-assignment views", async () => {
   const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
   assert.match(page, /const needsMembers = \["users", "branch-users"\]/);
