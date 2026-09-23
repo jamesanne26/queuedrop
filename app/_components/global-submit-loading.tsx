@@ -126,7 +126,13 @@ export function GlobalSubmitLoading() {
       setGlobalLoading(true);
       startTimeout();
     };
-    const handleSubmitComplete = () => setGlobalLoading(false);
+    const handleSubmitComplete = () => {
+      setGlobalLoading(false);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    };
 
     const observer = new MutationObserver(() => {
       if (document.body.dataset.qdModalOpen === "true") {

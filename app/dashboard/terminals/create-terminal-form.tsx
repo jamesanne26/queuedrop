@@ -14,7 +14,14 @@ export function CreateTerminalForm({ branches, defaultBranchId = "", hideBranchS
   const initialState: CreateTerminalState = { status: "idle" };
   const [state, formAction, pending] = useActionState(createTerminal, initialState);
   const services = useMemo(() => (branches.find((branch) => branch.id === branchId)?.services ?? []).filter((service) => service.is_active), [branches, branchId]);
-  useEffect(() => { if (state.status === "success") { formRef.current?.reset(); router.refresh(); } }, [router, state]);
+  useEffect(() => {
+    if (state.status === "idle") return;
+    window.dispatchEvent(new Event("qd:submit-complete"));
+    if (state.status === "success") {
+      formRef.current?.reset();
+      router.refresh();
+    }
+  }, [router, state]);
   return <>
     {state.status === "error" ? <div className="notice notice-error" role="alert">{state.message}</div> : null}
     {state.status === "success" ? <div className="terminal-pin-reveal" role="status"><div><strong>{state.terminalName} created</strong><span>Terminal PIN — save it now. This is shown only once.</span></div><code>{state.pin}</code></div> : null}
