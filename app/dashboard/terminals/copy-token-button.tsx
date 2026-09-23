@@ -3,21 +3,21 @@
 import { useState } from "react";
 
 export function CopyTokenButton({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"token" | "url" | null>(null);
 
-  async function copyToken() {
+  async function copy(value: string, kind: "token" | "url") {
     try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 2000);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   }
 
-  return (
-    <button className="button button-secondary terminal-token-copy" type="button" onClick={copyToken}>
-      {copied ? "Copied!" : "Copy token"}
-    </button>
-  );
+  const terminalUrl = typeof window === "undefined" ? `/kiosk/${token}` : new URL(`/kiosk/${token}`, window.location.origin).toString();
+  return <div className="terminal-copy-actions">
+    <button className="button button-secondary terminal-token-copy" type="button" onClick={() => copy(token, "token")}>{copied === "token" ? "Copied!" : "Copy token"}</button>
+    <button className="button button-secondary terminal-token-copy" type="button" onClick={() => copy(terminalUrl, "url")}>{copied === "url" ? "URL copied!" : "Copy URL"}</button>
+  </div>;
 }
