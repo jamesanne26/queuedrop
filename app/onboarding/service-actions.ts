@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -39,14 +38,9 @@ export async function createFirstService(formData: FormData) {
   });
   if (error) fail(branchId, error.message || "Unable to create the first service.");
 
-  // The first-service RPC writes both the business-wide catalog row and the
-  // branch service. Invalidate every screen that reads either source before
-  // redirecting so the newly created service is visible immediately.
-  revalidatePath("/dashboard/settings");
-  revalidatePath("/dashboard/services");
-  revalidatePath("/dashboard");
-
-  redirect(`/dashboard/settings?branch=${encodeURIComponent(branchId)}&view=services&message=${encodeURIComponent("Workspace setup complete. Your first service is ready.")}`);
+  // Redirecting already streams a fresh destination payload. Broad path
+  // invalidation made this first save wait for several unrelated dashboards.
+  redirect(`/dashboard/services?branch=${encodeURIComponent(branchId)}&message=${encodeURIComponent("Workspace setup complete. Your first service is ready.")}`);
 }
 
 export async function skipFirstService(formData: FormData) {

@@ -80,11 +80,14 @@ test("queue controls and mutations are permission driven", async () => {
   const page = await readFile(new URL("../../app/dashboard/queues/page.tsx", import.meta.url), "utf8");
   const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
   const actions = await readFile(new URL("../../app/dashboard/queues/actions.ts", import.meta.url), "utf8");
+  const authority = await readFile(new URL("../../supabase/migrations/20260915131500_permission_authority_hardening.sql", import.meta.url), "utf8");
   assert.match(page, /can_return_customer/);
   assert.match(workspace, /queuePermissions\.call/);
   assert.match(workspace, /queuePermissions\.returnLast/);
-  assert.match(actions, /requireQueuePermission/);
+  assert.doesNotMatch(actions, /requireQueuePermission/);
   assert.match(actions, /qd_staff_update_ticket_status/);
+  assert.match(authority, /create or replace function public\.qd_staff_update_ticket_status/);
+  assert.match(authority, /public\.qd_has_queue_permission/);
 });
 
 test("settings routes reject views outside the signed-in user's permissions", async () => {
@@ -100,12 +103,14 @@ test("settings navigation waits for server data before showing a new view", asyn
   assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
   assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
   assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.doesNotMatch(consoleSource, /router\.prefetch\(getBranchUrl\(branch\.id\)\)/);
+  assert.match(consoleSource, /prefetchBranch/);
+  assert.match(consoleSource, /prefetchView/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
   const workspace = await readFile(new URL("../../app/dashboard/queues/live-queue-workspace.tsx", import.meta.url), "utf8");
-  assert.match(workspace, /disabled=\{!selectedService \|\| stubBusy\}>Call next/);
+  assert.match(workspace, /disabled=\{!selectedService \|\| stubBusy \|\| waiting\.length === 0\}>Call next/);
+  assert.match(workspace, /onSubmit=\{optimisticallyCallNext\}/);
   assert.match(workspace, /type="button" onClick=\{showHistory\}/);
 });
 

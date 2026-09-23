@@ -26,7 +26,7 @@ export default async function FirstServicePage({ searchParams }: Props) {
           <p>Your first branch <strong>{branch.name}</strong> is saved. Add the first service customers will queue for.</p>
         </div>
         {error ? <div className="notice notice-error">{error}</div> : null}
-        <form action={createFirstService} className="form-stack onboarding-form">
+        <form action={createFirstService} className="form-stack onboarding-form" data-no-global-loading="true">
           <input type="hidden" name="branch_id" value={branch.id} />
           <label>Service name<input name="name" required minLength={2} maxLength={120} placeholder="e.g. Haircut" autoFocus /></label>
           <label>Group <em>Optional</em><input name="service_group" maxLength={80} placeholder="e.g. Salon" /></label>
