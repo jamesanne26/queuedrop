@@ -43,9 +43,10 @@ export async function createService(formData: FormData) {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) redirect("/auth/login?next=%2Fdashboard%2Fsettings");
 
-  const { error } = await supabase.rpc("create_service_for_branch", {
+  const { error } = await supabase.rpc("create_initial_branch_service", {
     target_branch_id: branchId,
     service_name: name,
+    service_group: null,
     service_description: description || null,
     service_queue_prefix: queuePrefix || null,
     service_estimated_minutes: estimatedMinutes,
@@ -56,10 +57,6 @@ export async function createService(formData: FormData) {
     fail(error.message || "Unable to create service.", branchId);
   }
 
-  revalidatePath("/dashboard", "layout");
-  revalidatePath("/dashboard/services");
-  revalidatePath("/dashboard/team");
-  revalidatePath("/dashboard/settings");
   redirect(servicesUrl(branchId, "message", "Service created successfully."));
 }
 

@@ -373,6 +373,32 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
 
   function closeConfirm() { setConfirm(null); setConfirmInput(""); }
 
+  function optimisticallyCallNext() {
+    const next = waiting[0];
+    if (!next) return;
+    const now = new Date().toISOString();
+    setLiveTickets((current) => recalculateQueuePositions(current.map((ticket) => ticket.id === next.id
+      ? { ...ticket, status: "called", called_at: now, updated_at: now }
+      : ticket)));
+  }
+
+  function optimisticallyUpdateTicket(ticketId: string, action: "serve" | "complete" | "pending") {
+    const now = new Date().toISOString();
+    setLiveTickets((current) => {
+      if (action === "complete") {
+        return recalculateQueuePositions(current.filter((ticket) => ticket.id !== ticketId));
+      }
+      return recalculateQueuePositions(current.map((ticket) => ticket.id === ticketId
+        ? {
+            ...ticket,
+            status: action === "serve" ? "serving" : "called",
+            serving_at: action === "serve" ? now : ticket.serving_at,
+            updated_at: now,
+          }
+        : ticket));
+    });
+  }
+
   const TicketLink = ({ ticket }: { ticket: Ticket }) => (
     <button type="button" className="live-ticket-number-button" onClick={() => setPreviewTicketId(ticket.id)} title="Open customer phone view">
       <span>{ticket.display_number}</span>{ticket.sms_enabled ? <span className="live-mobile-icon" aria-label="Mobile number added" title="Mobile number added">📱</span> : null}
@@ -384,9 +410,9 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
       <div className="live-ticket-meta"><strong>Now serving</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
       <div className="live-ticket-action live-ticket-multi-actions">
-        {queuePermissions.complete ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="complete"/><ActionButton className="button button-primary">Complete</ActionButton></form> : null}
+        {queuePermissions.complete ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "complete")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="complete"/><ActionButton className="button button-primary">Complete</ActionButton></form> : null}
         {queuePermissions.returnLast ? <button className="button button-secondary" type="button" onClick={() => openConfirm(ticket, "return_last")}>Return to last</button> : null}
-        {queuePermissions.movePending ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="pending"/><ActionButton className="button button-secondary">Move to pending</ActionButton></form> : null}
+        {queuePermissions.movePending ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "pending")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="pending"/><ActionButton className="button button-secondary">Move to pending</ActionButton></form> : null}
       </div>
     </article>
   );
@@ -396,7 +422,7 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
       <div className="live-ticket-meta"><strong>Pending</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
       <div className="live-ticket-action live-ticket-multi-actions">
-        {queuePermissions.serve ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="serve"/><ActionButton className="button button-primary">Move to serving</ActionButton></form> : null}
+        {queuePermissions.serve ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "serve")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="serve"/><ActionButton className="button button-primary">Move to serving</ActionButton></form> : null}
         {queuePermissions.cancel ? <button className="text-link live-cancel-link" type="button" onClick={() => openConfirm(ticket, "cancel")}>Cancel</button> : null}
       </div>
     </article>
@@ -434,7 +460,7 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <label className="live-service-picker-v2"><span>Queue service</span><select value={serviceId} onChange={(e) => setServiceId(e.target.value)} aria-label="Queue service">{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <div className="live-command-actions">
         {canSimulateStub ? <div className="live-test-stub-form-v2"><button className="button live-get-stub-button-v2" type="button" onClick={() => void issueTestStub()} disabled={!selectedService || stubBusy}>{stubBusy ? "Please wait…" : "＋ Get test stub"}</button><span>DEV / CLIENT ADMIN</span></div> : null}
-        {queuePermissions.call ? <form action={callNextAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button button-primary live-primary-action" disabled={!selectedService || stubBusy}>Call next</ActionButton></form> : null}
+        {queuePermissions.call ? <form action={callNextAction} data-no-global-loading="true" onSubmit={optimisticallyCallNext}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={serviceId}/><ActionButton className="button button-primary live-primary-action" disabled={!selectedService || stubBusy || waiting.length === 0}>Call next</ActionButton></form> : null}
         <a className="button button-secondary" href="/dashboard">Dashboard</a>
         {canViewHistory ? <button className="button button-secondary" type="button" onClick={showHistory} disabled={historyLoading} aria-busy={historyLoading}>{historyLoading ? "Loading history…" : "History"}</button> : null}
         {canManageTerminals ? <a className="button button-secondary" href={`/dashboard/settings?branch=${encodeURIComponent(selectedBranchId)}&view=branch-terminals`}>Terminals</a> : null}
