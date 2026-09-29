@@ -51,7 +51,24 @@ type ConfirmState = { ticket: Ticket; action: ConfirmAction; code: string } | nu
 
 function ActionButton({ children, className = "button button-secondary", disabled = false }: { children: ReactNode; className?: string; disabled?: boolean }) {
   const { pending } = useFormStatus();
-  return <button className={className} type="submit" disabled={disabled || pending}>{pending ? "Please wait…" : children}</button>;
+  return <button className={`${className} live-stable-action-button`} type="submit" disabled={disabled || pending} aria-busy={pending}>
+    <span className={pending ? "live-action-label live-action-label-hidden" : "live-action-label"}>{children}</span>
+    {pending ? <span className="live-action-pending" aria-hidden="true">Please wait…</span> : null}
+  </button>;
+}
+
+function sameQueueSnapshot(current: Ticket[], next: Ticket[]) {
+  if (current.length !== next.length) return false;
+  return current.every((ticket, index) => {
+    const candidate = next[index];
+    return candidate !== undefined &&
+      ticket.id === candidate.id &&
+      ticket.status === candidate.status &&
+      ticket.position === candidate.position &&
+      ticket.updated_at === candidate.updated_at &&
+      ticket.session_token === candidate.session_token &&
+      ticket.sms_phone === candidate.sms_phone;
+  });
 }
 
 export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches, services, initialServiceId, tickets, currentSessionDate, canSimulateStub, canViewHistory, canManageTerminals, queuePermissions, successMessage, errorMessage }: Props) {
@@ -155,7 +172,11 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
             updated_at: row.updated_at,
           } satisfies Ticket;
         });
-        setLiveTickets(recalculateQueuePositions(fresh));
+        const reconciled = recalculateQueuePositions(fresh);
+        // The safety query runs regularly. Preserve the existing React state
+        // when nothing actually changed so the queue cards do not repaint or
+        // appear to flicker on every reconciliation pass.
+        setLiveTickets((current) => sameQueueSnapshot(current, reconciled) ? current : reconciled);
       } finally {
         reconcileBusy = false;
       }
@@ -347,6 +368,28 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
     }
   }
 
+  function optimisticallyCallNext() {
+    const nextTicket = waiting[0];
+    if (!nextTicket) return;
+
+    const now = new Date().toISOString();
+    setLiveTickets((current) =>
+      recalculateQueuePositions(
+        current.map((ticket) =>
+          ticket.id === nextTicket.id
+            ? {
+                ...ticket,
+                status: "called",
+                position: null,
+                called_at: now,
+                updated_at: now,
+              }
+            : ticket,
+        ),
+      ),
+    );
+  }
+
   async function showHistory() {
     if (historyLoading) return;
     const requestId = ++historyRequestId.current;
@@ -373,32 +416,6 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
 
   function closeConfirm() { setConfirm(null); setConfirmInput(""); }
 
-  function optimisticallyCallNext() {
-    const next = waiting[0];
-    if (!next) return;
-    const now = new Date().toISOString();
-    setLiveTickets((current) => recalculateQueuePositions(current.map((ticket) => ticket.id === next.id
-      ? { ...ticket, status: "called", called_at: now, updated_at: now }
-      : ticket)));
-  }
-
-  function optimisticallyUpdateTicket(ticketId: string, action: "serve" | "complete" | "pending") {
-    const now = new Date().toISOString();
-    setLiveTickets((current) => {
-      if (action === "complete") {
-        return recalculateQueuePositions(current.filter((ticket) => ticket.id !== ticketId));
-      }
-      return recalculateQueuePositions(current.map((ticket) => ticket.id === ticketId
-        ? {
-            ...ticket,
-            status: action === "serve" ? "serving" : "called",
-            serving_at: action === "serve" ? now : ticket.serving_at,
-            updated_at: now,
-          }
-        : ticket));
-    });
-  }
-
   const TicketLink = ({ ticket }: { ticket: Ticket }) => (
     <button type="button" className="live-ticket-number-button" onClick={() => setPreviewTicketId(ticket.id)} title="Open customer phone view">
       <span>{ticket.display_number}</span>{ticket.sms_enabled ? <span className="live-mobile-icon" aria-label="Mobile number added" title="Mobile number added">📱</span> : null}
@@ -410,9 +427,9 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
       <div className="live-ticket-meta"><strong>Now serving</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
       <div className="live-ticket-action live-ticket-multi-actions">
-        {queuePermissions.complete ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "complete")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="complete"/><ActionButton className="button button-primary">Complete</ActionButton></form> : null}
+        {queuePermissions.complete ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="complete"/><ActionButton className="button button-primary">Complete</ActionButton></form> : null}
         {queuePermissions.returnLast ? <button className="button button-secondary" type="button" onClick={() => openConfirm(ticket, "return_last")}>Return to last</button> : null}
-        {queuePermissions.movePending ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "pending")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="pending"/><ActionButton className="button button-secondary">Move to pending</ActionButton></form> : null}
+        {queuePermissions.movePending ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="pending"/><ActionButton className="button button-secondary">Move to pending</ActionButton></form> : null}
       </div>
     </article>
   );
@@ -422,7 +439,7 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       <div className="live-ticket-main"><TicketLink ticket={ticket}/><span>{ticket.service_name}</span></div>
       <div className="live-ticket-meta"><strong>Pending</strong><span>{ticket.sms_enabled ? "SMS enabled" : "Stub only"}</span></div>
       <div className="live-ticket-action live-ticket-multi-actions">
-        {queuePermissions.serve ? <form action={updateTicketAction} data-no-global-loading="true" onSubmit={() => optimisticallyUpdateTicket(ticket.id, "serve")}><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="serve"/><ActionButton className="button button-primary">Move to serving</ActionButton></form> : null}
+        {queuePermissions.serve ? <form action={updateTicketAction} data-no-global-loading="true"><input type="hidden" name="branch_id" value={selectedBranchId}/><input type="hidden" name="service_id" value={ticket.service_id}/><input type="hidden" name="ticket_id" value={ticket.id}/><input type="hidden" name="action" value="serve"/><ActionButton className="button button-primary">Move to serving</ActionButton></form> : null}
         {queuePermissions.cancel ? <button className="text-link live-cancel-link" type="button" onClick={() => openConfirm(ticket, "cancel")}>Cancel</button> : null}
       </div>
     </article>

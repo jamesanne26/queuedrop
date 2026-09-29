@@ -40,6 +40,7 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
     : "auth-retry";
 
   if (outcome === "auth-retry" && !_retried) {
+    await page.context().clearCookies();
     await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
     const email = process.env.E2E_OWNER_EMAIL;
@@ -57,6 +58,7 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
 }
 
 async function refreshOwnerSession(page) {
+  await page.context().clearCookies();
   await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
   const email = process.env.E2E_OWNER_EMAIL;
