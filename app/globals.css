@@ -5450,6 +5450,14 @@ a.settings-overview-row:hover { color: #08754d; background: #fbfefc; }
 .live-called-panel .live-status-dot{background:#b88924}
 .live-current-list{display:grid}
 .live-ticket-card{display:grid;grid-template-columns:minmax(92px,.8fr) minmax(120px,1fr) auto;align-items:center;gap:14px;padding:13px 15px;border:1px solid #e7ece9;border-radius:14px;background:#fff;min-width:0}
+.live-stable-action-button{position:relative;isolation:isolate;min-inline-size:128px;white-space:nowrap}
+.live-action-label{display:inline-flex;align-items:center;justify-content:center;transition:opacity .1s ease}
+.live-action-label-hidden{visibility:hidden}
+.live-action-pending{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:inherit;white-space:nowrap}
+.live-current-list,.live-waiting-grid{overflow-anchor:none}
+.live-ticket-card{animation:qd-ticket-settle .14s ease-out both}
+@keyframes qd-ticket-settle{from{opacity:.72;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.live-ticket-card{animation:none}.live-action-label{transition:none}}
 .live-ticket-card-compact{border:0;border-radius:0;border-bottom:1px solid #edf1ee;padding:13px 16px}
 .live-ticket-card-compact:last-child{border-bottom:0}
 .live-ticket-main,.live-ticket-meta{display:grid;gap:2px;min-width:0}
