@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "30 18 * * *"
 
+concurrency:
+  group: queuedrop-browser-test
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
