@@ -12,6 +12,12 @@ updates:
       # React lint plugins currently require ESLint 9.
       - dependency-name: eslint
         update-types: ["version-update:semver-major"]
+      # Coordinate compiler upgrades with typescript-eslint support.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # Do not expose APIs from a newer Node major than the runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

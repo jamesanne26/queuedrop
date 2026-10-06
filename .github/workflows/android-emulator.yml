@@ -22,13 +22,13 @@ jobs:
       QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
       E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -65,7 +65,7 @@ jobs:
             node scripts/android-emulator-live.mjs
       - name: Save screenshots, UI hierarchy, crash logs and APK
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: queuedrop-android-emulator
           path: |
