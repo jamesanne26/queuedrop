@@ -7,12 +7,13 @@ const admin = createClient(url, key, { auth: { persistSession: false } });
 let ready = false;
 const schemaDeadline = Date.now() + (process.env.CI ? 180_000 : 0);
 do {
-  const [schema, formatter, requests] = await Promise.all([
+  const [schema, formatter, requests, fencing] = await Promise.all([
     admin.from("worker_runs").select("name").limit(1),
     admin.rpc("format_queue_number", { target_number: 1000 }),
     admin.from("stub_requests").select("request_id").limit(1),
+    admin.from("print_jobs").select("reprint_generation").limit(1),
   ]);
-  ready = !schema.error && !formatter.error && formatter.data === "1000" && !requests.error;
+  ready = !schema.error && !formatter.error && formatter.data === "1000" && !requests.error && !fencing.error;
   if (ready || Date.now() >= schemaDeadline) break;
   await new Promise(resolve => setTimeout(resolve, 10_000));
 } while (Date.now() < schemaDeadline);

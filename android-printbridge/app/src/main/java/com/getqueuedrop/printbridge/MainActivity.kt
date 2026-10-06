@@ -161,6 +161,7 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 try {
                     claimAndPrint(base, token)
+                } catch (e: CancellationException) { throw e
                 } catch (e: Exception) {
                     showBanner("Print Bridge: ${shortError(e)}", true, 3500)
                 }
@@ -190,7 +191,7 @@ class MainActivity : AppCompatActivity() {
 
             // If this exact job was already transmitted successfully on this device but the server ACK
             // was interrupted, do not print it twice. Re-send only the ACK.
-            if (wasPrintedLocally(receiptKey)) {
+            if (wasPrintedLocally(receiptKey) || (generation == 0 && wasPrintedLocally(jobId))) {
                 acknowledge(base, token, jobId, true, null, generation, claimAttempt)
                 showBanner("$display already printed ✓", false, 1800)
                 return@withContext
