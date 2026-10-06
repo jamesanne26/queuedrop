@@ -1,0 +1,15 @@
+{
+  "version": "1.1.1",
+  "versionCode": 10,
+  "applicationId": "com.getqueuedrop.printbridge",
+  "bytes": 3646509,
+  "sha256": "66037503e11a5da8bef17d8c6318e4fe98f0abd01d200e0efa04b4087886b98b",
+  "sourceCommit": "b23e61a05d9793d8280d0b495b43d00ac3c2fde8",
+  "sourceRun": 37452790483,
+  "sourceArtifact": 11407726151,
+  "certificateMatchesPrevious": true,
+  "certificateSha256": "fb1fcc9bb964250e52c195624b9e6e80b2d6f3556b3493fe57dd3a5cd695e383",
+  "verificationRun": 37469198657,
+  "installedUpgradeVerified": true,
+  "appDataRetentionVerified": true
+}

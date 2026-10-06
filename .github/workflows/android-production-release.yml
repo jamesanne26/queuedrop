@@ -54,8 +54,8 @@ jobs:
           "$tools/apksigner" sign --ks "$RUNNER_TEMP/production.jks" --ks-key-alias "$KEY_ALIAS" --ks-pass env:STORE_PASSWORD --key-pass env:KEY_PASSWORD --out "$apk" "$RUNNER_TEMP/aligned.apk"
           "$tools/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-cert.txt"
           "$tools/apksigner" verify --print-certs public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk > "$RUNNER_TEMP/old-cert.txt"
-          grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/new-cert.txt" > "$RUNNER_TEMP/new-digests.txt"
-          grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/old-cert.txt" > "$RUNNER_TEMP/old-digests.txt"
+          sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/new-cert.txt" | sort -u > "$RUNNER_TEMP/new-digests.txt"
+          sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/old-cert.txt" | sort -u > "$RUNNER_TEMP/old-digests.txt"
           if ! diff -u "$RUNNER_TEMP/old-digests.txt" "$RUNNER_TEMP/new-digests.txt"; then
             echo "::error::Signing certificate differs from installed v1.1.0; direct upgrade is blocked."
             exit 1
