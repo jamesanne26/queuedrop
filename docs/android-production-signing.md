@@ -12,6 +12,6 @@ Run Signed Production APK on main. It tests release code, aligns and signs v1.1.
 
 A missing secret or different certificate blocks publication. If the original debug signing key has been lost, a new durable release key requires a planned uninstall/reinstall; it cannot update existing installations directly. Keep a secure backup of the key.
 
-After downloading the verified signed artifact, publish its APK and SHA256SUMS together, then update the production installer link in app/dashboard/settings/page.tsx to v1.1.1. Verify the deployed download checksum and an actual installed-device upgrade before retiring v1.1.0.
+After all checks pass, the workflow commits the signed APK, checksum, source manifest, and production settings link together to main. A concurrent main update rejects the push rather than overwriting it. Verify the deployed download checksum and an actual installed-device upgrade before retiring v1.1.0.
 
 SMS remains paused and is outside this maintenance change.
