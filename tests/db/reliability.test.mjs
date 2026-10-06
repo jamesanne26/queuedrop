@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
 const migration = await readFile(new URL("../../supabase/migrations/20261006050000_queue_reliability.sql", import.meta.url), "utf8");
+const fencing = await readFile(new URL("../../supabase/migrations/20261006071000_printer_claim_fencing.sql", import.meta.url), "utf8");
 const device = "00000000-0000-4000-8000-000000000001";
 const branch = "00000000-0000-4000-8000-000000000002";
 const business = "00000000-0000-4000-8000-000000000003";
@@ -45,7 +46,7 @@ test.before(async () => {
   `);
   const rateSource = await readFile(new URL("../../supabase/migrations/20260912033000_production_security_hardening.sql", import.meta.url),"utf8");
   await db.exec(rateSource.match(/create or replace function public.consume_app_rate_limit[\s\S]*?\$\$;/i)[0]);
-  await db.exec(migration);
+  await db.exec(migration); await db.exec(fencing);
 });
 test.after(async () => { await db?.close(); });
 test.beforeEach(async () => {
@@ -61,7 +62,7 @@ async function seed(status="waiting", jobStatus="pending", attempt=0, age="0 min
 async function rpc(sql,args=[]) { return (await db.query(sql,args)).rows[0].result; }
 async function job(id) { return (await db.query("select * from print_jobs where id=$1",[id])).rows[0]; }
 
-test("migration reapplies safely", async () => { await db.exec(migration); });
+test("migration reapplies safely", async () => { await db.exec(migration); await db.exec(fencing); });
 test("numbers preserve all digits after 999", async () => {
   for(const [n,expected] of [[1,"001"],[999,"999"],[1000,"1000"],[10001,"10001"]])
     assert.equal(await rpc("select format_queue_number($1) result",[n]),expected);
@@ -188,4 +189,31 @@ test("late acknowledgment after queue session expiry cannot revive printing",asy
   await db.query("update tickets set joined_at=now()-interval '2 days' where id=$1",[ticketId]);
   assert.equal(await rpc("select complete_print_job($1,$2,true,null) result",[token,jobId]),false);
   assert.equal((await job(jobId)).status,"cancelled");
+});
+
+test("retry guard requires current active claim and rejects cancelled ticket", async()=>{
+ const {ticketId,jobId}=await seed();
+ const check=()=>rpc("select print_job_retry_allowed($1,$2,0,1) result",[token,jobId]);
+ assert.equal(await check(),false);
+ const claim=await rpc("select claim_next_print_job($1) result",[token]);
+ assert.equal(claim.generation,0); assert.equal(await check(),true);
+ await db.query("update tickets set status='cancelled' where id=$1",[ticketId]);
+ assert.equal(await check(),false);
+});
+test("ambiguous transfer stops automatic claims and reprint fences old acknowledgements",async()=>{
+ const {jobId}=await seed(); await rpc("select claim_next_print_job($1) result",[token]);
+ assert.equal(await rpc("select complete_print_job_attempt($1,$2,0,1,false,'Partial transfer',true) result",[token,jobId]),true);
+ assert.equal((await job(jobId)).status,"uncertain");
+ assert.equal(await rpc("select claim_next_print_job($1) result",[token]),null);
+ await rpc("select requeue_print_job($1) result",[jobId]);
+ const claim=await rpc("select claim_next_print_job($1) result",[token]); assert.equal(claim.generation,1);
+ assert.equal(await rpc("select complete_print_job_attempt($1,$2,0,1,true,null,false) result",[token,jobId]),false);
+ assert.equal(await rpc("select complete_print_job_attempt($1,$2,1,1,true,null,false) result",[token,jobId]),true);
+});
+test("retry guard rejects wrong device, generation, attempt and expired session",async()=>{
+ const {jobId}=await seed(); await rpc("select claim_next_print_job($1) result",[token]);
+ for(const args of [[service,jobId,0,1],[token,jobId,1,1],[token,jobId,0,2]])
+   assert.equal(await rpc("select print_job_retry_allowed($1,$2,$3,$4) result",args),false);
+ await db.query("update tickets set joined_at=now()-interval '2 days'");
+ assert.equal(await rpc("select print_job_retry_allowed($1,$2,0,1) result",[token,jobId]),false);
 });

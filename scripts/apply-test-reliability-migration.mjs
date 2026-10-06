@@ -14,7 +14,7 @@ if (!["postgres:","postgresql:"].includes(database.protocol) ||
       (database.hostname.endsWith(".pooler.supabase.com") && decodeURIComponent(database.username) === `postgres.${project}`))) {
   throw new Error("Database URL does not match the dedicated TEST Supabase project. Migration refused.");
 }
-const sql = readFileSync("supabase/migrations/20261006050000_queue_reliability.sql", "utf8");
+const sql = ["20261006050000_queue_reliability.sql", "20261006071000_printer_claim_fencing.sql"].map(name => readFileSync(`supabase/migrations/${name}`, "utf8")).join("\n");
 // Keep credentials out of command-line arguments and error output.
 const result = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "--single-transaction"], {
   env: { ...process.env, PGHOST: database.hostname, PGPORT: database.port || "5432",
