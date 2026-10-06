@@ -65,7 +65,7 @@ jobs:
             node scripts/android-emulator-live.mjs
       - name: Save screenshots, UI hierarchy, crash logs and APK
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: queuedrop-android-emulator
           path: |
