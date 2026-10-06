@@ -95,7 +95,7 @@ jobs:
               'sourceCommit': os.environ['GITHUB_SHA'],
               'sourceRun': os.environ['GITHUB_RUN_ID'], 'certificateMatchesPrevious': True,
           }
-          Path('public/installers/QueueDrop-PrintBridge-v1.1.1.json').write_text(json.dumps(manifest, indent=2) + '\\n')
+          Path('public/installers/QueueDrop-PrintBridge-v1.1.1.json').write_text(json.dumps(manifest, indent=2) + '\n')
           settings = Path('app/dashboard/settings/page.tsx')
           text = settings.read_text()
           replacements = {
