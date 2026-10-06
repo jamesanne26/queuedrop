@@ -1,0 +1,98 @@
+name: Verify uploaded signed APK
+on:
+  push:
+    branches: [release/signed-apk-1.1.1]
+    paths: ['.release-transfer/**', '.github/workflows/assemble-signed-apk.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Reassemble and verify signed release
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/verified"
+          cat .release-transfer/1.1.1/[0-9][0-9][0-9] > "$RUNNER_TEMP/verified/QueueDrop-PrintBridge-v1.1.1.apk"
+          apk="$RUNNER_TEMP/verified/QueueDrop-PrintBridge-v1.1.1.apk"
+          echo "66037503e11a5da8bef17d8c6318e4fe98f0abd01d200e0efa04b4087886b98b  $apk" | sha256sum -c -
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-cert.txt"
+          "$tools/apksigner" verify --print-certs public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk > "$RUNNER_TEMP/old-cert.txt"
+          diff <(grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/new-cert.txt") <(grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/old-cert.txt")
+          "$tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/new-package.txt"
+          "$tools/aapt" dump badging public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk > "$RUNNER_TEMP/old-package.txt"
+          python3 <<'PY'
+          from pathlib import Path
+          import os,re
+          root=Path(os.environ['RUNNER_TEMP'])
+          def package(name):
+              return re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",(root/name).read_text()).groups()
+          new,old=package('new-package.txt'),package('old-package.txt')
+          assert new==('com.getqueuedrop.printbridge','10','1.1.1'),new
+          assert new[0]==old[0] and int(new[1])>int(old[1]),old
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: queuedrop-production-v1.1.1-signed-verified
+          path: ${{ runner.temp }}/verified/*.apk
+          if-no-files-found: error
+      - name: Store verified binary in this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 <<'PY'
+          import base64,json,os,urllib.request
+          from pathlib import Path
+          apk=Path(os.environ['RUNNER_TEMP'])/'verified/QueueDrop-PrintBridge-v1.1.1.apk'
+          body=json.dumps({'encoding':'base64','content':base64.b64encode(apk.read_bytes()).decode()}).encode()
+          request=urllib.request.Request('https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/blobs',data=body,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+          with urllib.request.urlopen(request,timeout=120) as response: result=json.load(response)
+          print('VERIFIED_APK_BLOB_SHA='+result['sha'])
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:summary.write('Verified signed v1.1.1: checksum, certificate, application ID and upgrade version passed.\n\nBlob SHA: `'+result['sha']+'`\n')
+          PY
+  upgrade:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: queuedrop-production-v1.1.1-signed-verified
+          path: verified-apk
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify installed upgrade and data retention
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: |
+            adb install public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk
+            adb shell run-as com.getqueuedrop.printbridge mkdir -p files
+            adb shell run-as com.getqueuedrop.printbridge touch files/upgrade-validation
+            adb install -r verified-apk/QueueDrop-PrintBridge-v1.1.1.apk
+            adb shell dumpsys package com.getqueuedrop.printbridge | grep 'versionCode=10'
+            adb shell dumpsys package com.getqueuedrop.printbridge | grep 'versionName=1.1.1'
+            adb root
+            adb wait-for-device
+            adb shell test -f /data/user/0/com.getqueuedrop.printbridge/files/upgrade-validation
+            adb logcat -c
+            adb shell monkey -p com.getqueuedrop.printbridge 1
+            adb shell pidof com.getqueuedrop.printbridge
