@@ -17,7 +17,7 @@ await fs.mkdir("emulator-results", { recursive: true });
 try {
   branch = checked(await admin.from("branches").insert({business_id:owner.businessId,name:"E2E Emulator "+id,slug:"e2e-emulator-"+id}).select("id").single());
   const service = checked(await admin.from("services").insert({branch_id:branch.id,name:"Emulator Service",queue_prefix:"EMU",is_active:true}).select("id").single());
-  checked(await admin.from("queue_configurations").update({stub_mode_enabled:true,is_active:true,starting_number:1000}).eq("branch_id",branch.id));
+  checked(await admin.from("queue_configurations").upsert({branch_id:branch.id,stub_mode_enabled:true,is_active:true,starting_number:1000},{onConflict:"branch_id"}));
   checked(await admin.from("operating_hours").upsert(Array.from({length:7},(_,day_of_week)=>({branch_id:branch.id,day_of_week,is_open:true,open_time:"00:00",close_time:"00:00"})),{onConflict:"branch_id,day_of_week"}));
   const device = checked(await admin.from("devices").insert({branch_id:branch.id,name:"E2E Emulator",device_type:"ticket_terminal",service_id:service.id,is_active:true}).select("id,device_token").single());
   adb("shell","am","force-stop",pkg);
