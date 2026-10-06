@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { processPendingSmsNotifications } from "@/lib/notifications/sms";
+import { envFlag, processPendingSmsNotifications } from "@/lib/notifications/sms";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET?.trim();
+  const secret = process.env.OPERATIONS_CRON_SECRET?.trim() || process.env.CRON_SECRET?.trim();
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
     }],
     ["sms", async () => processPendingSmsNotifications(20)],
   ] as const) {
+    if (name === "sms" && envFlag("SMS_DELIVERY_PAUSED")) {
+      outcomes[name] = { skipped: true, reason: "SMS delivery paused" };
+      continue;
+    }
     const { error: startError } = await admin.from("worker_runs").upsert({
       name, last_started_at: new Date().toISOString(), last_error: null,
     }, { onConflict: "name" });

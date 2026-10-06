@@ -9,7 +9,7 @@ const hook=registerHooks({resolve(specifier,context,next){
   if(specifier.startsWith("@/")) return {url:pathToFileURL(path.join(root,specifier.slice(2)+".ts")).href,shortCircuit:true};
   return next(specifier,context);
 }});
-const {processPendingSmsNotifications}=await import("../../lib/notifications/sms.ts");
+const {processPendingSmsNotifications,dispatchSmsAfterQueueChange}=await import("../../lib/notifications/sms.ts");
 hook.deregister();
 function fixture({ticketStatus="waiting",persistFailure=false}={}) {
   const updates=[];const methods=["primary","fallback"].map(id=>({id,name:id,method_type:"cloud_provider",provider_code:"generic",country_code:"PH",is_enabled:true,priority:1,api_base_url:"https://sms.example.com/send",secret_env_key:"SMS_REGRESSION_KEY",config:{transport:"generic_http"}}));
@@ -35,7 +35,7 @@ function fixture({ticketStatus="waiting",persistFailure=false}={}) {
   return updates;
 }
 test.beforeEach(()=>{process.env.SMS_REGRESSION_KEY="fixture";process.env.SMS_DRY_RUN="false";});
-test.afterEach(()=>{test.mock.restoreAll();delete globalThis.__smsRegressionAdmin;delete process.env.SMS_REGRESSION_KEY;delete process.env.SMS_DRY_RUN;});
+test.afterEach(()=>{test.mock.restoreAll();delete globalThis.__smsRegressionAdmin;delete process.env.SMS_REGRESSION_KEY;delete process.env.SMS_DRY_RUN;delete process.env.SMS_DELIVERY_PAUSED;});
 test("SMS timeout stops failover and marks delivery for review",async()=>{
   const updates=fixture();let calls=0;
   test.mock.method(globalThis,"fetch",async()=>{calls++;throw new DOMException("timeout","TimeoutError");});
@@ -67,4 +67,15 @@ for(const ticketStatus of ["cancelled","completed","not_completed","serving"]){
 test("worker leaves abandoned delivery in review instead of blindly retrying",async()=>{
   const updates=fixture();test.mock.method(globalThis,"fetch",async()=>new Response('{"id":"ok"}',{status:200}));
   await processPendingSmsNotifications();assert.equal(updates[0].status,"failed");assert.match(updates[0].last_error,/Review provider/);
+});
+
+test("paused SMS leaves pending records untouched and never contacts provider", async () => {
+  process.env.SMS_DELIVERY_PAUSED="true";
+  globalThis.__smsRegressionAdmin={from(){throw new Error("Paused delivery must not touch database");},rpc(){throw new Error("Paused delivery must not enqueue");}};
+  let calls=0;
+  test.mock.method(globalThis,"fetch",async()=>{calls++;throw new Error("Paused delivery must not send");});
+  const result=await processPendingSmsNotifications();
+  assert.deepEqual(result,{sent:0,failed:0,retried:0,claimed:0,skipped:true});
+  await dispatchSmsAfterQueueChange("branch");
+  assert.equal(calls,0);
 });

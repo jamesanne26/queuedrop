@@ -242,6 +242,7 @@ async function createAttempt(
 }
 
 export async function processPendingSmsNotifications(limit = 20, budgetMs = 40_000) {
+  if (envFlag("SMS_DELIVERY_PAUSED")) return { sent: 0, failed: 0, retried: 0, claimed: 0, skipped: true };
   const admin = createAdminClient();
   const now = new Date();
   const deadline = Date.now() + budgetMs;
@@ -402,6 +403,7 @@ export async function processPendingSmsNotifications(limit = 20, budgetMs = 40_0
 }
 
 export async function dispatchSmsAfterQueueChange(branchId?: string) {
+  if (envFlag("SMS_DELIVERY_PAUSED")) return;
   try {
     if (branchId) {
       const admin = createAdminClient();
