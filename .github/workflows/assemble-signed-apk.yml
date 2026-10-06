@@ -25,7 +25,7 @@ jobs:
           tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
           "$tools/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/new-cert.txt"
           "$tools/apksigner" verify --print-certs public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk > "$RUNNER_TEMP/old-cert.txt"
-          diff <(grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/new-cert.txt") <(grep 'certificate SHA-256 digest:' "$RUNNER_TEMP/old-cert.txt")
+          diff <(sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/new-cert.txt" | sort -u) <(sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/old-cert.txt" | sort -u)
           "$tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/new-package.txt"
           "$tools/aapt" dump badging public/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk > "$RUNNER_TEMP/old-package.txt"
           python3 <<'PY'
