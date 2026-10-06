@@ -5,6 +5,7 @@ on:
     paths:
       - 'android-printbridge/**'
       - 'scripts/android-emulator-smoke.sh'
+      - 'scripts/android-emulator-live.mjs'
       - '.github/workflows/android-emulator.yml'
   workflow_dispatch:
 permissions:
@@ -16,8 +17,17 @@ jobs:
   emulator:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,7 +55,9 @@ jobs:
           target: google_apis
           profile: pixel_2
           disable-animations: true
-          script: bash scripts/android-emulator-smoke.sh
+          script: |
+            bash scripts/android-emulator-smoke.sh
+            node scripts/android-emulator-live.mjs
       - name: Save screenshots, UI hierarchy, crash logs and APK
         if: always()
         uses: actions/upload-artifact@v4
