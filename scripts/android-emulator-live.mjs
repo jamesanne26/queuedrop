@@ -34,7 +34,7 @@ try {
   }
   assert.ok(socket,"APK WebView debugging socket must be available");
   adb("forward","tcp:9222","localabstract:"+socket);
-  browser=await chromium.connectOverCDP("http://127.0.0.1:9222");
+  browser=await chromium.connectOverCDP("http://127.0.0.1:9222", { noDefaults: true });
   let page;
   for(let i=0;i<30;i++){
     page=browser.contexts().flatMap(c=>c.pages()).find(p=>p.url().includes("/kiosk/"));
