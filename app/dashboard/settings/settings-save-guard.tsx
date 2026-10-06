@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Change = {
@@ -59,7 +59,7 @@ function prettyField(name: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function formSnapshot(form: HTMLFormElement) {
+function formSnapshot(form: HTMLFormElement, initial = false) {
   const result = new Map<string, string>();
 
   const elements = Array.from(form.elements) as Array<
@@ -79,11 +79,16 @@ function formSnapshot(form: HTMLFormElement) {
       element instanceof HTMLInputElement &&
       (element.type === "checkbox" || element.type === "radio")
     ) {
-      result.set(name, element.checked ? "Yes" : "No");
+      result.set(name, (initial ? element.defaultChecked : element.checked) ? "Yes" : "No");
       continue;
     }
 
-    result.set(name, element.value ?? "");
+    const value = initial
+      ? element instanceof HTMLSelectElement
+        ? (Array.from(element.options).find((option) => option.defaultSelected) ?? element.options[0])?.value
+        : element instanceof HTMLButtonElement ? "" : element.defaultValue
+      : element.value;
+    result.set(name, value ?? "");
   }
 
   return result;
@@ -124,14 +129,12 @@ export function SettingsSaveGuard({ branchName }: Props) {
   const [open, setOpen] = useState(false);
   const [changes, setChanges] = useState<Change[]>([]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const form = buttonRef.current?.closest("form");
     if (!form) return;
-
-    // Capture after the controlled PositionRules component has mounted.
-    requestAnimationFrame(() => {
-      initialRef.current = formSnapshot(form);
-    });
+    // Capture server-rendered defaults before paint. Deferred frame capture could
+    // treat an early user edit as the baseline and hide the save confirmation.
+    initialRef.current = formSnapshot(form, true);
   }, []);
 
   useEffect(() => {
@@ -148,7 +151,7 @@ export function SettingsSaveGuard({ branchName }: Props) {
     const form = buttonRef.current?.closest("form");
     if (!form) return;
 
-    const initial = initialRef.current ?? formSnapshot(form);
+    const initial = initialRef.current ?? formSnapshot(form, true);
     const current = formSnapshot(form);
     const next: Change[] = [];
 
