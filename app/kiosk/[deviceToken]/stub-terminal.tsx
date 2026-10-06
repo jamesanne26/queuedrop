@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { validRequestId } from "@/lib/queue/reliability";
 import { createClient } from "@/lib/supabase/client";
 
 type ServiceOption = { id: string; name: string; queue_prefix?: string | null };
@@ -50,6 +51,8 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
   const router = useRouter();
   const serviceOptions = useMemo(() => terminal.services?.length ? terminal.services : [{ id: terminal.service_id, name: terminal.service_name }], [terminal]);
   const [serviceId, setServiceId] = useState(terminal.service_id || serviceOptions[0]?.id || "");
+  const pendingRequest = useRef<{ serviceId: string; requestId: string } | null>(null);
+  const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [lastTicket, setLastTicket] = useState<Ticket | null>(null);
   const [error, setError] = useState("");
@@ -60,7 +63,22 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
   const available = terminal.stub_mode_enabled && terminal.queue_active && terminal.branch_open && Boolean(serviceId);
 
   async function getStub() {
-    if (busy || !available) return;
+    if (submitting.current || !available) return;
+    submitting.current = true;
+    const storageKey = `queuedrop:pending-stub:${deviceToken}`;
+    if (!pendingRequest.current) {
+      try {
+        const stored = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+        if (validRequestId(stored?.requestId) && serviceOptions.some(service => service.id === stored.serviceId)) {
+          pendingRequest.current = stored;
+          setServiceId(stored.serviceId);
+        }
+      } catch { /* Storage can be disabled on kiosk browsers. */ }
+    }
+    if (!pendingRequest.current) {
+      pendingRequest.current = { serviceId, requestId: crypto.randomUUID() };
+    }
+    try { sessionStorage.setItem(storageKey, JSON.stringify(pendingRequest.current)); } catch { /* Retry still works in this page. */ }
     setBusy(true);
     setError("");
     setLastTicket(null);
@@ -68,35 +86,24 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
       const response = await fetch(`/api/kiosk/${encodeURIComponent(deviceToken)}/ticket`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ serviceId }),
+        body: JSON.stringify(pendingRequest.current),
+        signal: AbortSignal.timeout(15000),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to issue a stub.");
       const ticket = result as Ticket;
       setLastTicket(ticket);
 
-      // Backward compatibility for an older WebView wrapper. The dedicated
-      // Print Bridge normally claims the durable print job in the background.
-      if (window.QueueDropPrinter?.printStub) {
-        window.QueueDropPrinter.printStub(JSON.stringify({
-          ticketId: ticket.ticket_id,
-          displayNumber: ticket.display_number,
-          businessName: ticket.business_name,
-          branchName: ticket.branch_name,
-          serviceName: ticket.service_name,
-          position: ticket.position,
-          qrData: ticket.status_url,
-          footer: "Scan to check your live queue position. Add your mobile number only if you want SMS alerts.",
-        }));
-        await fetch(`/api/kiosk/${encodeURIComponent(deviceToken)}/ticket`, {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ticketId: ticket.ticket_id, printJobId: ticket.print_job_id }),
-        });
-      }
+      pendingRequest.current = null;
+      try { sessionStorage.removeItem(storageKey); } catch { /* No persistent storage. */ }
+      // Print Bridge owns both printing and acknowledgment. A WebView call
+      // cannot prove paper was printed and used to race the background worker.
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to issue a stub.");
+      setError(e instanceof Error && e.name === "TimeoutError"
+        ? "Connection timed out. Press again to recover the same stub."
+        : e instanceof Error ? e.message : "Unable to issue a stub. Press again to retry.");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -139,7 +146,7 @@ export function StubTerminal({ deviceToken, terminal, protectedExit = false }: {
 
       <label className="stub-service-picker">
         <span>Choose service</span>
-        <select value={serviceId} onChange={(event) => { setServiceId(event.target.value); setLastTicket(null); setError(""); }} disabled={busy}>
+        <select value={serviceId} onChange={(event) => { setServiceId(event.target.value); setLastTicket(null); setError(""); }} disabled={busy || Boolean(error)}>
           {serviceOptions.map((service) => <option key={service.id} value={service.id}>{service.name}{service.id === terminal.service_id ? " (Default)" : ""}</option>)}
         </select>
       </label>

@@ -1,3 +1,4 @@
+import { fetchAllPages } from "@/lib/queue/reliability";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LiveQueueWorkspace } from "./live-queue-workspace";
@@ -70,18 +71,18 @@ export default async function QueuesPage({ searchParams }: Props) {
       .eq("branch_id", selectedBranchId)
       .eq("is_active", true)
       .order("created_at"),
-    supabase.from("tickets")
+    fetchAllPages((from, to) => supabase.from("tickets")
       .select("id,display_number,status,joined_at,called_at,serving_at,updated_at,service_id,ticket_number,sms_phone,customer_sessions(session_token),services(id,name),queue_sessions!inner(id,session_date,status)")
       .eq("branch_id", selectedBranchId)
       .eq("queue_sessions.session_date", currentSessionDate)
       .eq("queue_sessions.status", "open")
       .in("status", ["waiting", "called", "serving"])
       .order("joined_at", { ascending: true })
-      .limit(250),
+      .order("id", { ascending: true }).range(from, to)),
   ]);
   const services = servicesResult.data ?? [];
 
-  const tickets = ticketsResult.data ?? [];
+  const tickets = ticketsResult;
   const waitingPositionByTicket = new Map<string, number>();
   for (const service of services) {
     tickets.filter((t) => t.service_id === service.id && t.status === "waiting")

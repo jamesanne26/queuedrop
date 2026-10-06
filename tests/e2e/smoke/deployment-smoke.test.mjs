@@ -48,6 +48,7 @@ test("health endpoint is healthy", { skip: !enabled }, async () => {
   assert.equal(response.status, 200, `health returned ${response.status}`);
   const body = await response.json();
   assert.equal(body.status, "ok");
+  assert.equal(body.database, "ok");
   assert.equal(body.service, "queuedrop-web");
 });
 

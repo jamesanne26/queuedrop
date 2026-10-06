@@ -42,7 +42,7 @@ export default defineConfig({
   failOnFlakyTests: Boolean(process.env.CI),
   forbidOnly: Boolean(process.env.CI),
   reporter: process.env.CI
-    ? [["line"], ["html", { outputFolder: "playwright-report", open: "never" }]]
+    ? [["line"], ["json", { outputFile: "test-results/results.json" }], ["html", { outputFolder: "playwright-report", open: "never" }]]
     : [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
     baseURL,
@@ -58,7 +58,7 @@ export default defineConfig({
     ? undefined
     : {
         command: localServerCommand,
-        url: `${baseURL}/api/health`,
+        url: `${baseURL}/api/health?liveness=1`,
         reuseExistingServer: false,
         timeout: 180_000,
       },

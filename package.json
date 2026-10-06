@@ -8,14 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit",
+    "test": "npm run test:unit && npm run test:db && npm run test:sms",
     "test:unit": "node scripts/run-tests.mjs unit",
     "test:unit:watch": "node scripts/run-tests.mjs unit --watch",
     "test:unit:coverage": "node scripts/run-tests.mjs unit --coverage",
     "test:sms": "node scripts/run-tests.mjs sms",
     "test:integration": "node scripts/run-tests.mjs integration",
     "test:smoke": "node scripts/run-tests.mjs e2e/smoke",
-    "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run security:secrets",
+    "quality": "npm run lint && npm run typecheck && npm run test:unit && npm run test:db && npm run test:sms && npm run security:secrets",
     "verify": "npm run quality && npm run test:integration && npm run build",
     "security:secrets": "node scripts/check-secrets.mjs",
     "test:integration:required": "node scripts/run-tests.mjs integration --required",
@@ -28,10 +28,11 @@
     "setup:sms:test": "powershell -ExecutionPolicy Bypass -File scripts/setup-sms-test-env.ps1",
     "sms:dispatch": "node scripts/dispatch-sms.mjs",
     "production:check": "node scripts/check-production-readiness.mjs",
-    "test:all": "npm run lint && npm run typecheck && npm run test:unit && npm run test:sms && npm run security:secrets && npm run test:integration:required && npm run build && npm run test:e2e",
+    "test:all": "npm run lint && npm run typecheck && npm run test:unit && npm run test:db && npm run test:sms && npm run security:secrets && npm run test:integration:required && npm run build && npm run test:e2e",
     "test:settings": "playwright test tests/e2e/regression/owner-navigation.spec.mjs tests/e2e/regression/owner-management.spec.mjs tests/e2e/regression/owner-branch-service-lifecycle.spec.mjs tests/e2e/regression/owner-settings-reports.spec.mjs tests/e2e/regression/owner-team-roles.spec.mjs tests/e2e/regression/owner-ui-consistency.spec.mjs",
     "test:ui:consistency": "playwright test tests/e2e/regression/owner-ui-consistency.spec.mjs tests/e2e/regression/responsive-layout.spec.mjs",
-    "test:fast": "npm run lint && npm run typecheck && npm run test:unit && npm run test:sms && npm run security:secrets"
+    "test:fast": "npm run lint && npm run typecheck && npm run test:unit && npm run test:db && npm run test:sms && npm run security:secrets",
+    "test:db": "node scripts/run-tests.mjs db"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -42,6 +43,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

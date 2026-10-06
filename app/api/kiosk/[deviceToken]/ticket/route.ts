@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { validRequestId } from "@/lib/queue/reliability";
 import { enforceDeviceRateLimits } from "@/lib/security/rate-limit";
 
 function limited(retryAfter: number) {
@@ -17,8 +18,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json().catch(() => ({}));
   const serviceId = String(body?.serviceId ?? "").trim();
   if (!serviceId) return NextResponse.json({ error: "Choose a service first." }, { status: 400 });
+  const requestId = body?.requestId;
+  if (!validRequestId(requestId)) return NextResponse.json({ error: "A valid request id is required." }, { status: 400 });
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("issue_stub_ticket_for_service", {
+  const { data, error } = await supabase.rpc("issue_stub_ticket_request", {
+    target_request_id: requestId,
     target_device_token: deviceToken,
     target_service_id: serviceId,
   });
@@ -35,11 +39,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const printJobId = String(body?.printJobId ?? "");
   if (!ticketId || !printJobId) return NextResponse.json({ error: "Ticket id and print job id are required." }, { status: 400 });
   const supabase = await createClient();
-  const { error: ticketError } = await supabase.rpc("mark_stub_ticket_printed", {
-    target_device_token: deviceToken,
-    target_ticket_id: ticketId,
-  });
-  if (ticketError) return NextResponse.json({ error: ticketError.message }, { status: 400 });
   const { data, error } = await supabase.rpc("complete_print_job", {
     target_device_token: deviceToken,
     target_job_id: printJobId,
@@ -47,5 +46,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     target_error: null,
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: Boolean(data) }, { headers: { "Cache-Control": "no-store" } });
+  if (!data) return NextResponse.json({ error: "Print job is cancelled or no longer claimable." }, { status: 409 });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

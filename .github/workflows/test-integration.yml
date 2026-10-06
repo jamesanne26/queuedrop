@@ -30,20 +30,7 @@ jobs:
 
       - run: npm ci
 
-      - name: Check integration configuration
-        id: integration-config
-        shell: bash
-        run: |
-          if [[ -n "$QUEUEDROP_TEST_SUPABASE_URL" && -n "$QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY" && -n "$QUEUEDROP_TEST_SUPABASE_ANON_KEY" && -n "$E2E_OWNER_EMAIL" && -n "$E2E_OWNER_PASSWORD" && -n "$E2E_FORBIDDEN_BUSINESS_ID" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Run integration tests
-        if: steps.integration-config.outputs.configured == 'true'
+      - name: Verify TEST reliability schema
+        run: node scripts/verify-test-deployment.mjs --schema-only
+      - name: Run required integration tests
         run: npm run test:integration:required
-
-      - name: Integration tests not configured
-        if: steps.integration-config.outputs.configured != 'true'
-        run: echo "Dedicated TEST integration secrets are not configured yet. Skipping integration tests."

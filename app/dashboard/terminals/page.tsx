@@ -1,3 +1,4 @@
+import { reprintStub } from "./print-actions";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { deleteTerminal, updateKioskExitPin, updateTerminal } from "./actions";
@@ -27,10 +28,36 @@ export default async function TerminalsPage({ searchParams }: Props) {
     .select("id,name,device_token,is_active,last_seen_at,branch_id,service_id,branches(name),services(name)")
     .in("branch_id", branchIds).eq("device_type", "ticket_terminal").order("created_at") : { data: [] as never[] };
 
+  const { data: printJobs, error: printError } = branchIds.length ? await supabase.from("print_jobs")
+    .select("id,status,attempt_count,error_message,created_at,tickets(display_number,status),branches(name)")
+    .in("branch_id", branchIds).in("status", ["failed", "uncertain"])
+    .order("created_at", { ascending: false }).limit(50) : { data: [], error: null };
+
   return <div className="dashboard-content terminals-page">
     <div className="page-heading"><div><p className="eyebrow">Hardware & browser kiosk</p><h1>QueueDrop Terminals</h1><p className="muted">Each terminal belongs to one branch and has a default service. Multiple terminals may use the same default service, and Get Stub customers can choose another active service in that branch.</p></div></div>
     {notices.message ? <div className="notice notice-success">{notices.message}</div> : null}
     {notices.error ? <div className="notice notice-error">{notices.error}</div> : null}
+
+    <section className="dashboard-section dashboard-section-stack">
+      <h2>Print jobs needing attention</h2>
+      <p className="muted">Latest 50 failed or unconfirmed jobs. Check whether paper already came out before requesting the same stub again.</p>
+      {printError ? <p className="notice notice-error">Print diagnostics unavailable. Check the database migration.</p> : null}
+      {(printJobs ?? []).map((job) => {
+        const ticket = Array.isArray(job.tickets) ? job.tickets[0] : job.tickets;
+        const branch = Array.isArray(job.branches) ? job.branches[0] : job.branches;
+        return <article className="terminal-card" key={job.id}>
+          <strong>{ticket?.display_number ?? "Stub"} · {branch?.name ?? "Branch"}</strong>
+          <p>{job.status === "uncertain" ? "Print confirmation missing — check paper" : "Print failed"} · Attempts: {job.attempt_count}</p>
+          <p className="muted">{job.error_message}</p>
+          {["waiting", "called", "serving"].includes(ticket?.status ?? "") ? <form action={reprintStub}>
+            <input type="hidden" name="job_id" value={job.id} />
+            <label><input type="checkbox" name="checked_paper" value="yes" required /> I checked the printer and need another copy of this stub.</label>
+            <button className="button button-secondary" type="submit">Reprint same stub</button>
+          </form> : <p>Ticket is no longer active.</p>}
+        </article>;
+      })}
+      {!printJobs?.length && !printError ? <p>No failed or unconfirmed print jobs.</p> : null}
+    </section>
 
     <section id="kiosk-security" className="dashboard-section dashboard-section-stack settings-card kiosk-security-card terminal-security-card">
       <div>
