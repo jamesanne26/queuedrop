@@ -1,0 +1,57 @@
+name: Publish verified TEST APK
+on:
+  push:
+    branches: [test]
+    paths: [.github/workflows/publish-test-apk.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publish-test-apk
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test
+      - uses: actions/download-artifact@v4
+        with:
+          name: queuedrop-android-emulator
+          run-id: 37443719059
+          github-token: ${{ github.token }}
+          path: /tmp/verified-apk
+      - name: Validate and install the exact emulator-tested APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, shutil
+          expected = "ed02982335465893c8765fd0516cdecb3c383e2106df882b2c90b9678d8204a7"
+          matches = [p for p in Path("/tmp/verified-apk").rglob("*.apk") if hashlib.sha256(p.read_bytes()).hexdigest() == expected]
+          if len(matches) != 1:
+              raise SystemExit("Expected exactly one APK matching the verified checksum")
+          target = Path("public/installers/QueueDrop-PrintBridge-v1.1.1-test.apk")
+          target.parent.mkdir(parents=True, exist_ok=True)
+          shutil.copyfile(matches[0], target)
+          manifest = {"version": "1.1.1-test", "applicationId": "com.getqueuedrop.printbridge.test", "sha256": expected, "bytes": target.stat().st_size, "sourceCommit": "d49641ca1693da101176f0fb2f03cf1ce8d35139", "sourceRun": 37443719059, "hardwarePrinterVerified": False}
+          target.with_suffix(".json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+      - name: Commit verified installer to TEST only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/installers/QueueDrop-PrintBridge-v1.1.1-test.apk public/installers/QueueDrop-PrintBridge-v1.1.1-test.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Publish checksum-verified v1.1.1 TEST installer"
+          git push origin HEAD:test
