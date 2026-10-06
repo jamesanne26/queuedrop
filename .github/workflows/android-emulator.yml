@@ -22,7 +22,7 @@ jobs:
       QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
       E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
