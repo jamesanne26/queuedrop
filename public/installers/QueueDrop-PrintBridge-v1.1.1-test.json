@@ -1,0 +1,9 @@
+{
+  "version": "1.1.1-test",
+  "applicationId": "com.getqueuedrop.printbridge.test",
+  "sha256": "ed02982335465893c8765fd0516cdecb3c383e2106df882b2c90b9678d8204a7",
+  "bytes": 4737146,
+  "sourceCommit": "d49641ca1693da101176f0fb2f03cf1ce8d35139",
+  "sourceRun": 37443719059,
+  "hardwarePrinterVerified": false
+}
