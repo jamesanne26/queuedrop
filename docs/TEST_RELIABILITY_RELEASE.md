@@ -73,7 +73,7 @@ Use Terminals for branch print failures and System → Operations for worker/SMS
 Do not blindly requeue ambiguous SMS deliveries; check the provider's accepted-message history first.
 Device last_seen shows server contact, not printer health.
 
-Remaining rollout work: real 20-branch load tests, monitoring/alerts, backup restore rehearsal,
+Remaining rollout work: monitoring/alerts, backup restore rehearsal,
 branch training, support hours/escalation, and government/private client data-retention/access policies.
 Unit tests alone do not establish those operational guarantees. Calendar-day queue rollover/UI for
 overnight businesses also needs a separate full-session acceptance test.
@@ -84,3 +84,25 @@ Revert the TEST app commit to the baseline if acceptance fails. Keep the additiv
 its legacy two-argument issuance wrapper remains available. Do not drop request/job history
 or reset counters to roll back. If an older Android wrapper requires the old immediate WebView
 printing path, test that compatibility separately. Production remains a separate release decision.
+
+## Hosted acceptance — 6 October 2026
+
+- Release aa7cd7e0c620: 173 local tests, 6 integration tests, 4 smoke tests, 50 browser tests passed. Browser report: zero skipped/flaky/failed.
+- Manual owner test issued QA001 and cancelled it. Real kiosk issued QA002; database confirmed both its ticket and pending print job became cancelled. History showed both cancellations.
+- TEST and production share the Vercel project named queuedrop-test. Branch test uses Preview variables and Supabase tcgiwtfhqssulxwawimh; main uses separate Production variables and database sylvegfbkxgjfctbjfec. Production was inspected read-only and never deployed.
+- Added CRON_SECRET and SMS_DRY_RUN=true scoped to Preview branch test. Secret is in TEST Supabase Vault, never source control.
+- Enabled pg_cron and pg_net on TEST, scheduled queuedrop-test-operations every minute to call the TEST operations endpoint with the Vault secret. Verified HTTP 200, progressing successful end_of_day/SMS timestamps, and no worker errors. Dry run does not prove actual provider delivery.
+- Two 20-branch bursts each sent 200 HTTP requests in waves of 40 (100 unique requests plus concurrent duplicate pairs). Both produced exactly 100 unique tickets with matching duplicate responses and preserved numbers above 999. Database showed one print job per ticket and unique numbers per branch. First run p95 16.8 seconds; second p95 13.6 seconds. These are short bursts, not a prolonged capacity/SLA certification.
+- TEST functions were in iad1 while both Supabase databases are in Seoul/ap-northeast-2. vercel.json now selects icn1; the region must be verified on the new TEST deployment and load tests rerun before accepting the performance change.
+- Reusable load probe: node scripts/load-test-20-branches.mjs /absolute/path/to/private-fixtures.json. The file has exactly 20 entries with branch_id, service_id, device_token, expectedStart (next ticket number). Use dedicated disposable TEST fixtures only. Device tokens must never be committed. The probe checks Preview readiness before sending traffic.
+- Vercel runtime-log access returned 403 through the current connector scope; deployment/readiness/DB/HTTP evidence was available. Do not claim runtime logs were reviewed successfully.
+
+Scheduler setup for another environment is a separate action: enable pg_cron/pg_net,
+create a Vault secret matching that environment's CRON_SECRET, and schedule an HTTP GET
+to that environment's /api/internal/operations with Authorization: Bearer from Vault.
+Do not copy TEST credentials or enable SMS_DRY_RUN in production. Verify HTTP responses
+and worker timestamps, not only cron's successful request-enqueue status. Disable the TEST
+job with select cron.unschedule('queuedrop-test-operations') if retiring the environment.
+Supabase manages the net schema grants; a requested permission revoke did not remove its
+managed public grants. Net is not a public REST schema. Vault itself denies anon/authenticated
+SELECT; do not expose arbitrary SQL or the net schema to client roles through public APIs.
