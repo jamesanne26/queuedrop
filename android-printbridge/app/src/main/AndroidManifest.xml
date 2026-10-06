@@ -15,7 +15,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
-        android:label="QueueDrop"
+        android:label="${appLabel}"
         android:theme="@style/Theme.QueueDrop">
         <activity
             android:name=".MainActivity"

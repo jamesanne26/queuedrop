@@ -5,14 +5,27 @@ plugins {
 
 android {
     namespace = "com.getqueuedrop.printbridge"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.getqueuedrop.printbridge"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 10
         versionName = "1.1.1"
+    }
+
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
+            manifestPlaceholders["appLabel"] = "QueueDrop TEST"
+            buildConfigField("boolean", "TEST_ONLY", "true")
+        }
+        getByName("release") {
+            manifestPlaceholders["appLabel"] = "QueueDrop"
+            buildConfigField("boolean", "TEST_ONLY", "false")
+        }
     }
 
     compileOptions {
@@ -26,6 +39,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

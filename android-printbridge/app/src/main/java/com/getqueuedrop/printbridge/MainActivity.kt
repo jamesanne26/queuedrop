@@ -149,6 +149,10 @@ class MainActivity : AppCompatActivity() {
             status("Enter a valid HTTPS QueueDrop Website URL and Terminal Device Token.")
             return
         }
+        if (BuildConfig.TEST_ONLY && base != "https://queuedrop-test.vercel.app") {
+            status("This TEST APK requires https://queuedrop-test.vercel.app")
+            return
+        }
         prefs.edit().putString("baseUrl", base).putString("deviceToken", token).apply()
         baseUrlInput.setText("")
         tokenInput.setText("")
