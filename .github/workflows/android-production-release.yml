@@ -2,7 +2,10 @@ name: Signed Production APK
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: production-apk-publication
+  cancel-in-progress: false
 jobs:
   release:
     if: github.ref == 'refs/heads/main'
@@ -77,6 +80,39 @@ jobs:
           name: queuedrop-production-signed
           path: ${{ runner.temp }}/signed/*
           if-no-files-found: error
+      - name: Publish verified production installer
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/signed/QueueDrop-PrintBridge-v1.1.1.apk" public/installers/
+          cp "$RUNNER_TEMP/signed/SHA256SUMS" public/installers/QueueDrop-PrintBridge-v1.1.1.sha256
+          python3 <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+          apk = Path('public/installers/QueueDrop-PrintBridge-v1.1.1.apk')
+          manifest = {
+              'version': '1.1.1', 'applicationId': 'com.getqueuedrop.printbridge',
+              'bytes': apk.stat().st_size, 'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+              'sourceCommit': os.environ['GITHUB_SHA'],
+              'sourceRun': os.environ['GITHUB_RUN_ID'], 'certificateMatchesPrevious': True,
+          }
+          Path('public/installers/QueueDrop-PrintBridge-v1.1.1.json').write_text(json.dumps(manifest, indent=2) + '\\n')
+          settings = Path('app/dashboard/settings/page.tsx')
+          text = settings.read_text()
+          replacements = {
+              'isTestInstaller ? "1.1.1 TEST" : "1.1.0"': 'isTestInstaller ? "1.1.1 TEST" : "1.1.1"',
+              '"/installers/QueueDrop-PrintBridge-v1.1.0-debug.apk"': '"/installers/QueueDrop-PrintBridge-v1.1.1.apk"',
+              'isTestInstaller ? "QueueDrop-PrintBridge-v1.1.1-test.apk" : "QueueDrop-PrintBridge-v1.1.0.apk"': 'isTestInstaller ? "QueueDrop-PrintBridge-v1.1.1-test.apk" : "QueueDrop-PrintBridge-v1.1.1.apk"',
+          }
+          for old, new in replacements.items():
+              assert text.count(old) == 1, 'Installer settings changed; review before publishing'
+              text = text.replace(old, new)
+          settings.write_text(text)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/installers/QueueDrop-PrintBridge-v1.1.1* app/dashboard/settings/page.tsx
+          git commit -m "Publish verified signed production Print Bridge v1.1.1"
+          git push origin HEAD:main
       - name: Remove private key
         if: always()
         run: rm -f "$RUNNER_TEMP/production.jks"
