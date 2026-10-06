@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchAllPages } from "@/lib/queue/reliability";
+
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
@@ -143,15 +145,15 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
       if (reconcileBusy || disposed || !navigator.onLine) return;
       reconcileBusy = true;
       try {
-        const { data, error } = await supabase.from("tickets")
+        const data = await fetchAllPages((from, to) => supabase.from("tickets")
           .select("id,display_number,status,joined_at,called_at,serving_at,updated_at,service_id,ticket_number,sms_phone,customer_sessions(session_token),services(id,name),queue_sessions!inner(session_date,status)")
           .eq("branch_id", selectedBranchId)
           .eq("queue_sessions.session_date", currentSessionDate)
           .eq("queue_sessions.status", "open")
           .in("status", ["waiting", "called", "serving"])
           .order("joined_at", { ascending: true })
-          .limit(250);
-        if (error || disposed) return;
+          .order("id", { ascending: true }).range(from, to));
+        if (disposed) return;
         const fresh: Ticket[] = (data ?? []).map((row) => {
           const service = Array.isArray(row.services) ? row.services[0] : row.services;
           const customerSession = Array.isArray(row.customer_sessions) ? row.customer_sessions[0] : row.customer_sessions;
@@ -177,6 +179,8 @@ export function LiveQueueWorkspace({ selectedBranchId, selectedBranch, branches,
         // when nothing actually changed so the queue cards do not repaint or
         // appear to flicker on every reconciliation pass.
         setLiveTickets((current) => sameQueueSnapshot(current, reconciled) ? current : reconciled);
+      } catch {
+        // Keep the last snapshot while offline; retry on the next safety tick.
       } finally {
         reconcileBusy = false;
       }

@@ -86,7 +86,9 @@ export async function cleanupOrphanedE2EBusinessServices(admin, businessId) {
     .from("business_services")
     .select("id,name")
     .eq("business_id", businessId)
-    .ilike("name", "E2E %");
+    .ilike("name", "E2E %")
+    // Fresh unassigned rows may belong to another in-flight scenario.
+    .lt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
   if (serviceError) throw serviceError;
 
   const ids = (services ?? []).map((service) => service.id);

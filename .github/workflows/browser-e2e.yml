@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "30 18 * * *"
 
+concurrency:
+  group: queuedrop-browser-test
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -23,36 +27,29 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'schedule' && 'test' || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Check browser E2E configuration
-        id: e2e-config
-        shell: bash
+      - name: Verify TEST schema and exact deployment
         run: |
-          if [[ -n "$QUEUEDROP_TEST_BASE_URL" && -n "$E2E_OWNER_EMAIL" && -n "$E2E_OWNER_PASSWORD" && -n "$QUEUEDROP_TEST_SUPABASE_URL" && -n "$QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-          fi
+          export GITHUB_SHA="$(git rev-parse HEAD)"
+          node scripts/verify-test-deployment.mjs
       - name: Install Chromium
-        if: steps.e2e-config.outputs.configured == 'true'
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
-        if: steps.e2e-config.outputs.configured == 'true'
         run: npm run test:e2e
-      - name: Browser E2E not configured
-        if: steps.e2e-config.outputs.configured != 'true'
-        run: echo "Browser E2E secrets are not configured yet. Skipping browser regression."
       - name: Upload Playwright artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-artifacts
           path: |
             playwright-report
-            test-results/playwright
+            test-results
           if-no-files-found: ignore
           retention-days: 7
+

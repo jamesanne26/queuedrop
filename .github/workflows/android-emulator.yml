@@ -1,0 +1,76 @@
+name: Android Emulator
+on:
+  push:
+    branches: [test]
+    paths:
+      - 'android-printbridge/**'
+      - 'scripts/android-emulator-smoke.sh'
+      - 'scripts/android-emulator-live.mjs'
+      - '.github/workflows/android-emulator.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-emulator-test
+  cancel-in-progress: true
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Build TEST APK and run printer safety unit tests
+        working-directory: android-printbridge
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon
+      - name: Free disposable build cache for emulator storage
+        run: rm -rf "$HOME/.gradle/caches"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and verify APK on Android 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disk-size: 2048M
+          ram-size: 2048M
+          emulator-boot-timeout: 300
+          disable-animations: true
+          script: |
+            bash scripts/android-emulator-smoke.sh
+            node scripts/android-emulator-live.mjs
+      - name: Save screenshots, UI hierarchy, crash logs and APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: queuedrop-android-emulator
+          path: |
+            emulator-results/
+            android-printbridge/app/build/outputs/apk/debug/*.apk
+            android-printbridge/app/build/test-results/testDebugUnitTest/*.xml
+          retention-days: 7
+          if-no-files-found: error

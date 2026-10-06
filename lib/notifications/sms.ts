@@ -1,3 +1,4 @@
+import { smsTicketEligible, ambiguousDeliveryError } from "@/lib/notifications/delivery-safety";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   isValidSmsRecipient,
@@ -15,6 +16,7 @@ import { shouldForceSmsFailure } from "@/lib/notifications/sms-test-policy";
 
 type PendingSms = {
   id: string;
+  ticket_id: string | null;
   business_id: string;
   branch_id: string | null;
   recipient: string | null;
@@ -150,7 +152,9 @@ async function sendGenericHttpSms(
   try { providerResponse = JSON.parse(raw); } catch { /* retain raw provider response */ }
 
   if (!response.ok) {
-    throw new Error(`${method.name} SMS failed (${response.status}): ${raw.slice(0, 300)}`);
+    const error = new Error(`${method.name} SMS failed (${response.status}): ${raw.slice(0, 300)}`);
+    if (response.status >= 500 || response.status === 408) error.name = "DeliveryUncertainError";
+    throw error;
   }
 
   return {
@@ -237,22 +241,24 @@ async function createAttempt(
   return data.id as string;
 }
 
-export async function processPendingSmsNotifications(limit = 20) {
+export async function processPendingSmsNotifications(limit = 20, budgetMs = 40_000) {
+  if (envFlag("SMS_DELIVERY_PAUSED")) return { sent: 0, failed: 0, retried: 0, claimed: 0, skipped: true };
   const admin = createAdminClient();
   const now = new Date();
+  const deadline = Date.now() + budgetMs;
   const staleBefore = new Date(now.getTime() - 5 * 60_000).toISOString();
 
   // Recover jobs abandoned by a terminated request/worker.
   await admin
     .from("notifications")
-    .update({ status: "pending", processing_started_at: null })
+    .update({ status: "failed", processing_started_at: null, last_error: "Delivery confirmation missing. Review provider records before retrying." })
     .eq("channel", "sms")
     .eq("status", "processing")
     .or(`processing_started_at.is.null,processing_started_at.lt.${staleBefore}`);
 
   const { data, error } = await admin
     .from("notifications")
-    .select("id,business_id,branch_id,recipient,message,payload,attempt_count")
+    .select("id,ticket_id,business_id,branch_id,recipient,message,payload,attempt_count")
     .eq("channel", "sms")
     .eq("status", "pending")
     .or(`next_attempt_at.is.null,next_attempt_at.lte.${now.toISOString()}`)
@@ -266,7 +272,12 @@ export async function processPendingSmsNotifications(limit = 20) {
   let claimedCount = 0;
 
   for (const item of (data ?? []) as PendingSms[]) {
-    if (!item.recipient) continue;
+    if (Date.now() >= deadline - 5000) break;
+    if (!item.recipient) {
+      await admin.from("notifications").update({ status: "failed", last_error: "Missing recipient" }).eq("id", item.id);
+      failed += 1;
+      continue;
+    }
 
     const normalizedRecipient = normalizeSmsRecipient(item.recipient);
     if (!isValidSmsRecipient(normalizedRecipient)) {
@@ -286,9 +297,19 @@ export async function processPendingSmsNotifications(limit = 20) {
     if (claimError) throw claimError;
     if (!claimed) continue;
     claimedCount += 1;
+    if (item.ticket_id) {
+      const { data: ticket, error: ticketError } = await admin.from("tickets").select("status").eq("id", item.ticket_id).maybeSingle();
+      if (ticketError) throw ticketError;
+      if (!smsTicketEligible(ticket?.status ?? null)) {
+        await admin.from("notifications").update({ status: "failed", processing_started_at: null, last_error: "Ticket is no longer waiting or called." }).eq("id", item.id);
+        failed += 1;
+        continue;
+      }
+    }
 
     const countryCode = smsCountryFromRecipient(normalizedRecipient);
     let lastError = "No SMS delivery method is available.";
+    let requiresReview = false;
 
     try {
       const route = await resolveRoute(admin, item, countryCode);
@@ -297,9 +318,11 @@ export async function processPendingSmsNotifications(limit = 20) {
       let delivered = false;
       for (const method of route.methods) {
         let attemptId: string | null = null;
+        let accepted = false;
         try {
           attemptId = await createAttempt(admin, item, method, attemptNumber);
-          const result = await sendWithMethod(method, normalizedRecipient, item.message, route.rule?.failover_after_seconds ?? 30);
+          const result = await sendWithMethod(method, normalizedRecipient, item.message, Math.min(route.rule?.failover_after_seconds ?? 30, Math.max(5, Math.floor((deadline - Date.now()) / 1000))));
+          accepted = true;
           const payload = {
             ...(item.payload ?? {}),
             sms_provider: result.provider,
@@ -308,12 +331,13 @@ export async function processPendingSmsNotifications(limit = 20) {
           };
 
           const finishedAt = new Date().toISOString();
-          await admin.from("sms_delivery_attempts").update({
+          const { error: receiptError } = await admin.from("sms_delivery_attempts").update({
             status: "sent",
             provider_message_id: result.providerMessageId,
             finished_at: finishedAt,
           }).eq("id", attemptId);
 
+          if (receiptError) throw receiptError;
           const { error: updateError } = await admin.from("notifications").update({
             status: "sent",
             recipient: normalizedRecipient,
@@ -329,20 +353,24 @@ export async function processPendingSmsNotifications(limit = 20) {
           delivered = true;
           break;
         } catch (methodError) {
-          lastError = methodError instanceof Error ? methodError.message : "Unknown SMS delivery error";
-          if (attemptId) {
+          requiresReview = accepted || ambiguousDeliveryError(methodError);
+          lastError = requiresReview
+            ? "Delivery may have been accepted. Review provider records before retrying."
+            : methodError instanceof Error ? methodError.message : "Unknown SMS delivery error";
+          if (attemptId && !accepted) {
             await admin.from("sms_delivery_attempts").update({
               status: "failed",
               error_message: lastError.slice(0, 1000),
               finished_at: new Date().toISOString(),
             }).eq("id", attemptId);
           }
+          if (requiresReview) break;
         }
       }
 
       if (delivered) continue;
 
-      if (attemptNumber <= route.retryLimit) {
+      if (!requiresReview && attemptNumber <= route.retryLimit) {
         const nextAttempt = new Date(Date.now() + retryDelaySeconds(attemptNumber) * 1000).toISOString();
         await admin.from("notifications").update({
           status: "pending",
@@ -375,6 +403,7 @@ export async function processPendingSmsNotifications(limit = 20) {
 }
 
 export async function dispatchSmsAfterQueueChange(branchId?: string) {
+  if (envFlag("SMS_DELIVERY_PAUSED")) return;
   try {
     if (branchId) {
       const admin = createAdminClient();

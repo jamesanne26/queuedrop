@@ -212,3 +212,23 @@ test("fresh authenticated account can atomically create first workspace with Sta
     if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
   }
 });
+
+
+test("TEST reliability migration exposes safe printer and request tracking", { skip: !adminEnabled }, async () => {
+  const admin = await adminClient();
+  for (const [table, columns] of [["worker_runs","name,last_started_at,last_succeeded_at,last_error"],
+    ["stub_requests","request_id,created_at"], ["print_jobs","id,status,attempt_count,next_attempt_at,reprint_generation"]]) {
+    const {error} = await admin.from(table).select(columns).limit(1);
+    assert.equal(error,null,error?.message);
+  }
+  const {data,error}=await admin.rpc("format_queue_number",{target_number:1000});
+  assert.equal(error,null,error?.message); assert.equal(data,"1000");
+});
+
+test("TEST printer claim guard rejects unknown claims", {skip: !adminEnabled}, async()=>{
+ const admin = await adminClient();
+ const {data,error}=await admin.rpc("print_job_retry_allowed",{
+   target_device_token:"00000000-0000-4000-8000-000000000001",target_job_id:"00000000-0000-4000-8000-000000000002",target_generation:0,target_attempt:1
+ });
+ assert.equal(error,null,error?.message);assert.equal(data,false);
+});

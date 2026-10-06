@@ -11,6 +11,7 @@ export function LiveStatus({ refreshSeconds = 8 }: { refreshSeconds?: number }) 
   useEffect(() => {
     let remaining = interval;
     const timer = window.setInterval(() => {
+      if (document.hidden || !navigator.onLine) return;
       remaining -= 1;
       if (remaining <= 0) {
         router.refresh();
@@ -18,7 +19,16 @@ export function LiveStatus({ refreshSeconds = 8 }: { refreshSeconds?: number }) 
       }
       setSeconds(remaining);
     }, 1000);
-    return () => window.clearInterval(timer);
+    const resume = () => {
+      if (!document.hidden && navigator.onLine) { router.refresh(); remaining = interval; setSeconds(remaining); }
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", resume);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", resume);
+    };
   }, [router, interval]);
 
   return (
