@@ -51,7 +51,12 @@ try {
   let socket;
   for(let i=0;i<30;i++){
     const sockets=adb("shell","cat","/proc/net/unix");
-    socket=sockets.match(/@(webview_devtools_remote[^\s]*)/)?.[1];
+    // Other apps (including Google setup/search) also expose WebView sockets.
+    // Chromium names each socket with its hosting process ID.
+    const pid=adb("shell","pidof",pkg).trim();
+    assert.match(pid,/^\d+$/,"QueueDrop must have one running main process");
+    const expected="webview_devtools_remote_"+pid;
+    socket=sockets.split("\n").some(line=>line.trim().endsWith("@"+expected)) ? expected : undefined;
     if(socket) break;
     await new Promise(r=>setTimeout(r,1000));
   }
