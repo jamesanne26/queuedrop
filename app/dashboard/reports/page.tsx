@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { parseReportStatus } from "@/lib/reports/filters";
 
 type Props = { searchParams: Promise<Record<string, string | undefined>> };
 type Role = "owner" | "admin" | "manager" | "staff";
@@ -50,7 +51,7 @@ export default async function ReportsPage({ searchParams }: Props) {
   const to = dateOnly(params.to, endDefault);
   const branch = branchIds.includes(params.branch ?? "") ? params.branch! : "all";
   const service = services.some((s) => s.id === params.service) ? params.service! : "all";
-  const status = ["all","waiting","called","serving","completed","cancelled","no_show","not_completed"].includes(params.status ?? "") ? params.status! : "all";
+  const status = parseReportStatus(params.status);
   const report = ["history","summary","service"].includes(params.report ?? "") ? params.report! : "history";
 
   let q = supabase.from("tickets").select("id,display_number,status,joined_at,called_at,serving_at,completed_at,cancelled_at,branch_id,service_id,sms_phone, branches(name), services(name)")
@@ -59,7 +60,7 @@ export default async function ReportsPage({ searchParams }: Props) {
   if (branch !== "all") q = q.eq("branch_id", branch);
   if (service !== "all") q = q.eq("service_id", service);
   if (status !== "all") q = q.eq("status", status);
-  if (!canViewReports) q = q.in("status", ["completed", "cancelled", "no_show"]);
+  if (!canViewReports) q = q.in("status", ["completed", "cancelled", "no_show", "not_completed"]);
   const { data: ticketData } = await q;
   const tickets = ticketData ?? [];
 
@@ -98,7 +99,7 @@ export default async function ReportsPage({ searchParams }: Props) {
         <label>Branch<select name="branch" defaultValue={branch}><option value="all">All branches</option>{branches.map((b)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
         <label>Service<select name="service" defaultValue={service}><option value="all">All services</option>{services.map((s)=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
         <label>Report type<select name="report" defaultValue={report}><option value="history">Detailed queue history</option><option value="summary">Queue summary</option><option value="service">Service performance</option></select></label>
-        <label>Status<select name="status" defaultValue={status}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="called">Called</option><option value="serving">Serving</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option></select></label>
+        <label>Status<select name="status" defaultValue={status}><option value="all">All statuses</option><option value="waiting">Waiting</option><option value="called">Called</option><option value="serving">Serving</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No show</option><option value="not_completed">Not completed</option></select></label>
         <button className="button button-primary reports-apply-button" type="submit">Apply filters</button>
       </div>
     </form>
@@ -123,3 +124,4 @@ export default async function ReportsPage({ searchParams }: Props) {
     </section>
   </section>;
 }
+

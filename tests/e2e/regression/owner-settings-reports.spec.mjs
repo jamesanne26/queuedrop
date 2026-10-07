@@ -169,5 +169,46 @@ test.describe("owner settings and reports", () => {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
   });
+  test("unfinished history filter and summary/service exports preserve the selected records", async ({ page }) => {
+    test.setTimeout(90_000);
+    const admin = createAdminClient();
+    const owner = await getOwnerBusiness(admin, credentials.email);
+    let branchName = "";
+    try {
+      const data = await setupReportWorkspace(page, admin, owner, scenarioId("unfinished-report"));
+      branchName = data.branchName;
+      const today = new Date().toISOString().slice(0, 10);
+      const session = await admin.from("queue_sessions").upsert({ branch_id: data.branch.id, session_date: today, status: "closed" }, { onConflict: "branch_id,session_date" }).select("id").single();
+      expect(session.error).toBeNull();
+      const inserted = await admin.from("tickets").insert([
+        { queue_session_id: session.data.id, branch_id: data.branch.id, service_id: data.service.id, ticket_number: 1001, display_number: "OPEN-END1001", status: "not_completed" },
+        { queue_session_id: session.data.id, branch_id: data.branch.id, service_id: data.service.id, ticket_number: 1002, display_number: "DONE-END1002", status: "completed", completed_at: new Date().toISOString() },
+      ]);
+      expect(inserted.error).toBeNull();
+      const query = new URLSearchParams({ from: today, to: today, branch: data.branch.id, service: data.service.id, status: "not_completed", report: "history" });
+      await page.goto(`/dashboard/reports?${query}`);
+      await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("not_completed");
+      await expect(page.locator(".reports-history-card")).toContainText("OPEN-END1001");
+      await expect(page.locator(".reports-history-card")).not.toContainText("DONE-END1002");
+      const history = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(history.status()).toBe(200);
+      const csv = await history.text();
+      expect(csv).toContain("OPEN-END1001");
+      expect(csv).not.toContain("DONE-END1002");
+      query.set("status", "all");
+      query.set("report", "summary");
+      const summary = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(summary.status()).toBe(200);
+      const counts = await summary.text();
+      expect(counts).toContain('"Not Completed","1"');
+      expect(counts).toContain('"Completed","1"');
+      query.set("report", "service");
+      const performance = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(performance.status()).toBe(200);
+      expect(await performance.text()).toContain(`"${data.serviceName}","2","1","0","0","50%"`);
+    } finally {
+      if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
+    }
+  });
 });
 

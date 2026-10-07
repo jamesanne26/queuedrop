@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { parseReportStatus } from "@/lib/reports/filters";
 
 type Role = "owner" | "admin" | "manager" | "staff";
 type Row = Record<string, string | number>;
@@ -234,7 +235,7 @@ export async function GET(req: NextRequest) {
   let allowed:string[]|null=null; if(!businessWide){const {data}=await supabase.from("branch_users").select("branch_id").eq("user_id",userData.user.id); allowed=(data??[]).map(x=>x.branch_id);}
   let bq=supabase.from("branches").select("id,name").eq("business_id",m.business_id); if(allowed) bq=bq.in("id",allowed.length?allowed:["00000000-0000-0000-0000-000000000000"]); const {data:branchData}=await bq; const branches=branchData??[]; const ids=branches.map(b=>b.id);
   const {data:serviceData}=ids.length?await supabase.from("services").select("id,name,branch_id").in("branch_id",ids):{data:[]}; const services=serviceData??[];
-  const p=req.nextUrl.searchParams; const now=new Date(); const from=safeDate(p.get("from"),new Date(now.getTime()-6*86400000).toISOString().slice(0,10)); const to=safeDate(p.get("to"),now.toISOString().slice(0,10)); const branch=ids.includes(p.get("branch")??"")?p.get("branch")!:"all"; const format=["txt","csv","pdf","docx","xlsx"].includes(p.get("format")??"")?p.get("format")!:"csv"; const report=["history","summary","service"].includes(p.get("report")??"")?p.get("report")!:"history"; const service=services.some(s=>s.id===p.get("service"))?p.get("service")!:"all"; const status=["all","waiting","called","serving","completed","cancelled","no_show"].includes(p.get("status")??"")?p.get("status")!:"all";
+  const p=req.nextUrl.searchParams; const now=new Date(); const from=safeDate(p.get("from"),new Date(now.getTime()-6*86400000).toISOString().slice(0,10)); const to=safeDate(p.get("to"),now.toISOString().slice(0,10)); const branch=ids.includes(p.get("branch")??"")?p.get("branch")!:"all"; const format=["txt","csv","pdf","docx","xlsx"].includes(p.get("format")??"")?p.get("format")!:"csv"; const report=["history","summary","service"].includes(p.get("report")??"")?p.get("report")!:"history"; const service=services.some(s=>s.id===p.get("service"))?p.get("service")!:"all"; const status=parseReportStatus(p.get("status"));
   let q=supabase.from("tickets").select("display_number,status,joined_at,called_at,serving_at,completed_at,cancelled_at,branch_id,service_id,sms_phone,branches(name),services(name)").in("branch_id",ids.length?ids:["00000000-0000-0000-0000-000000000000"]).gte("joined_at",`${from}T00:00:00`).lte("joined_at",`${to}T23:59:59.999`).order("joined_at").limit(5000); if(branch!=="all")q=q.eq("branch_id",branch); if(service!=="all")q=q.eq("service_id",service); if(status!=="all")q=q.eq("status",status); const {data:ticketData,error}=await q; if(error)return new Response(error.message,{status:500}); const tickets=ticketData??[];
   const detail:Row[]=tickets.map(t=>{const b=Array.isArray(t.branches)?t.branches[0]:t.branches; const s=Array.isArray(t.services)?t.services[0]:t.services; return {"Queue Number":t.display_number,"SMS Alerts":t.sms_phone?"Enabled":"Stub only","Branch":b?.name||"","Service":s?.name||"","Status":prettyStatus(t.status),"Joined":formatDateTime(t.joined_at),"Called":formatDateTime(t.called_at),"Serving":formatDateTime(t.serving_at),"Completed":formatDateTime(t.completed_at),"Cancelled":formatDateTime(t.cancelled_at)};});
   let rows=detail;
@@ -252,3 +253,4 @@ export async function GET(req: NextRequest) {
   else {body=makeXlsx(meta,rows);type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";}
   return new Response(new Uint8Array(body),{headers:{"Content-Type":type,"Content-Disposition":`attachment; filename="${slug(businessName)}-${slug(meta.reportName)}-${from}-to-${to}.${format}"`,"Cache-Control":"no-store"}});
 }
+
