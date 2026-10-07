@@ -2,6 +2,13 @@
 set -euo pipefail
 mkdir -p emulator-results
 pkg=com.getqueuedrop.printbridge.test
+# Complete disposable emulator provisioning and disable only Google's first-boot
+# setup wizard. Its system ANR dialog can cover the app before any UI assertion.
+# QueueDrop crashes/ANRs remain fatal and are never dismissed or retried.
+adb shell settings put global device_provisioned 1
+adb shell settings put secure user_setup_complete 1
+adb shell pm disable-user --user 0 com.google.android.googlesdksetup >/dev/null
+adb shell am force-stop com.google.android.googlesdksetup
 adb install -r android-printbridge/app/build/outputs/apk/debug/app-debug.apk
 adb shell pm grant "$pkg" android.permission.BLUETOOTH_CONNECT || true
 adb shell pm grant "$pkg" android.permission.BLUETOOTH_SCAN || true

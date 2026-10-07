@@ -21,10 +21,33 @@ try {
   checked(await admin.from("operating_hours").upsert(Array.from({length:7},(_,day_of_week)=>({branch_id:branch.id,day_of_week,is_open:true,open_time:"00:00",close_time:"00:00"})),{onConflict:"branch_id,day_of_week"}));
   const device = checked(await admin.from("devices").insert({branch_id:branch.id,name:"E2E Emulator",device_type:"ticket_terminal",service_id:service.id,is_active:true}).select("id,device_token").single());
   adb("shell","am","force-stop",pkg);
-  const prefs = '<?xml version="1.0" encoding="utf-8"?><map><string name="baseUrl">https://getqueuedrop.com/wrong/legacy/path</string><string name="deviceToken">'+device.device_token+'</string></map>';
+  const prefs = '<?xml version="1.0" encoding="utf-8"?><map><string name="baseUrl">https://getqueuedrop.com/wrong/legacy/path</string><string name="deviceToken"></string></map>';
   // Feed private config over stdin: never echo a device token into runner logs.
   execFileSync("adb",["shell","run-as",pkg,"sh","-c","'mkdir -p shared_prefs; cat > shared_prefs/queuedrop_bridge.xml'"],{input:prefs,stdio:["pipe","pipe","pipe"]});
   adb("shell","am","start","-W","-n",pkg+"/com.getqueuedrop.printbridge.MainActivity");
+  // Exercise the real token-only setup screen rather than injecting a saved token.
+  async function setupXml() {
+    adb("shell","uiautomator","dump","/sdcard/qd-live-setup.xml");
+    return adb("shell","cat","/sdcard/qd-live-setup.xml");
+  }
+  async function tapResource(resource) {
+    for (let attempt=0;attempt<4;attempt++) {
+      const xml=await setupXml();
+      assert.ok(!xml.includes(':id/baseUrl"'),"APK must not expose a URL textbox");
+      const node=xml.split("<node").find(node=>node.includes('resource-id="'+pkg+':id/'+resource+'"'));
+      const bounds=node?.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+      if (bounds && Number(bounds[3])>Number(bounds[1]) && Number(bounds[4])>Number(bounds[2])) {
+        adb("shell","input","tap",String(Math.floor((Number(bounds[1])+Number(bounds[3]))/2)),String(Math.floor((Number(bounds[2])+Number(bounds[4]))/2)));
+        return;
+      }
+      adb("shell","input","swipe","500","1400","500","500","300");
+    }
+    throw new Error("Native setup control not visible: "+resource);
+  }
+  await tapResource("deviceToken");
+  adb("shell","input","text",device.device_token);
+  adb("shell","input","keyevent","KEYCODE_BACK");
+  await tapResource("openKiosk");
   let socket;
   for(let i=0;i<30;i++){
     const sockets=adb("shell","cat","/proc/net/unix");
@@ -64,7 +87,7 @@ try {
   }
   assert.equal(jobs[0].status,"cancelled");
   await page.screenshot({path:"emulator-results/live-kiosk.png"});
-  await fs.writeFile("emulator-results/live-summary.json",JSON.stringify({passed:true,checks:["installed APK WebView opened live TEST kiosk","stub issued at 1000","one ticket and one print job","reload did not duplicate ticket","cancelled ticket stopped queued print job"],hardwarePrinterVerified:false},null,2));
+  await fs.writeFile("emulator-results/live-summary.json",JSON.stringify({passed:true,checks:["token-only native setup submitted without URL textbox", "legacy URL ignored", "installed APK WebView opened live TEST kiosk","stub issued at 1000","one ticket and one print job","reload did not duplicate ticket","cancelled ticket stopped queued print job"],hardwarePrinterVerified:false},null,2));
   console.log("PASS: native APK live kiosk, stub issuance, reload deduplication, cancellation; hardware printing remains unverified.");
 } finally {
   if(browser) await browser.close();

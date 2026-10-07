@@ -11,10 +11,12 @@ async function fixture(page, count=7) {
   const owner = await getOwnerBusiness(admin,credentials.email);
   await loginAsOwner(page,credentials);
   const branch=checked(await admin.from("branches").insert({business_id:owner.businessId,name:"E2E TV "+crypto.randomUUID(),slug:"e2e-tv-"+crypto.randomUUID(),timezone:"Asia/Manila"}).select("id").single());
+  const previousCapacity=checked(await admin.from("business_subscriptions").select("custom_max_services_per_branch").eq("business_id",owner.businessId).maybeSingle());
   try {
+    if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update({custom_max_services_per_branch:Math.max(count,previousCapacity.custom_max_services_per_branch??0)}).eq("business_id",owner.businessId));
     const services=checked(await admin.from("services").insert(Array.from({length:count},(_,index)=>({branch_id:branch.id,name:"TV Service "+(index+1),queue_prefix:"TV"+(index+1),is_active:true}))).select("id,name,is_active"));
-    return {admin,owner,branch,services,cleanup:async()=>checked(await admin.from("branches").delete().eq("id",branch.id).eq("business_id",owner.businessId))};
-  } catch(error) {checked(await admin.from("branches").delete().eq("id",branch.id));throw error;}
+    return {admin,owner,branch,services,cleanup:async()=>{checked(await admin.from("branches").delete().eq("id",branch.id).eq("business_id",owner.businessId));if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update(previousCapacity).eq("business_id",owner.businessId));}};
+  } catch(error) {checked(await admin.from("branches").delete().eq("id",branch.id));if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update(previousCapacity).eq("business_id",owner.businessId));throw error;}
 }
 test.describe("TV display and public platform contact",()=>{
   test.skip(!credentials || !hasAdminTestEnvironment(),"Dedicated TEST credentials required.");
@@ -25,7 +27,9 @@ test.describe("TV display and public platform contact",()=>{
       if(viewport.width<600) await page.getByRole("button",{name:"Open navigation menu"}).click();
       const support=page.locator(".sidebar-footer").getByRole("link",{name:"Support",exact:true});
       const settings=page.locator(".sidebar-footer").getByRole("link",{name:"Settings",exact:true});
-      const a=await support.boundingBox(), b=await settings.boundingBox();
+      await expect(settings).toBeVisible();
+      await support.click({trial:true});
+      const [a,b]=await page.locator(".sidebar-footer").evaluate(footer=>["Support","Settings"].map(name=>{const link=[...footer.querySelectorAll("a")].find(a=>a.textContent.trim()===name);const r=link.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}));
       expect(a.y+a.height).toBeLessThanOrEqual(b.y);
       expect(Math.abs(a.x-b.x)).toBeLessThan(1);
       expect(Math.abs(a.width-b.width)).toBeLessThan(1);
@@ -80,8 +84,10 @@ test.describe("TV display and public platform contact",()=>{
       await page.goto("/dashboard/tv?branch="+f.branch.id);
       await page.setViewportSize({width:1920,height:1080});
       await expect(page.locator(".tv-service-card")).toHaveCount(6);
-      const bounds=await page.locator(".tv-service-card").evaluateAll(elements=>elements.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom};}));
-      expect(bounds.every(r=>r.x>=0&&r.y>=0&&r.right<=1920&&r.bottom<=1080)).toBe(true);
+      await expect(page.locator(".tv-service-card").first()).toBeVisible();
+      await expect(page.getByLabel("Loading QueueDrop workspace")).toHaveCount(0);
+      const bounds=await page.locator(".tv-service-card").evaluateAll(elements=>elements.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height};}));
+      expect(bounds.every(r=>r.width>100&&r.height>100&&r.x>=0&&r.y>=0&&r.right<=1920&&r.bottom<=1080)).toBe(true);
     } finally {await f.cleanup();}
   });
   test("platform owner edits public phone, customer mobile sees it, clear hides it and non-owner cannot edit",async({page,browser,request})=>{
@@ -94,6 +100,9 @@ test.describe("TV display and public platform contact",()=>{
       checked(await f.admin.from("queue_configurations").upsert({branch_id:f.branch.id,stub_mode_enabled:true,is_active:true},{onConflict:"branch_id"}));
       checked(await f.admin.from("operating_hours").upsert(Array.from({length:7},(_,day_of_week)=>({branch_id:f.branch.id,day_of_week,is_open:true,open_time:"00:00",close_time:"00:00"})),{onConflict:"branch_id,day_of_week"}));
       const device=checked(await f.admin.from("devices").insert({branch_id:f.branch.id,name:"E2E Contact",device_type:"ticket_terminal",service_id:f.services[0].id,is_active:true}).select("device_token").single());
+      await page.goto("/dashboard/settings?view=branch-terminals&branch="+f.branch.id);
+      await expect(page.getByRole("button",{name:"Copy token",exact:true})).toHaveCount(1);
+      await expect(page.getByRole("button",{name:"Copy URL",exact:true})).toHaveCount(0);
       const response=await request.post("/api/kiosk/"+device.device_token+"/ticket",{data:{serviceId:f.services[0].id,requestId:crypto.randomUUID()}});
       expect(response.status()).toBe(200);
       const issued=await response.json();
@@ -103,7 +112,7 @@ test.describe("TV display and public platform contact",()=>{
       await page.goto("/system/settings");
       await page.getByLabel("Public contact number").fill("0917 123 4567");
       await page.getByRole("button",{name:"Save public contact"}).click();
-      await expect(page.getByRole("status")).toContainText("Public contact saved.");
+      await expect(page.locator(".notice.notice-success[role=status]")).toContainText("Public contact saved.");
       publicContext=await browser.newContext({viewport:{width:390,height:844}});
       const customer=await publicContext.newPage();
       const origin=new URL(page.url()).origin;
@@ -112,7 +121,8 @@ test.describe("TV display and public platform contact",()=>{
       await expect(customer.locator(".customer-platform-contact a")).toHaveAttribute("href","tel:+639171234567");
       await page.getByLabel("Public contact number").fill("");
       await page.getByRole("button",{name:"Save public contact"}).click();
-      await expect(page.getByRole("status")).toContainText("Public contact saved.");
+      await expect.poll(async()=>checked(await f.admin.from("platform_public_contact").select("phone").eq("id",true).single()).phone).toBe(null);
+      await expect(page.locator(".notice.notice-success[role=status]")).toContainText("Public contact saved.");
       await customer.reload();
       await expect(customer.locator(".customer-platform-contact")).toHaveCount(0);
       checked(await f.admin.from("system_owners").update({is_active:false}).eq("user_id",f.owner.userId));

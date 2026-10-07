@@ -84,7 +84,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Copy the Device Token from QueueDrop Dashboard → Terminals."
+                    android:text="Copy the Device Token from QueueDrop Dashboard → Settings → Stub Printer."
                     android:textSize="13sp"
                     android:textColor="#6B7280" />
 

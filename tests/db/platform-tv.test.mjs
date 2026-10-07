@@ -23,7 +23,9 @@ test.before(async()=>{
     insert into services values ('${uuid(5)}','${uuid(3)}','Active',true),('${uuid(6)}','${uuid(4)}','Foreign',true),('${uuid(7)}','${uuid(3)}','Inactive',false);
     insert into system_owners values ('${uuid(1)}',true);
   `);
+  await db.exec("alter default privileges in schema public grant all on tables to anon, authenticated");
   await db.exec(migration);
+  await db.exec(await readFile(new URL("../../supabase/migrations/20261007064431_restrict_public_contact_and_tv_grants.sql",import.meta.url),"utf8"));
 });
 test.after(async()=>await db?.close());
 test.beforeEach(async()=>await db.exec(`reset role;set test.uid='${uuid(1)}';delete from platform_public_contact;delete from branch_tv_settings;update system_owners set is_active=true;set role authenticated;`));
