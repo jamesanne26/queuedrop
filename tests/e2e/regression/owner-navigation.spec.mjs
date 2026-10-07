@@ -100,7 +100,7 @@ test.describe("owner dashboard navigation", () => {
 
   for (const [field, invalid, error] of [
     ["Full name", "X", "Full name must be between 2 and 100 characters."],
-    ["Mobile number", "abc", "Mobile number must contain numbers only."],
+    ["Mobile number", "123", "Mobile number must contain numbers only."],
   ]) {
     test(`account rejects invalid ${field} without persisting a profile change`, async ({ page }) => {
       await page.goto("/dashboard/account");
