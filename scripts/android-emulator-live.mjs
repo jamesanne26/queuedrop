@@ -46,7 +46,7 @@ try {
   }
   await tapResource("deviceToken");
   adb("shell","input","text",device.device_token);
-  adb("shell","input","keyevent","KEYCODE_BACK");
+  adb("shell","input","keyevent","KEYCODE_ESCAPE");
   await tapResource("openKiosk");
   let socket;
   for(let i=0;i<30;i++){

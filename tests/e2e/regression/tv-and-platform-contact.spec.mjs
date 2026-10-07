@@ -11,9 +11,10 @@ async function fixture(page, count=7) {
   const owner = await getOwnerBusiness(admin,credentials.email);
   await loginAsOwner(page,credentials);
   const branch=checked(await admin.from("branches").insert({business_id:owner.businessId,name:"E2E TV "+crypto.randomUUID(),slug:"e2e-tv-"+crypto.randomUUID(),timezone:"Asia/Manila"}).select("id").single());
-  const previousCapacity=checked(await admin.from("business_subscriptions").select("custom_max_services_per_branch").eq("business_id",owner.businessId).maybeSingle());
+  checked(await admin.from("branch_users").insert({branch_id:branch.id,user_id:owner.userId}));
+  const previousCapacity=checked(await admin.from("business_subscriptions").select("custom_max_services_per_branch,custom_max_active_queues_per_branch,override_expires_at").eq("business_id",owner.businessId).maybeSingle());
   try {
-    if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update({custom_max_services_per_branch:Math.max(count,previousCapacity.custom_max_services_per_branch??0)}).eq("business_id",owner.businessId));
+    if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update({custom_max_services_per_branch:Math.max(count,previousCapacity.custom_max_services_per_branch??0),custom_max_active_queues_per_branch:Math.max(count,previousCapacity.custom_max_active_queues_per_branch??0),override_expires_at:null}).eq("business_id",owner.businessId));
     const services=checked(await admin.from("services").insert(Array.from({length:count},(_,index)=>({branch_id:branch.id,name:"TV Service "+(index+1),queue_prefix:"TV"+(index+1),is_active:true}))).select("id,name,is_active"));
     return {admin,owner,branch,services,cleanup:async()=>{checked(await admin.from("branches").delete().eq("id",branch.id).eq("business_id",owner.businessId));if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update(previousCapacity).eq("business_id",owner.businessId));}};
   } catch(error) {checked(await admin.from("branches").delete().eq("id",branch.id));if(count>3 && previousCapacity) checked(await admin.from("business_subscriptions").update(previousCapacity).eq("business_id",owner.businessId));throw error;}
