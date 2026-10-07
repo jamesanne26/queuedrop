@@ -160,6 +160,7 @@ export async function updatePassword(formData: FormData) {
 
 export async function signOut() {
   const supabase = await createClient();
-  await supabase.auth.signOut();
+  // Signing out this browser must not revoke another device or QA session.
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/");
 }
