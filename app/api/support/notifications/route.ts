@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchNotifications } from "@/lib/support/notification-delivery";
 
 export const maxDuration = 60;
 export async function POST(request: Request) {
   const token = request.headers.get("Authorization")?.replace(/^Bearer /, "");
-  if (!token || !/^[a-f0-9]{64}$/.test(token)) return NextResponse.json({ error: "Owner session required" }, { status: 403 });
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return NextResponse.json({ error: "Support session required" }, { status: 403 });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.json({ error: "Support database is not configured" }, { status: 503 });
@@ -22,12 +23,24 @@ export async function POST(request: Request) {
     if (body.length > 1000) return NextResponse.json({ error: "Request too large" }, { status: 400 });
     const payload = body ? JSON.parse(body) : {};
     const reportId = payload.report_id;
-    if (reportId && (typeof reportId !== "string" || !/^[a-f0-9-]{36}$/i.test(reportId))) return NextResponse.json({ error: "Invalid report" }, { status: 400 });
-    // This validates active system-owner membership before any provider call.
+    if (reportId && (typeof reportId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(reportId))) return NextResponse.json({ error: "Invalid report" }, { status: 400 });
+    // Clients may dispatch only the existing job for a report they can access.
     const context = await rpc("context");
-    if (!context.owner) return NextResponse.json({ error: "Owner access required" }, { status: 403 });
+    let deliveryRpc = rpc;
+    if (!context.owner) {
+      if (!reportId) return NextResponse.json({ error: "Report required" }, { status: 403 });
+      await rpc("detail", { id: reportId });
+      const admin = createAdminClient();
+      deliveryRpc = async (action, data = {}) => {
+        const result = await admin.rpc("support_delivery_worker", {
+          p_action: action, p_data: action === "notification_claim" ? { report_id: reportId } : data,
+        });
+        if (result.error) throw new Error("Support delivery denied");
+        return result.data;
+      };
+    }
     const production = process.env.VERCEL_ENV === "production";
-    const result = await dispatchNotifications(rpc, {
+    const result = await dispatchNotifications(deliveryRpc, {
       dryRun: !production || process.env.SUPPORT_NOTIFICATION_DRY_RUN === "true",
       apiKey: process.env.RESEND_API_KEY,
       from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.SUPPORT_NOTIFICATION_REPLY_TO || "jamesrae.rosario18@gmail.com",
