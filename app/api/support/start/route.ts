@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return NextResponse.redirect(new URL("/auth/login?next=%2Fdashboard", requestUrl.origin));
   const from = requestUrl.searchParams.get("from") || "/dashboard";
-  const sourcePage = /^\/dashboard(?:\/[a-zA-Z0-9_-]+)*$/.test(from) && from.length <= 500 ? from : "/dashboard";
+  const sourcePage = /^\/(?:dashboard|system)(?:\/[a-zA-Z0-9_-]+)*$/.test(from) && from.length <= 500 ? from : "/dashboard";
   const { data: code, error } = await supabase.rpc("support_start", {
     p_context: { app: "queuedrop", source_page: sourcePage, environment: process.env.VERCEL_ENV || "development" },
   });
