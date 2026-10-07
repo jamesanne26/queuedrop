@@ -108,6 +108,9 @@ test.describe("owner dashboard navigation", () => {
       const phone = page.getByRole("textbox", { name: "Mobile number", exact: true });
       const before = { name: await name.inputValue(), phone: await phone.inputValue() };
       await page.getByRole("textbox", { name: field, exact: true }).fill(invalid);
+      // Exercise server validation even when native minlength would stop submission.
+      // This changes only the disposable Test browser form, never application settings.
+      await page.getByRole("button", { name: "Save account & password", exact: true }).evaluate((button) => { button.form.noValidate = true; });
       await page.getByRole("button", { name: "Save account & password", exact: true }).click();
       await expect(page.getByText(error, { exact: true })).toBeVisible();
       await page.reload();
