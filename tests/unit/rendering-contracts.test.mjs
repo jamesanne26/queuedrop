@@ -137,7 +137,7 @@ test("manage settings is honored by both settings routes and server actions", as
 test("history-only users can open history without receiving report summaries", async () => {
   const reports = await readFile(new URL("../../app/dashboard/reports/page.tsx", import.meta.url), "utf8");
   assert.match(reports, /can_view_history, can_view_reports/);
-  assert.match(reports, /if \(!canViewReports\) q = q\.in\("status", \["completed", "cancelled", "no_show"\]\)/);
+  assert.match(reports, /if \(!canViewReports\) q = q\.in\("status", \["completed", "cancelled", "no_show", "not_completed"\]\)/);
   assert.match(reports, /\{canViewReports \? <div className="reports-stat-grid">/);
 });
 
@@ -207,3 +207,4 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
   assert.match(setup, /signInWithPassword\(\{ email, password \}\)/);
   assert.match(auth, /url\.searchParams\.has\("error"\)/);
 });
+
