@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 10283)
-Total output lines: 343
-
 import { TvSettingsForm } from "./tv-settings-form";
 import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
@@ -212,7 +209,41 @@ export default async function SettingsPage({ searchParams }: Props) {
     <div className="settings-detail-form-v2 settings-branch-general-v3">
       <form action={updateBranch} className="settings-general-form-v3">
         <input type="hidden" name="branch_id" value={selectedBranch.id} />
-        <section classNam…1283 tokens truncated…className={accessStyles.catalogRow} key={permission.code}><div className={accessStyles.catalogRowCopy}><strong>{permission.label}</strong><span>{permission.description}</span></div><span className={accessStyles.permissionAvailable}>Available</span></div>)}</article>)}</div></section>;
+        <section className="settings-form-section-v2">
+          <div className="settings-section-heading-v2">
+            <span className="settings-section-heading-icon" aria-hidden="true">⌂</span>
+            <div><p className="eyebrow">Basic Information</p><h2>Branch information</h2><p className="muted">Update branch identity, location and operating status.</p></div>
+          </div>
+          <div className="settings-field-panel-v2 settings-basic-grid-v3">
+            <label><span>Branch name</span><input name="name" required minLength={2} maxLength={120} defaultValue={selectedBranch.name} /></label>
+            <label><span>Status</span><select name="status" defaultValue={selectedBranch.status}><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+            <label className="settings-field-wide-v3"><span>Address</span><input name="address" maxLength={300} defaultValue={selectedBranch.address ?? ""} placeholder="Branch address" /></label>
+          </div>
+        </section>
+        <section className="settings-form-section-v2">
+          <div className="settings-section-heading-v2">
+            <span className="settings-section-heading-icon" aria-hidden="true">☎</span>
+            <div><p className="eyebrow">Contact Information</p><h2>Branch contact</h2><p className="muted">Contact details shown for this branch.</p></div>
+          </div>
+          <div className="settings-field-panel-v2 settings-basic-grid-v3">
+            <label><span>Contact number</span><DigitsOnlyInput name="phone" maxLength={20} defaultValue={selectedBranch.phone ?? ""} /></label>
+          </div>
+        </section>
+        <div className="settings-save-bar-v2 settings-save-bar-actions-only settings-branch-action-plain"><button className="button button-primary settings-branch-action-button" type="submit">Save Changes</button></div>
+      </form>
+
+      {businessWide ? <form action={deleteBranch} className="settings-danger-zone settings-danger-zone-v3 settings-danger-action-only settings-branch-action-plain settings-delete-branch-plain"><input type="hidden" name="branch_id" value={selectedBranch.id} /><div className="settings-delete-branch-action"><ConfirmDeleteSubmit className="button button-danger settings-branch-action-button" message={`Delete ${selectedBranch.name}? This permanently removes the branch if it has no queue history.`} requireCode title="Delete branch">Delete branch</ConfirmDeleteSubmit><small>Only branches without queue history can be deleted. If this branch already has queue history, set it to inactive instead.</small></div></form> : null}
+    </div>
+  ) : <div className="mini-empty"><strong>No branch available.</strong><span>Create or assign a branch first.</span></div>;
+
+  const servicesPanel = selectedBranch ? <BranchServiceAssignments branchId={selectedBranch.id} branchName={selectedBranch.name} catalog={serviceCatalog} assignedNames={branchServiceLinks.filter((link) => link.branch_id === selectedBranch.id).map((link) => link.business_service_id)} canManage={canManageServices} /> : branchGeneralPanel;
+  const serviceCatalogPanel = <ServiceCatalog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} services={serviceCatalog} canManage={canManageServices} />;
+
+  const usersPanel = <TeamWorkspace members={members} profiles={teamProfiles} branches={teamBranches} assignments={teamAssignments} actorRole={actorRole} initialBranchId="all" businessRoles={assignableRoles} compact />;
+  const branchUsersPanel = selectedBranch ? <BranchUserAssignment branchId={selectedBranch.id} branchName={selectedBranch.name} members={members.map((member) => ({ id: member.id, user_id: member.user_id, role: member.role, role_id: member.role_id, custom_role_name: member.custom_role_name, is_active: member.is_active }))} profiles={teamProfiles} assignedUserIds={teamAssignments.filter((assignment) => assignment.branch_id === selectedBranch.id).map((assignment) => assignment.user_id)} canManage={canManageTeam} businessRoles={roles.map((role: BusinessRole) => ({ id: role.id, name: role.name, branch_scope: role.branch_scope }))} allAssignments={teamAssignments} /> : branchGeneralPanel;
+  const rolesPanel = <section className="settings-new-section"><RoleManagement key={params.role ?? "roles-default"} roles={clientVisibleRoles} permissions={(permissionsResult.data ?? []) as Permission[]} rolePermissions={(rolePermissionsResult.data ?? []).filter((item) => roleById.has(item.role_id))} selectedRoleId={params.role} /></section>;
+  const permissionRows = (permissionsResult.data ?? []) as Permission[];
+  const permissionsPanel = <section className={`settings-new-section ${accessStyles.page}`}><SectionHeading eyebrow="Users & Access" title="Permission library" description="Review every permission available to custom roles." /><div className={accessStyles.catalogGrid}>{[...new Set(permissionRows.map((permission) => permission.category))].map((category) => <article key={category} className={accessStyles.catalogGroup}><h3>{category}</h3>{permissionRows.filter((permission) => permission.category === category).map((permission) => <div className={accessStyles.catalogRow} key={permission.code}><div className={accessStyles.catalogRowCopy}><strong>{permission.label}</strong><span>{permission.description}</span></div><span className={accessStyles.permissionAvailable}>Available</span></div>)}</article>)}</div></section>;
 
   const hiddenBaseQueueSettings = selectedBranchId && selectedBranch ? <>
     <input type="hidden" name="branch_id" value={selectedBranchId} />
