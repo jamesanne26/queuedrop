@@ -1,6 +1,6 @@
 type Notification = { id: string; recipient: string; body: string; claim: string };
 type Rpc = (action: string, data?: Record<string, unknown>) => Promise<unknown>;
-type Options = { dryRun: boolean; apiKey?: string; from?: string; appUrl: string; send?: typeof fetch; batchLimit?: number; reportId?: string };
+type Options = { dryRun: boolean; apiKey?: string; from?: string; replyTo?: string; appUrl: string; send?: typeof fetch; batchLimit?: number; reportId?: string };
 
 export async function dispatchNotifications(rpc: Rpc, options: Options) {
   if (!options.dryRun && (!options.apiKey || !options.from)) {
@@ -24,7 +24,7 @@ export async function dispatchNotifications(rpc: Rpc, options: Options) {
       const response = await (options.send || fetch)("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `support-resolution/${job.id}` },
-        body: JSON.stringify({ from: options.from, to: [job.recipient], subject: "QueueDrop support: your report is resolved", text: `${job.body}\n\nOpen Support from your dashboard to view details or reopen your report:\n${app.origin}/dashboard` }),
+        body: JSON.stringify({ from: options.from, ...(options.replyTo ? {reply_to: options.replyTo} : {}), to: [job.recipient], subject: "QueueDrop support: your report is resolved", text: `${job.body}\n\nOpen Support from your dashboard to view details or reopen your report:\n${app.origin}/dashboard` }),
         signal: AbortSignal.timeout(10000),
       });
       const result = await response.json() as { id?: string };

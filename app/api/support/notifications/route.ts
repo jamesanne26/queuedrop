@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const result = await dispatchNotifications(rpc, {
       dryRun: !production || process.env.SUPPORT_NOTIFICATION_DRY_RUN === "true",
       apiKey: process.env.RESEND_API_KEY,
-      from: process.env.QUEUEDROP_SUPPORT_EMAIL,
+      from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.QUEUEDROP_SUPPORT_EMAIL,
       appUrl: production ? "https://getqueuedrop.com" : "https://queuedrop-test.vercel.app",
       reportId,
     });
