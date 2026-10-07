@@ -99,3 +99,26 @@ for (const path of ["/api/support/attachments?action=list", "/api/support/notifi
   });
 }
 
+test("deployed HTML retains the browser security headers", { skip: !enabled }, async () => {
+  const response = await fetchWithTimeout("/auth/login");
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "SAMEORIGIN");
+  assert.match(response.headers.get("content-security-policy") || "", /frame-ancestors 'self'/);
+  assert.match(response.headers.get("content-security-policy") || "", /object-src 'none'/);
+  assert.equal(response.headers.get("referrer-policy"), "strict-origin-when-cross-origin");
+  if (base.startsWith("https:")) assert.match(response.headers.get("strict-transport-security") || "", /max-age=\d+/);
+});
+
+test("unsigned payment webhooks cannot activate a subscription", { skip: !enabled }, async () => {
+  const response = await fetchWithTimeout("/api/payments/paymongo/webhook", { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"data":{}}' });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "Invalid signature");
+});
+
+test("malformed printer completion claims are rejected before database access", { skip: !enabled }, async () => {
+  const response = await fetchWithTimeout("/api/print-bridge/00000000-0000-4000-8000-000000000000/jobs", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId: "invalid", generation: -1, attempt: 0, uncertain: true }) });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "Invalid printer claim.");
+});
+
