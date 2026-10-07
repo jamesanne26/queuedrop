@@ -97,4 +97,23 @@ test.describe("owner dashboard navigation", () => {
     await signOut(page);
     await expect(page.getByRole("link", { name: "QueueDrop" }).first()).toBeVisible();
   });
+
+  for (const [field, invalid, error] of [
+    ["Full name", "X", "Full name must be between 2 and 100 characters."],
+    ["Mobile number", "123", "Mobile number must contain numbers only."],
+  ]) {
+    test(`account rejects invalid ${field} without persisting a profile change`, async ({ page }) => {
+      await page.goto("/dashboard/account");
+      const name = page.getByRole("textbox", { name: "Full name", exact: true });
+      const phone = page.getByRole("textbox", { name: "Mobile number", exact: true });
+      const before = { name: await name.inputValue(), phone: await phone.inputValue() };
+      await page.getByRole("textbox", { name: field, exact: true }).fill(invalid);
+      await page.getByRole("button", { name: "Save account & password", exact: true }).click();
+      await expect(page.getByText(error, { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(name).toHaveValue(before.name);
+      await expect(phone).toHaveValue(before.phone);
+    });
+  }
 });
+

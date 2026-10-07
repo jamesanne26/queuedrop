@@ -101,10 +101,10 @@ test.describe("owner settings and reports", () => {
     }
   });
 
-  test("Scenario 12 - completed queue record appears in filtered reports and CSV export", async ({ page }) => {
+  test("Scenario 12 - completed queue record appears in filtered reports and every export format", async ({ page }) => {
     // Queue lifecycle + reports render + export is a multi-action integration flow.
     // Give it the same realistic budget as the dedicated queue happy-path test.
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     const id = scenarioId("reports");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
@@ -149,7 +149,7 @@ test.describe("owner settings and reports", () => {
       expect(csv).toContain(ticket.display_number);
       expect(csv).toContain(data.branchName);
       expect(csv).toContain(data.serviceName);
-      for (const [format, contentType] of [["txt", "text/plain"], ["pdf", "application/pdf"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]]) {
+      for (const [format, contentType] of [["txt", "text/plain"], ["pdf", "application/pdf"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]]) {
         const exported = await page.request.get(`/api/reports/export?${query.toString()}&format=${format}`);
         expect(exported.status(), `${format} export must succeed`).toBe(200);
         expect(exported.headers()["content-type"]).toContain(contentType);
@@ -159,9 +159,9 @@ test.describe("owner settings and reports", () => {
         if (format === "pdf") {
           expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
           expect(bytes.toString()).toContain("%%EOF");
-        } else if (format === "docx") {
+        } else if (format === "docx" || format === "xlsx") {
           expect(bytes.subarray(0, 4).toString("hex")).toBe("504b0304");
-          expect(bytes.toString()).toContain("word/document.xml");
+          expect(bytes.toString()).toContain(format === "docx" ? "word/document.xml" : "xl/worksheets/sheet1.xml");
         }
         expect(bytes.toString(), `${format} must include the filtered completed ticket`).toContain(ticket.display_number);
       }
