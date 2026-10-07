@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const result = await dispatchNotifications(rpc, {
       dryRun: !production || process.env.SUPPORT_NOTIFICATION_DRY_RUN === "true",
       apiKey: process.env.RESEND_API_KEY,
-      from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.QUEUEDROP_SUPPORT_EMAIL,
+      from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.SUPPORT_NOTIFICATION_REPLY_TO || "jamesrae.rosario18@gmail.com",
       appUrl: production ? "https://getqueuedrop.com" : "https://queuedrop-test.vercel.app",
       reportId,
     });
@@ -39,3 +39,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unable to dispatch support notifications. Check configuration or owner session." }, { status: 503 });
   }
 }
+
