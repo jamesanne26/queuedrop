@@ -19,10 +19,10 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: test
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: queuedrop-android-emulator
           run-id: 37443719059

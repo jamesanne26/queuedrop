@@ -34,7 +34,7 @@ function fixture({ticketStatus="waiting",persistFailure=false}={}) {
   globalThis.__smsRegressionAdmin={from:table=>new Query(table)};
   return updates;
 }
-test.beforeEach(()=>{process.env.SMS_REGRESSION_KEY="fixture";process.env.SMS_DRY_RUN="false";});
+test.beforeEach(()=>{process.env.SMS_DELIVERY_PAUSED="false";process.env.SMS_REGRESSION_KEY="fixture";process.env.SMS_DRY_RUN="false";});
 test.afterEach(()=>{test.mock.restoreAll();delete globalThis.__smsRegressionAdmin;delete process.env.SMS_REGRESSION_KEY;delete process.env.SMS_DRY_RUN;delete process.env.SMS_DELIVERY_PAUSED;});
 test("SMS timeout stops failover and marks delivery for review",async()=>{
   const updates=fixture();let calls=0;
