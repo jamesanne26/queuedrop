@@ -18,6 +18,11 @@ export async function POST(request: Request) {
     return result;
   };
   try {
+    const body = await request.text();
+    if (body.length > 1000) return NextResponse.json({ error: "Request too large" }, { status: 400 });
+    const payload = body ? JSON.parse(body) : {};
+    const reportId = payload.report_id;
+    if (reportId && (typeof reportId !== "string" || !/^[a-f0-9-]{36}$/i.test(reportId))) return NextResponse.json({ error: "Invalid report" }, { status: 400 });
     // This validates active system-owner membership before any provider call.
     const context = await rpc("context");
     if (!context.owner) return NextResponse.json({ error: "Owner access required" }, { status: 403 });
@@ -27,6 +32,7 @@ export async function POST(request: Request) {
       apiKey: process.env.RESEND_API_KEY,
       from: process.env.QUEUEDROP_SUPPORT_EMAIL,
       appUrl: production ? "https://getqueuedrop.com" : "https://queuedrop-test.vercel.app",
+      reportId,
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch {
