@@ -14,7 +14,9 @@ if (!["postgres:","postgresql:"].includes(database.protocol) ||
       (database.hostname.endsWith(".pooler.supabase.com") && decodeURIComponent(database.username) === `postgres.${project}`))) {
   throw new Error("Database URL does not match the dedicated TEST Supabase project. Migration refused.");
 }
-const sql = ["20261006050000_queue_reliability.sql", "20261006071000_printer_claim_fencing.sql"].map(name => readFileSync(`supabase/migrations/${name}`, "utf8")).join("\n");
+const sql = ["20261006050000_queue_reliability.sql", "20261006071000_printer_claim_fencing.sql",
+  "20261007144253_tenant_boundary_hardening.sql", "20261007145134_browser_ticket_database_rate_limit.sql",
+].map(name => readFileSync(`supabase/migrations/${name}`, "utf8")).join("\n");
 // Keep credentials out of command-line arguments and error output.
 const result = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "--single-transaction"], {
   env: { ...process.env, PGHOST: database.hostname, PGPORT: database.port || "5432",
@@ -26,4 +28,15 @@ if (result.status !== 0) {
   console.error("TEST migration failed; transaction rolled back. Check database access and migration compatibility.");
   process.exit(1);
 }
-console.log("TEST reliability migration committed successfully.");
+console.log("TEST reliability and tenant security migrations committed successfully.");
+const isolation = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1"], {
+  env: { ...process.env, PGHOST: database.hostname, PGPORT: database.port || "5432",
+    PGUSER: decodeURIComponent(database.username), PGPASSWORD: decodeURIComponent(database.password),
+    PGDATABASE: database.pathname.slice(1) || "postgres", PGSSLMODE: "require", PGCONNECT_TIMEOUT: "15" },
+  input: readFileSync("tests/integration/tenant-boundary.sql", "utf8"), encoding: "utf8", timeout: 90_000,
+});
+if (isolation.status !== 0) {
+  console.error("TEST tenant isolation regression failed. Synthetic fixture transaction rolled back.");
+  process.exit(1);
+}
+console.log("Authenticated/anonymous tenant isolation regression passed; synthetic fixtures rolled back.");
