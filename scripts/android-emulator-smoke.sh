@@ -10,6 +10,8 @@ check_setup() {
   local label="$1"
   adb shell uiautomator dump /sdcard/window.xml
   adb pull /sdcard/window.xml "emulator-results/$label.xml"
+  if grep -q 'resource-id="com.getqueuedrop.printbridge.test:id/baseUrl"' "emulator-results/$label.xml"; then echo 'Unexpected URL input'; exit 1; fi
+  grep -q 'resource-id="com.getqueuedrop.printbridge.test:id/deviceToken"' "emulator-results/$label.xml"
   grep -q 'QueueDrop Kiosk Setup' "emulator-results/$label.xml"
   adb shell pidof "$pkg"
   adb exec-out screencap -p > "emulator-results/$label.png"

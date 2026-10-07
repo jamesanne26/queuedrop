@@ -7683,3 +7683,26 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
 .live-ticket-card{animation:qd-ticket-settle .14s ease-out both}
 @keyframes qd-ticket-settle{from{opacity:.72;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.live-ticket-card{animation:none}}
+/* Selected branch services fit a single TV viewport; inner lists remain readable. */
+.tv-queue-page { height:100dvh; min-height:0; box-sizing:border-box; overflow:hidden; }
+.tv-services-grid { display:grid; gap:12px; min-height:0; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:minmax(0,1fr); }
+.tv-services-grid[data-service-count="1"] { grid-template-columns:minmax(0,1fr); }
+.tv-services-grid[data-service-count="5"], .tv-services-grid[data-service-count="6"] { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.tv-service-card { min-width:0; min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden; background:#fff; color:#081811; border:2px solid #45665a; border-radius:12px; }
+.tv-service-name { margin:0; padding:10px; font-size:clamp(18px,2.2vw,36px); line-height:1.15; background:#0d2d20; color:#fff; text-align:center; overflow-wrap:anywhere; }
+.tv-service-queues { display:grid; grid-template-columns:1fr 1fr; min-height:0; }
+.tv-service-queues > section { min-width:0; overflow:auto; text-align:center; padding:8px; }
+.tv-service-serving { border-left:2px solid #45665a; }
+.tv-service-queues h2 { font-size:clamp(14px,1.5vw,24px); margin:0 0 8px; }
+.tv-service-codes { display:grid; gap:8px; }
+.tv-service-codes strong { font-size:clamp(24px,3.6vw,64px); font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.tv-services-grid[data-service-count="5"] .tv-service-codes strong,.tv-services-grid[data-service-count="6"] .tv-service-codes strong { font-size:clamp(24px,2.5vw,44px); }
+.tv-no-services { grid-column:1/-1; align-self:center; text-align:center; }
+.tv-service-choice { display:flex; align-items:center; gap:10px; padding:8px; }
+.tv-service-choice input { width:20px; height:20px; }
+.customer-platform-contact { text-align:center; }
+.customer-platform-contact h2 { margin:0; font-size:20px; }
+@media (max-width:600px) {
+  .tv-services-grid,.tv-services-grid[data-service-count="5"],.tv-services-grid[data-service-count="6"] { grid-template-columns:1fr; grid-auto-rows:minmax(220px,1fr); overflow:auto; }
+  .tv-service-codes strong { font-size:32px; }
+}

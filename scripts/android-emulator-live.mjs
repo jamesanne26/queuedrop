@@ -21,7 +21,7 @@ try {
   checked(await admin.from("operating_hours").upsert(Array.from({length:7},(_,day_of_week)=>({branch_id:branch.id,day_of_week,is_open:true,open_time:"00:00",close_time:"00:00"})),{onConflict:"branch_id,day_of_week"}));
   const device = checked(await admin.from("devices").insert({branch_id:branch.id,name:"E2E Emulator",device_type:"ticket_terminal",service_id:service.id,is_active:true}).select("id,device_token").single());
   adb("shell","am","force-stop",pkg);
-  const prefs = '<?xml version="1.0" encoding="utf-8"?><map><string name="baseUrl">'+base+'</string><string name="deviceToken">'+device.device_token+'</string></map>';
+  const prefs = '<?xml version="1.0" encoding="utf-8"?><map><string name="baseUrl">https://getqueuedrop.com/wrong/legacy/path</string><string name="deviceToken">'+device.device_token+'</string></map>';
   // Feed private config over stdin: never echo a device token into runner logs.
   execFileSync("adb",["shell","run-as",pkg,"sh","-c","'mkdir -p shared_prefs; cat > shared_prefs/queuedrop_bridge.xml'"],{input:prefs,stdio:["pipe","pipe","pipe"]});
   adb("shell","am","start","-W","-n",pkg+"/com.getqueuedrop.printbridge.MainActivity");
@@ -42,6 +42,7 @@ try {
     await new Promise(r=>setTimeout(r,1000));
   }
   assert.ok(page,"Native WebView must open the live TEST kiosk");
+  assert.equal(new URL(page.url()).origin, base, "Legacy URL must be ignored by TEST build");
   const button=page.getByRole("button",{name:"Press here to get stub"});
   await button.waitFor({state:"visible",timeout:60000});
   await button.click();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
+import { enterTvFullscreen } from "@/lib/tv/fullscreen";
 
 type NavKey = "overview" | "queues" | "reports" | "tv" | "settings";
 
@@ -46,7 +47,7 @@ export function DashboardSidebar({ active, role = "owner", canViewQueue, canView
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</Link></> : null}
+      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={(event) => { setOpen(false); if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) void enterTvFullscreen(); }}>TV Display</Link></> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
@@ -71,9 +72,11 @@ export function DashboardSidebar({ active, role = "owner", canViewQueue, canView
         <nav>{nav}</nav>
         <div className="sidebar-footer sidebar-footer-account-settings">
           <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
+            <a className="nav-item sidebar-bottom-nav-item" href={`/api/support/start?from=${encodeURIComponent(pathname)}`} onClick={() => setOpen(false)}>Support</a>
+          </div>
+          <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
             {settingsVisible ? <Link className={`nav-item sidebar-bottom-nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
           </div>
-          <a className="nav-item sidebar-bottom-nav-item" href={`/api/support/start?from=${encodeURIComponent(pathname)}`} onClick={() => setOpen(false)}>Support</a>
           <details className="sidebar-account-menu">
             <summary className="nav-item sidebar-account-trigger">Account <span>⌃</span></summary>
             <div className="sidebar-account-popover">

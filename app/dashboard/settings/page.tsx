@@ -1,3 +1,4 @@
+import { TvSettingsForm } from "./tv-settings-form";
 import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
@@ -96,7 +97,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     (activeView === "branch-operating" && canManageOperatingHours) ||
     (activeView === "branch-queue" && canViewQueueInformationEditing) ||
     (activeView === "branch-notifications" && canViewPositionNotifications) ||
-    (["branch-appearance","branch-terminals","business","billing","android-app"].includes(activeView) && businessWide) ||
+    (["branch-tv","branch-appearance","branch-terminals","business","billing","android-app"].includes(activeView) && businessWide) ||
     (activeView === "services" && canManageServices) ||
     (activeView === "users" && canManageTeam) ||
     (["roles","permissions"].includes(activeView) && canManageRoles);
@@ -198,6 +199,12 @@ export default async function SettingsPage({ searchParams }: Props) {
     ? await supabase.from("devices").select("id,name,device_token,is_active,last_seen_at,branch_id,service_id,branches(name),services(name)").in("branch_id", branchIds).eq("device_type", "ticket_terminal").order("created_at")
     : { data: [] as never[] };
 
+  const [tvConfigResult, tvServicesResult] = activeView === "branch-tv" && selectedBranchId ? await Promise.all([
+    supabase.from("branch_tv_settings").select("service_count,service_ids").eq("branch_id", selectedBranchId).maybeSingle(),
+    supabase.from("services").select("id,name,is_active").eq("branch_id", selectedBranchId).order("created_at"),
+  ]) : [{ data: null, error: null }, { data: [], error: null }];
+  const tvPanel = selectedBranchId ? (tvConfigResult.error || tvServicesResult.error ? <p role="alert">Unable to load TV settings. Please try again.</p> : <TvSettingsForm key={settingsFormKey} branchId={selectedBranchId} services={tvServicesResult.data ?? []} settings={tvConfigResult.data} />) : <p>Select a branch first.</p>;
+
   const branchGeneralPanel = selectedBranch ? (
     <div className="settings-detail-form-v2 settings-branch-general-v3">
       <form action={updateBranch} className="settings-general-form-v3">
@@ -276,9 +283,9 @@ export default async function SettingsPage({ searchParams }: Props) {
   const billingPanel = businessWide ? <section className="settings-new-section"><SectionHeading eyebrow="Billing & Subscription" title="Plan & billing" description="Review your current plan and change subscription without opening the old client page." /><div className="settings-billing-summary"><div><span>Current plan</span><strong>{terms?.plan_name ?? "No active subscription"}</strong></div><div><span>Status</span><strong>{terms?.status ?? "—"}</strong></div><div><span>Billing cycle</span><strong>{terms?.billing_interval === "yearly" ? "Annual" : "Monthly"}</strong></div><div><span>Current cycle</span><strong>{peso(terms?.current_cycle_price ?? terms?.monthly_price)}</strong></div></div><div className="settings-plan-list">{(plansResult.data ?? []).map((plan) => <article key={plan.id} className="settings-plan-row"><div><strong>{plan.name}</strong><span>{plan.description}</span><small>{peso(plan.price_monthly)}/month{plan.price_yearly ? ` · ${peso(plan.price_yearly)}/year` : ""}</small></div><form action={startSubscriptionCheckout}><input type="hidden" name="plan_id" value={plan.id} /><select name="billing_interval" defaultValue="monthly"><option value="monthly">Monthly</option>{plan.price_yearly ? <option value="yearly">Annual</option> : null}</select><select name="renewal_mode" defaultValue="manual"><option value="manual">Manual renewal</option>{plan.allow_auto_renew ? <option value="auto">Auto-renew</option> : null}</select><button className="button button-primary" type="submit">Choose plan</button></form></article>)}</div><div className="settings-recent-orders"><h3>Recent billing activity</h3>{(ordersResult.data ?? []).map((order) => { const relation = order.plans; const plan = Array.isArray(relation) ? relation[0] : relation; return <div key={order.id} className="settings-order-row"><span>{plan?.name ?? "Plan"} · {order.billing_interval}</span><strong>{order.status}</strong></div>; })}</div></section> : null;
 
   const isTestInstaller = process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "test";
-  const installerVersion = isTestInstaller ? "1.1.1 TEST" : "1.1.1";
-  const installerHref = isTestInstaller ? "/installers/QueueDrop-PrintBridge-v1.1.1-test.apk" : "/installers/QueueDrop-PrintBridge-v1.1.1.apk";
-  const installerDownload = isTestInstaller ? "QueueDrop-PrintBridge-v1.1.1-test.apk" : "QueueDrop-PrintBridge-v1.1.1.apk";
+  const installerVersion = isTestInstaller ? "1.1.2 TEST" : "1.1.1";
+  const installerHref = isTestInstaller ? "/installers/QueueDrop-PrintBridge-v1.1.2-test.apk" : "/installers/QueueDrop-PrintBridge-v1.1.1.apk";
+  const installerDownload = isTestInstaller ? "QueueDrop-PrintBridge-v1.1.2-test.apk" : "QueueDrop-PrintBridge-v1.1.1.apk";
   const androidAppPanel = businessWide ? <section className="settings-new-section"><SectionHeading eyebrow="Mobile Installers" title="QueueDrop mobile installers" description="Download the latest QueueDrop installer for a compatible Android device." /><div className="settings-field-panel-v2"><div className="settings-apk-download"><div><strong>QueueDrop Print Bridge v{installerVersion}</strong><p className="muted">{isTestInstaller ? "TEST installer for queuedrop-test.vercel.app. Install alongside your existing QueueDrop app." : "Install the approved Android APK for your QueueDrop stub printer."}</p></div><a className="button button-primary" href={installerHref} download={installerDownload}>Download Mobile Installer</a></div></div></section> : null;
 
   const addBranchPanel = businessWide ? (
@@ -316,6 +323,7 @@ export default async function SettingsPage({ searchParams }: Props) {
           "branch-general": branchGeneralPanel,
           "branch-services": servicesPanel,
           "branch-users": branchUsersPanel,
+          "branch-tv": tvPanel,
           "branch-operating": operatingPanel,
           "branch-queue": queuePanel,
           "branch-notifications": notificationsPanel,

@@ -9,6 +9,7 @@ type ViewKey =
   | "branch-general"
   | "branch-services"
   | "branch-users"
+  | "branch-tv"
   | "branch-operating"
   | "branch-queue"
   | "branch-notifications"
@@ -40,7 +41,7 @@ type Props = {
 type IconName = "branch" | "home" | "service" | "users" | "clock" | "sliders" | "bell" | "palette" | "terminal" | "business" | "billing" | "download" | "shield" | "role";
 
 const branchViews = new Set<ViewKey>([
-  "branch-general", "branch-services", "branch-users", "branch-operating", "branch-queue",
+  "branch-general", "branch-services", "branch-users", "branch-tv", "branch-operating", "branch-queue",
   "branch-notifications", "branch-appearance", "branch-terminals",
 ]);
 
@@ -48,6 +49,7 @@ const branchItems: Array<{ key: ViewKey; label: string; icon: IconName }> = [
   { key: "branch-general", label: "General", icon: "home" },
   { key: "branch-services", label: "Services", icon: "service" },
   { key: "branch-users", label: "Branch Users", icon: "users" },
+  { key: "branch-tv", label: "TV Display", icon: "terminal" },
   { key: "branch-operating", label: "Operating Hours", icon: "clock" },
   { key: "branch-queue", label: "Queue Settings", icon: "sliders" },
   { key: "branch-notifications", label: "Notifications", icon: "bell" },
@@ -75,7 +77,7 @@ function Icon({ name }: { name: IconName }) {
 
 function normalizeView(value?: string): ViewKey {
   const allowed: ViewKey[] = [
-    "branch-general", "branch-services", "branch-users", "branch-operating", "branch-queue",
+    "branch-general", "branch-services", "branch-users", "branch-tv", "branch-operating", "branch-queue",
     "branch-notifications", "branch-appearance", "branch-terminals", "services", "users", "roles",
     "permissions", "business", "billing", "android-app",
   ];
@@ -147,7 +149,7 @@ export function SettingsUnifiedConsole({
     (key === "branch-users" && !canManageTeam) ||
     (key === "branch-operating" && !canManageOperatingHours) ||
     (key === "branch-notifications" && !canViewPositionNotifications) ||
-    ((key === "branch-appearance" || key === "branch-terminals") && !businessWide);
+    ((key === "branch-appearance" || key === "branch-terminals" || key === "branch-tv") && !businessWide);
 
   const configPanel = panels[view] ?? panels["branch-general"];
   const activeLabel = branchItems.find((entry) => entry.key === view)?.label

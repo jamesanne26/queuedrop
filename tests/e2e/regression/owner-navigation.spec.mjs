@@ -29,6 +29,7 @@ test.describe("owner dashboard navigation", () => {
     ["General", "branch-general"],
     ["Branch Services", "branch-services"],
     ["Branch Users", "branch-users"],
+    ["TV Display settings", "branch-tv"],
     ["Operating Hours", "branch-operating"],
     ["Queue Settings", "branch-queue"],
     ["Notifications", "branch-notifications"],

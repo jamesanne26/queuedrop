@@ -51,6 +51,8 @@ async function adminClient() {
 test("TEST Supabase exposes QueueDrop core schema", { skip: !adminEnabled }, async () => {
   const supabase = await adminClient();
   const checks = [
+    supabase.from("platform_public_contact").select("id,phone").limit(1),
+    supabase.from("branch_tv_settings").select("branch_id,service_count,service_ids").limit(1),
     supabase.from("businesses").select("id,name,status,terminal_theme,terminal_logo_url,terminal_background_image_url").limit(1),
     supabase.from("branches").select("id,business_id,name,status").limit(1),
     supabase.from("services").select("id,branch_id,name,queue_prefix,is_active").limit(1),

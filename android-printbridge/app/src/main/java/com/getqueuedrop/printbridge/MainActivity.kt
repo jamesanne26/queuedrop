@@ -40,7 +40,6 @@ import kotlin.math.min
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var setupPanel: View
-    private lateinit var baseUrlInput: EditText
     private lateinit var tokenInput: EditText
     private lateinit var statusText: TextView
     private lateinit var cancelSettingsButton: Button
@@ -76,7 +75,6 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webView)
         setupPanel = findViewById(R.id.setupPanel)
-        baseUrlInput = findViewById(R.id.baseUrl)
         tokenInput = findViewById(R.id.deviceToken)
         statusText = findViewById(R.id.statusText)
         cancelSettingsButton = findViewById(R.id.cancelSettings)
@@ -87,7 +85,8 @@ class MainActivity : AppCompatActivity() {
         configureWebView()
         requestBluetoothPermissionsIfNeeded()
 
-        baseUrlInput.setText(prefs.getString("baseUrl", "") ?: "")
+        prefs.edit().remove("baseUrl").apply() // Ignore legacy user-entered URLs.
+        findViewById<TextView>(R.id.websiteOrigin).text = "QueueDrop: " + KioskEndpoint.origin(BuildConfig.TEST_ONLY) + "/"
         tokenInput.setText(prefs.getString("deviceToken", "") ?: "")
         refreshPrinterLabel()
 
@@ -96,14 +95,14 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.openKiosk).setOnClickListener { saveSettingsAndOpen() }
 
         cancelSettingsButton.setOnClickListener {
-            val base = prefs.getString("baseUrl", "") ?: ""
+            val base = KioskEndpoint.origin(BuildConfig.TEST_ONLY)
             val token = prefs.getString("deviceToken", "") ?: ""
-            if (base.isNotBlank() && token.isNotBlank()) openKiosk(base, token)
+            if (KioskEndpoint.validToken(token)) openKiosk(base, token)
         }
 
-        val base = prefs.getString("baseUrl", "") ?: ""
+        val base = KioskEndpoint.origin(BuildConfig.TEST_ONLY)
         val token = prefs.getString("deviceToken", "") ?: ""
-        if (base.isNotBlank() && token.isNotBlank()) openKiosk(base, token) else showSetup()
+        if (KioskEndpoint.validToken(token)) openKiosk(base, token) else showSetup()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -128,34 +127,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSetup() {
         pollJob?.cancel()
-        baseUrlInput.setText("")
         tokenInput.setText("")
         webView.visibility = View.GONE
         setupPanel.visibility = View.VISIBLE
         refreshPrinterLabel()
 
-        val hasSavedConfig = !prefs.getString("baseUrl", "").isNullOrBlank() &&
-            !prefs.getString("deviceToken", "").isNullOrBlank()
+        val hasSavedConfig = KioskEndpoint.validToken(prefs.getString("deviceToken", "") ?: "")
         cancelSettingsButton.visibility = if (hasSavedConfig) View.VISIBLE else View.GONE
         status(if (hasSavedConfig)
             "This tablet is already configured. Printer selection can be changed without replacing the terminal settings."
         else
-            "Choose a paired thermal printer, enter the QueueDrop URL and terminal token, then save.")
+            "Choose a paired thermal printer, enter the terminal token, then save.")
     }
 
     private fun saveSettingsAndOpen() {
-        val base = baseUrlInput.text.toString().trim().trimEnd('/')
+        val base = KioskEndpoint.origin(BuildConfig.TEST_ONLY)
         val token = tokenInput.text.toString().trim()
-        if (!base.startsWith("https://") || token.isBlank()) {
-            status("Enter a valid HTTPS QueueDrop Website URL and Terminal Device Token.")
+        if (!KioskEndpoint.validToken(token)) {
+            status("Enter a valid Terminal Device Token copied from QueueDrop.")
             return
         }
-        if (BuildConfig.TEST_ONLY && base != "https://queuedrop-test.vercel.app") {
-            status("This TEST APK requires https://queuedrop-test.vercel.app")
-            return
-        }
-        prefs.edit().putString("baseUrl", base).putString("deviceToken", token).apply()
-        baseUrlInput.setText("")
+        prefs.edit().remove("baseUrl").putString("deviceToken", token).apply()
         tokenInput.setText("")
         openKiosk(base, token)
     }
