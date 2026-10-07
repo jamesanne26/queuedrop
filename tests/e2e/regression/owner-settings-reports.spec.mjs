@@ -149,8 +149,25 @@ test.describe("owner settings and reports", () => {
       expect(csv).toContain(ticket.display_number);
       expect(csv).toContain(data.branchName);
       expect(csv).toContain(data.serviceName);
+      for (const [format, contentType] of [["txt", "text/plain"], ["pdf", "application/pdf"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]]) {
+        const exported = await page.request.get(`/api/reports/export?${query.toString()}&format=${format}`);
+        expect(exported.status(), `${format} export must succeed`).toBe(200);
+        expect(exported.headers()["content-type"]).toContain(contentType);
+        expect(exported.headers()["content-disposition"]).toContain(`.${format}`);
+        const bytes = await exported.body();
+        expect(bytes.length).toBeGreaterThan(100);
+        if (format === "pdf") {
+          expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+          expect(bytes.toString()).toContain("%%EOF");
+        } else if (format === "docx") {
+          expect(bytes.subarray(0, 4).toString("hex")).toBe("504b0304");
+          expect(bytes.toString()).toContain("word/document.xml");
+        }
+        expect(bytes.toString(), `${format} must include the filtered completed ticket`).toContain(ticket.display_number);
+      }
     } finally {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
   });
 });
+
