@@ -1,17 +1,9 @@
-# Production Android signing
+# QueueDrop Android project location
 
-The installed v1.1.0 APK uses com.getqueuedrop.printbridge. Its original signing key is required for an in-place update. Do not commit a keystore, passwords, or a base64 key to this repository.
+Android source, Gradle builds, printer unit tests, emulator checks and signed-release preparation have moved to [jamesanne26/queuedrop-automation](https://github.com/jamesanne26/queuedrop-automation). See [Android project instructions](https://github.com/jamesanne26/queuedrop-automation/blob/main/docs/ANDROID_PROJECT.md).
 
-Configure repository Actions secrets in Settings → Secrets and variables → Actions:
-- ANDROID_KEYSTORE_BASE64: base64 encoding of the original keystore
-- ANDROID_STORE_PASSWORD
-- ANDROID_KEY_ALIAS
-- ANDROID_KEY_PASSWORD
+The website repository owns the print-bridge API, kiosk webpage, web/database tests, and approved customer installer files in public/installers/. It does not build Android or run an emulator. Android failures belong to the automation repository and do not attach to website commits.
 
-Run Signed Production APK on main. It tests release code, aligns and signs v1.1.1, verifies its certificate against the existing v1.1.0 APK, checks application ID and increasing version code, and uploads queuedrop-production-signed.
+Download Mobile Installer still points to the approved v1.1.1 production/TEST files. Candidate Android artifacts do not automatically overwrite website installers. Promote only the exact verified signed APK, checksum and source manifest after Android, live-kiosk, real-printer and upgrade checks. Never link customers directly to private GitHub Actions artifacts.
 
-A missing secret or different certificate blocks publication. If the original debug signing key has been lost, a new durable release key requires a planned uninstall/reinstall; it cannot update existing installations directly. Keep a secure backup of the key.
-
-After all checks pass, the workflow commits the signed APK, checksum, source manifest, and production settings link together to main. A concurrent main update rejects the push rather than overwriting it. Verify the deployed download checksum and an actual installed-device upgrade before retiring v1.1.0.
-
-SMS remains paused and is outside this maintenance change.
+Signing keys and TEST credentials must be configured as secrets in the automation repository; secrets are not copied between repositories. Retain the original package ID and signing certificate for installed-app upgrades. SMS remains paused.
