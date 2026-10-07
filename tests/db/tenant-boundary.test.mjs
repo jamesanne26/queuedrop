@@ -5,7 +5,9 @@ import { PGlite } from '@electric-sql/pglite';
 
 const boundaryMigration = await readFile(new URL('../../supabase/migrations/20261007144253_tenant_boundary_hardening.sql', import.meta.url), 'utf8');
 const browserMigration = await readFile(new URL('../../supabase/migrations/20261007145134_browser_ticket_database_rate_limit.sql', import.meta.url),'utf8');
-const migration = boundaryMigration + browserMigration;
+const cleanupMigration = await readFile(new URL('../../supabase/migrations/20261007150233_restrict_test_cleanup_rpc.sql', import.meta.url),'utf8');
+const mutationMigration = await readFile(new URL('../../supabase/migrations/20261007150525_enforce_queue_mutation_entrypoints.sql', import.meta.url),'utf8');
+const migration = boundaryMigration + browserMigration + cleanupMigration + mutationMigration;
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 let db;
 test.before(async () => {
@@ -24,10 +26,22 @@ test.before(async () => {
     create table roles(id uuid primary key,business_id uuid);
     create table business_subscriptions(business_id uuid,status text);
     create table subscription_orders(business_id uuid,amount numeric,status text);
+    create table tickets(id uuid,status text);
+    create table ticket_events(ticket_id uuid);
+    create table queue_sessions(id uuid);
+    create table service_queue_counters(queue_session_id uuid);
+    create table customers(id uuid);
+    create table customer_sessions(id uuid);
+    create function staff_call_next(uuid,uuid) returns void language sql security definer as $$ select $$;
+    create function staff_update_ticket_status(uuid,text) returns void language sql security definer as $$ select $$;
+    create function staff_return_last_to_queue(uuid,uuid) returns void language sql security definer as $$ select $$;
+    create function staff_return_ticket_to_last(uuid) returns void language sql security definer as $$ select $$;
     create table app_rate_limits(rate_key text primary key,window_started_at timestamptz default now(),hits int default 0,updated_at timestamptz);
     create function issue_browser_queue_ticket(uuid) returns jsonb language sql security definer as $$ select '{"ticket":"synthetic"}'::jsonb $$;
     create function set_updated_at() returns trigger language plpgsql as $$ begin return new; end $$;
     create function legacy_internal_trigger() returns trigger language plpgsql security definer as $$ begin return new; end $$;
+    create function delete_test_user_by_email(text) returns void language plpgsql security definer as $$ begin delete from business_users; end $$;
+    grant execute on function delete_test_user_by_email(text) to anon,authenticated;
     grant all on all tables in schema public to authenticated;
     grant execute on function legacy_internal_trigger() to anon,authenticated;
     insert into branches values('${id(1)}','${id(11)}'),('${id(2)}','${id(12)}');
@@ -90,6 +104,21 @@ test('internal triggers are not executable public RPCs',async () => {
   }
 });
 test('migration can be reapplied safely',async()=>{ await db.exec(migration); });
+test('client cannot bypass queue action permissions through raw writes or legacy RPCs',async()=>{
+  await db.exec('set role authenticated');
+  try {
+    await assert.rejects(db.exec("update tickets set status='cancelled'"),error=>error.code==='42501');
+    await assert.rejects(db.query('select staff_update_ticket_status($1,$2)',[id(71),'cancel']),error=>error.code==='42501');
+  } finally { await db.exec('reset role'); }
+});
+test('Test cleanup helper is callable only by the trusted service role',async()=>{
+  for(const role of ['anon','authenticated']) {
+    await db.exec(`set role ${role}`);
+    try { await assert.rejects(db.query('select delete_test_user_by_email($1)',['synthetic@example.invalid']),error=>error.code==='42501'); }
+    finally { await db.exec('reset role'); }
+  }
+  assert.equal((await db.query("select has_function_privilege('service_role','delete_test_user_by_email(text)','EXECUTE') allowed")).rows[0].allowed,true);
+});
 test('direct anonymous browser issuance cannot bypass the database rate limit',async()=>{
   await db.exec('begin');
   try {
