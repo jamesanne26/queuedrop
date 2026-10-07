@@ -35,5 +35,5 @@ export default async function globalSetup() {
       "QueueDrop E2E preflight failed: E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD do not authenticate in QUEUEDROP_TEST_SUPABASE_URL.",
     );
   }
-  await admin.auth.signOut();
+  await admin.auth.signOut({ scope: "local" });
 }

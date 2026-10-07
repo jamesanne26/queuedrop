@@ -73,6 +73,7 @@ export function DashboardSidebar({ active, role = "owner", canViewQueue, canView
           <div className="sidebar-bottom-nav-row sidebar-bottom-nav-row-single">
             {settingsVisible ? <Link className={`nav-item sidebar-bottom-nav-item ${currentActive === "settings" ? "nav-item-active" : ""}`} href="/dashboard/settings" onClick={() => setOpen(false)}>Settings</Link> : null}
           </div>
+          <a className="nav-item sidebar-bottom-nav-item" href={`/api/support/start?from=${encodeURIComponent(pathname)}`} onClick={() => setOpen(false)}>Support</a>
           <details className="sidebar-account-menu">
             <summary className="nav-item sidebar-account-trigger">Account <span>⌃</span></summary>
             <div className="sidebar-account-popover">
