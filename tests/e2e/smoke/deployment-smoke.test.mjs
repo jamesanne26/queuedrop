@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 
 const rawBase = process.env.QUEUEDROP_TEST_BASE_URL || "";
 const base = rawBase.replace(/\/$/, "");
 const enabled = Boolean(base);
 const required = process.env.QUEUEDROP_REQUIRE_SMOKE === "1";
-const timeoutMs = 15_000;
+const timeoutMs = 30_000;
 
 function validateBaseUrl() {
   if (!base) return;
@@ -64,3 +65,37 @@ test("dashboard redirects unauthenticated users to login", { skip: !enabled }, a
   const location = response.headers.get("location") || "";
   assert.match(location, /\/auth\/login(?:\?|$)/, `unexpected dashboard redirect: ${location}`);
 });
+
+for (const suffix of ["", "-test"]) {
+  test(`approved ${suffix ? "TEST" : "production"} APK is downloadable and matches its manifest`, { skip: !enabled }, async () => {
+    const stem = `/installers/QueueDrop-PrintBridge-v1.1.1${suffix}`;
+    const metadata = await fetchWithTimeout(`${stem}.json`);
+    assert.equal(metadata.status, 200, "Installer manifest is missing");
+    const manifest = await metadata.json();
+    assert.equal(manifest.applicationId, `com.getqueuedrop.printbridge${suffix ? ".test" : ""}`);
+    const response = await fetchWithTimeout(`${stem}.apk`);
+    assert.equal(response.status, 200, "Installer file is missing");
+    assert.doesNotMatch(response.headers.get("content-type") || "", /text\/html/i);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.length, manifest.bytes, "Installer is truncated or metadata is stale");
+    assert.equal(bytes.subarray(0, 4).toString("hex"), "504b0304", "Installer must be an APK/ZIP");
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), manifest.sha256, "Installer checksum mismatch");
+  });
+}
+
+for (const path of ["/api/reports/export", "/api/internal/operations", "/api/internal/queues/end-of-day", "/api/internal/subscriptions/reconcile", "/api/internal/sms/dispatch"]) {
+  test(`${path} rejects requests without authentication`, { skip: !enabled }, async () => {
+    const response = await fetchWithTimeout(path, { redirect: "manual" });
+    assert.equal(response.status, 401, `${path} must not expose protected data or run workers`);
+  });
+}
+
+for (const path of ["/api/support/attachments?action=list", "/api/support/notifications"]) {
+  test(`${path} rejects missing and malformed support sessions`, { skip: !enabled }, async () => {
+    for (const authorization of ["", "Bearer invalid"]) {
+      const response = await fetchWithTimeout(path, { method: "POST", headers: { authorization, "Content-Type": "application/json" }, body: "{}" });
+      assert.equal(response.status, 403, "Support data must require a valid private session");
+    }
+  });
+}
+
