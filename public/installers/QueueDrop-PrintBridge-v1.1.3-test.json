@@ -3,9 +3,9 @@
   "versionCode": 12,
   "applicationId": "com.getqueuedrop.printbridge.test",
   "bytes": 4755251,
-  "sha256": "dffb97c4176b036ffaa0af15845b5fa6fecc3e9a7d4438df695635de974ce60a",
-  "sourceCommit": "bec05be33daa8203a09fc79b5572febb99b1a83f",
-  "sourceRun": 37751564502,
+  "sha256": "94f7730a0c7ca04ad9d9ec1203a1d1ddccc87406f3d58c9a1ab8cae0ce7153bb",
+  "sourceCommit": "6d6a9e447b075d6099141db8756ea6d3ba911036",
+  "sourceRun": 37804559263,
   "testEndpoint": "https://queuedrop-test.vercel.app",
   "urlTextbox": false,
   "hardwarePrinterVerified": false
