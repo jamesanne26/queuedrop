@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0-test",
+  "versionCode": 13,
+  "applicationId": "com.getqueuedrop.printbridge.next",
+  "bytes": 3663002,
+  "sha256": "5e92109e39591e40371534ec1f9d5ea9a93193a4a864b19fe5f3e1bdb6f1c314",
+  "sourceRepository": "jamesanne26/queuedrop-mobile",
+  "sourceCommit": "45b84757543775c9c27e72814dd0ee5cd925d3f0",
+  "sourceRun": "37833306239",
+  "certificateSha256": "7defc6860c5da9459c086555ad1d07fdd8b2922965effe4921801fa1d470f470",
+  "certificateMatchesPrevious": false,
+  "testEndpoint": "https://queuedrop-test.vercel.app",
+  "testOnly": true,
+  "hardwarePrinterVerified": false,
+  "installMigrationRequired": true
+}
