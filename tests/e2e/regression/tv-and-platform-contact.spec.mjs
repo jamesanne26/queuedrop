@@ -98,8 +98,12 @@ test.describe("TV display and public platform contact",()=>{
     const previousContact=checked(await f.admin.from("platform_public_contact").select("id,phone").eq("id",true).maybeSingle());
     let publicContext;
     try {
-      checked(await f.admin.from("branches").update({phone:"09171234567"}).eq("id",f.branch.id));
       checked(await f.admin.from("queue_configurations").upsert({branch_id:f.branch.id,stub_mode_enabled:true,is_active:true,show_branch_contact:false},{onConflict:"branch_id"}));
+      await page.goto("/dashboard/settings?view=branch-general&branch="+f.branch.id);
+      const branchInformation=page.locator("form.settings-general-form-v3");
+      await branchInformation.locator('input[name="phone"]').fill("09171234567");
+      await branchInformation.getByRole("button",{name:"Save Changes"}).click();
+      await expect.poll(async()=>checked(await f.admin.from("branches").select("phone").eq("id",f.branch.id).single()).phone).toBe("09171234567");
       checked(await f.admin.from("operating_hours").upsert(Array.from({length:7},(_,day_of_week)=>({branch_id:f.branch.id,day_of_week,is_open:true,open_time:"00:00",close_time:"00:00"})),{onConflict:"branch_id,day_of_week"}));
       const device=checked(await f.admin.from("devices").insert({branch_id:f.branch.id,name:"E2E Contact",device_type:"ticket_terminal",service_id:f.services[0].id,is_active:true}).select("device_token").single());
       await page.goto("/dashboard/settings?view=branch-terminals&branch="+f.branch.id);
@@ -125,6 +129,16 @@ test.describe("TV display and public platform contact",()=>{
       await customer.reload();
       await expect(customer.getByRole("heading",{name:"Contact this branch"})).toBeVisible();
       await expect(customer.locator(".customer-branch-contact a")).toHaveAttribute("href","tel:09171234567");
+      await page.goto("/dashboard/settings?view=branch-operating&branch="+f.branch.id);
+      const operatingSettings=page.locator('form.settings-detail-form-v2').first();
+      await expect(operatingSettings.locator('input[name="show_branch_contact"]')).toHaveValue("on");
+      await operatingSettings.locator('input[name="day_1_close_time"]').fill("23:59");
+      await operatingSettings.getByRole("button",{name:"Save branch settings"}).click();
+      await page.getByRole("dialog").getByRole("button",{name:"Confirm save"}).click();
+      await expect.poll(async()=>checked(await f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).show_branch_contact).toBe(true);
+      await customer.reload();
+      await expect(customer.locator(".customer-branch-contact a")).toHaveAttribute("href","tel:09171234567");
+      await page.goto("/dashboard/settings?view=branch-queue&branch="+f.branch.id);
       await branchContactToggle.uncheck();
       await queueSettings.getByRole("button",{name:"Save branch settings"}).click();
       await page.getByRole("dialog").getByRole("button",{name:"Confirm save"}).click();
