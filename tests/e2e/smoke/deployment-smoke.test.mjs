@@ -66,14 +66,18 @@ test("dashboard redirects unauthenticated users to login", { skip: !enabled }, a
   assert.match(location, /\/auth\/login(?:\?|$)/, `unexpected dashboard redirect: ${location}`);
 });
 
-for (const suffix of ["", "-test"]) {
-  test(`approved ${suffix ? "TEST" : "production"} APK is downloadable and matches its manifest`, { skip: !enabled }, async () => {
-    const stem = `/installers/QueueDrop-PrintBridge-v1.1.1${suffix}`;
-    const metadata = await fetchWithTimeout(`${stem}.json`);
+const approvedInstallers = [
+  { label: "Production migration", stem: "/installers/QueueDrop-PrintBridge-PROD-v2.0.0", applicationId: "com.getqueuedrop.printbridge.prod", testOnly: false },
+  { label: "TEST recovery", stem: "/installers/QueueDrop-Recovery-TEST-v2.0.0", applicationId: "com.getqueuedrop.printbridge.next", testOnly: true },
+];
+for (const installer of approvedInstallers) {
+  test(`approved ${installer.label} APK is downloadable and matches its manifest`, { skip: !enabled }, async () => {
+    const metadata = await fetchWithTimeout(`${installer.stem}.json`);
     assert.equal(metadata.status, 200, "Installer manifest is missing");
     const manifest = await metadata.json();
-    assert.equal(manifest.applicationId, `com.getqueuedrop.printbridge${suffix ? ".test" : ""}`);
-    const response = await fetchWithTimeout(`${stem}.apk`);
+    assert.equal(manifest.applicationId, installer.applicationId);
+    assert.equal(manifest.testOnly, installer.testOnly);
+    const response = await fetchWithTimeout(`${installer.stem}.apk`);
     assert.equal(response.status, 200, "Installer file is missing");
     assert.doesNotMatch(response.headers.get("content-type") || "", /text\/html/i);
     const bytes = Buffer.from(await response.arrayBuffer());

@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "versionCode": 13,
+  "applicationId": "com.getqueuedrop.printbridge.prod",
+  "bytes": 3663002,
+  "sha256": "7a3a1e1e4e3865117eb930de86ced6b9ee45aa0a38d91dc7dd4e7163451a1294",
+  "sourceRepository": "jamesanne26/queuedrop-mobile",
+  "sourceCommit": "a8260f1fbe874ce8334993604fc21d0d750c8497",
+  "sourceRun": "37926866350",
+  "certificateSha256": "7defc6860c5da9459c086555ad1d07fdd8b2922965effe4921801fa1d470f470",
+  "certificateMatchesPrevious": false,
+  "installMigrationRequired": true,
+  "testOnly": false,
+  "hardwarePrinterVerified": false
+}

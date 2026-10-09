@@ -14,7 +14,7 @@ test("Settings mobile installer button downloads the complete approved APK", asy
   const link = page.getByRole("link", { name: "Download Mobile Installer", exact: true });
   await expect(link).toBeVisible();
   const href = await link.getAttribute("href");
-  expect(href).toMatch(/^\/installers\/QueueDrop-(?:PrintBridge-v[\d.]+(?:-test)?|Recovery-TEST-v2\.0\.0)\.apk$/);
+  expect(href).toMatch(/^\/installers\/QueueDrop-(?:PrintBridge-PROD-v2\.0\.0|Recovery-TEST-v2\.0\.0)\.apk$/);
   const filename = href.split("/").at(-1);
   await expect(link).toHaveAttribute("download", filename);
   const isTest = new URL(testInfo.project.use.baseURL).hostname === "queuedrop-test.vercel.app";
@@ -23,10 +23,11 @@ test("Settings mobile installer button downloads the complete approved APK", asy
   const manifest = await manifestResponse.json();
   if (isTest) {
     expect(manifest.testOnly).toBe(true);
-    expect(manifest.applicationId).toMatch(/^com\.getqueuedrop\.printbridge\.(?:test|next)$/);
+    expect(manifest.applicationId).toBe("com.getqueuedrop.printbridge.next");
   } else {
     expect(manifest.testOnly).not.toBe(true);
-    expect(manifest.applicationId).toBe("com.getqueuedrop.printbridge");
+    expect(manifest.applicationId).toBe("com.getqueuedrop.printbridge.prod");
+    expect(manifest.installMigrationRequired).toBe(true);
   }
   const downloadPromise = page.waitForEvent("download");
   await link.click();
