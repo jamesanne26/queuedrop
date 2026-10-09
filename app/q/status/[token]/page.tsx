@@ -17,6 +17,7 @@ type TicketStatus = {
   status: "waiting"|"called"|"serving"|"completed"|"cancelled"|"no_show";
   position: number;
   sms_phone: string|null;
+  branch_phone: string|null;
   customer_refresh_seconds: number;
   business_name: string;
   branch_name: string;
@@ -80,6 +81,7 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
       </details> : null}
     </section>
     <section className="ticket-status-card customer-queue-list-card customer-queue-below"><div><p className="eyebrow">Current queue</p><h2>{ticket.service_name}</h2><p className="muted">Queue numbers only. Your queue number is highlighted.</p></div><div className="customer-queue-list"><div className="customer-queue-list-head"><span>Queue</span><span>Position</span></div>{(ticket.queue_list ?? []).map((item) => <div className={item.is_you ? "customer-queue-list-row customer-queue-list-row-you" : "customer-queue-list-row"} key={item.display_number}><div><strong>{item.display_number}</strong><small>{item.is_you ? "Your queue" : "Waiting"}</small></div><strong className="customer-queue-position">{item.position}</strong></div>)}</div></section>
+    {ticket.branch_phone ? <section className="ticket-status-card customer-platform-contact customer-branch-contact"><h2>Contact this branch</h2><p>For questions about this branch.</p><a className="button button-secondary" href={`tel:${ticket.branch_phone}`}>{ticket.branch_phone}</a></section> : null}
     {platformPhone ? <section className="ticket-status-card customer-platform-contact"><h2>Contact QueueDrop</h2><p>For questions about the QueueDrop platform.</p><a className="button button-secondary" href={`tel:${platformPhone}`}>{platformPhone}</a></section> : null}
     <p className="ticket-security-note"><Link href="/">QueueDrop</Link> private queue link. Keep it private.</p>
   </main>;

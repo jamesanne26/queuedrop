@@ -26,7 +26,7 @@ const LABELS: Record<string, string> = {
   no_show_minutes: "No-show grace period",
   timezone: "Branch timezone",
   is_active: "Queue active",
-  show_branch_contact: "Show branch contact",
+  show_branch_contact: "Show branch contact to customers",
 };
 
 function prettyField(name: string) {
