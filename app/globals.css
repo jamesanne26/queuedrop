@@ -7711,3 +7711,39 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
 @media (min-width:601px) and (max-width:1100px) {
   .settings-detail-tabs-v2.settings-detail-tabs-buttons { flex-wrap:wrap; overflow:visible; }
 }
+
+
+/* Public business contact and customer QR view */
+.homepage-contact-band {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.25rem clamp(1.25rem, 5vw, 5rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+.homepage-contact-band h2 { margin: 0 0 .5rem; font-size: clamp(1.4rem, 3vw, 2rem); letter-spacing: -.04em; }
+.homepage-contact-band p:not(.eyebrow) { margin: 0; color: var(--muted); }
+.homepage-contact-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; }
+.customer-qr-actions { padding: 0 38px 24px; }
+.customer-qr-trigger { width: 100%; min-height: 50px; }
+.customer-qr-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(10, 22, 15, .68); }
+.customer-qr-dialog { position: relative; display: flex; width: min(100%, 420px); flex-direction: column; align-items: center; gap: .85rem; padding: 2rem 1.5rem 1.5rem; border-radius: 22px; background: white; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,.3); }
+.customer-qr-dialog h2 { margin: 0; font-size: 1.5rem; }
+.customer-qr-dialog p { margin: 0; color: var(--muted); }
+.customer-qr-dialog .eyebrow { color: var(--brand); }
+.customer-qr-close { position: absolute; top: .5rem; right: .65rem; border: 0; background: transparent; color: var(--muted); font-size: 1.8rem; cursor: pointer; }
+.customer-qr-image { width: min(100%, 280px); aspect-ratio: 1; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: white; image-rendering: pixelated; }
+.customer-qr-dialog > .button { width: 100%; }
+.customer-qr-error { color: var(--danger) !important; }
+@media (max-width: 700px) {
+  .homepage-contact-band { margin: 0 1rem; padding: 1.4rem; align-items: stretch; flex-direction: column; }
+  .homepage-contact-actions { display: grid; grid-template-columns: 1fr; }
+  .customer-qr-actions { padding-left: 20px; padding-right: 20px; }
+  .customer-ticket-browserbar, .customer-ticket-hero > .ticket-live-row, .customer-ticket-hero > .notice, .customer-ticket-hero > .ticket-details, .customer-ticket-hero > .ticket-edit-panel, .customer-ticket-hero > .button-danger-outline, .customer-ticket-hero > .public-contact { margin-left: 20px; margin-right: 20px; }
+  .customer-position-block { padding: 20px; }
+}
