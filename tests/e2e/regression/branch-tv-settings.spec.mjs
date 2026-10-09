@@ -9,7 +9,7 @@ import {
   getOwnerBusiness,
 } from "../helpers/admin-db.mjs";
 import { createBranchFromUi, createServiceFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
-import { expectNoAppError } from "../helpers/ui.mjs";
+import { dismissDashboardResultModal, expectNoAppError } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
@@ -58,7 +58,7 @@ test("branch TV settings save service selection and render the selected layout",
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
     await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "branch-tv" && Boolean(url.searchParams.get("saved")), { timeout: 20_000 });
-    await expect(page.getByRole("status")).toContainText("TV settings saved.");
+    await dismissDashboardResultModal(page, "TV settings saved.");
 
     const { data: saved, error } = await admin.from("branch_tv_settings")
       .select("branch_id,service_count,service_ids")
