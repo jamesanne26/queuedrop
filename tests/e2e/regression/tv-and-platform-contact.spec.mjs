@@ -115,8 +115,11 @@ test.describe("TV display and public platform contact",()=>{
       await page.getByRole("button",{name:"Save public contact"}).click();
       await expect(page.locator(".notice.notice-success[role=status]")).toContainText("Public contact saved.");
       publicContext=await browser.newContext({viewport:{width:390,height:844}});
-      const customer=await publicContext.newPage();
       const origin=new URL(page.url()).origin;
+      const sales=await publicContext.newPage();
+      await sales.goto(origin+"/");
+      await expect(sales.getByRole("link",{name:/Contact QueueDrop/})).toHaveAttribute("href","tel:+639171234567");
+      const customer=await publicContext.newPage();
       await customer.goto(origin+"/q/status/"+session.session_token);
       await expect(customer.getByRole("heading",{name:"Contact QueueDrop"})).toBeVisible();
       await expect(customer.locator(".customer-platform-contact a")).toHaveAttribute("href","tel:+639171234567");
