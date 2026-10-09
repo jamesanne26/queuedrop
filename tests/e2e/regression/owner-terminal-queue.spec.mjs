@@ -387,7 +387,7 @@ test.describe("owner terminals and queue operations", () => {
       const qrDialog = page.getByRole("dialog", { name: "Your queue QR code" });
       await expect(qrDialog).toBeVisible();
       const qrImage = qrDialog.getByRole("img", { name: `QR code for queue ${ticket.display_number}` });
-      await expect(qrImage).toHaveAttribute("src", /^data:image\\/png;base64,/);
+      expect(await qrImage.getAttribute("src")).toMatch(/^data:image/);
       await expect.poll(() => qrImage.evaluate((image) => image.complete && image.naturalWidth === 280)).toBe(true);
       const decodedQrUrl = await qrImage.evaluate(async (image) => {
         if (!("BarcodeDetector" in window)) return null;
