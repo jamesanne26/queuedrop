@@ -121,14 +121,14 @@ test.describe("TV display and public platform contact",()=>{
       await branchContactToggle.check();
       await queueSettings.getByRole("button",{name:"Save branch settings"}).click();
       await page.getByRole("dialog").getByRole("button",{name:"Confirm save"}).click();
-      await expect.poll(()=>checked(f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).then(row=>row.show_branch_contact)).toBe(true);
+      await expect.poll(async()=>checked(await f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).show_branch_contact).toBe(true);
       await customer.reload();
       await expect(customer.getByRole("heading",{name:"Contact this branch"})).toBeVisible();
       await expect(customer.locator(".customer-branch-contact a")).toHaveAttribute("href","tel:09171234567");
       await branchContactToggle.uncheck();
       await queueSettings.getByRole("button",{name:"Save branch settings"}).click();
       await page.getByRole("dialog").getByRole("button",{name:"Confirm save"}).click();
-      await expect.poll(()=>checked(f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).then(row=>row.show_branch_contact)).toBe(false);
+      await expect.poll(async()=>checked(await f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).show_branch_contact).toBe(false);
       await customer.reload();
       await expect(customer.locator(".customer-branch-contact")).toHaveCount(0);
       checked(await f.admin.from("system_owners").upsert({user_id:f.owner.userId,is_active:true}));
