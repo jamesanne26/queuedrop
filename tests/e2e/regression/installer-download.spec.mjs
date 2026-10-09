@@ -14,16 +14,20 @@ test("Settings mobile installer button downloads the complete approved APK", asy
   const link = page.getByRole("link", { name: "Download Mobile Installer", exact: true });
   await expect(link).toBeVisible();
   const href = await link.getAttribute("href");
-  expect(href).toMatch(/^\/installers\/QueueDrop-PrintBridge-v[\d.]+(?:-test)?\.apk$/);
+  expect(href).toMatch(/^\/installers\/QueueDrop-(?:PrintBridge-v[\d.]+(?:-test)?|Recovery-TEST-v2\.0\.0)\.apk$/);
   const filename = href.split("/").at(-1);
   await expect(link).toHaveAttribute("download", filename);
-  if (new URL(testInfo.project.use.baseURL).hostname === "queuedrop-test.vercel.app") {
-    expect(filename, "TEST must offer the isolated TEST app").toMatch(/-test\.apk$/);
-  }
+  const isTest = new URL(testInfo.project.use.baseURL).hostname === "queuedrop-test.vercel.app";
   const manifestResponse = await request.get(href.replace(/\.apk$/, ".json"));
   expect(manifestResponse.status(), "Installer metadata must exist alongside the linked APK").toBe(200);
   const manifest = await manifestResponse.json();
-  expect(manifest.applicationId).toBe(filename.endsWith("-test.apk") ? "com.getqueuedrop.printbridge.test" : "com.getqueuedrop.printbridge");
+  if (isTest) {
+    expect(manifest.testOnly).toBe(true);
+    expect(manifest.applicationId).toMatch(/^com\.getqueuedrop\.printbridge\.(?:test|next)$/);
+  } else {
+    expect(manifest.testOnly).not.toBe(true);
+    expect(manifest.applicationId).toBe("com.getqueuedrop.printbridge");
+  }
   const downloadPromise = page.waitForEvent("download");
   await link.click();
   const download = await downloadPromise;
