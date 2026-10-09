@@ -57,7 +57,7 @@ test("system owner contact setting reaches homepage and customer queue page", as
     }, { timeout: 15_000 }).toBe(testOnlyContact);
 
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const homepageContact = page.getByRole("link", { name: new RegExp(`Contact QueueDrop.*${testOnlyContact.replace("+", "\\\\+")}`) });
+    const homepageContact = page.getByRole("link", { name: /Contact QueueDrop/ });
     await expect(homepageContact).toHaveAttribute("href", `tel:${testOnlyContact}`);
 
     await cleanupOwnedBranch(admin, owner.businessId, branchName);
@@ -84,18 +84,21 @@ test("system owner contact setting reaches homepage and customer queue page", as
     await expect(page.getByRole("link", { name: testOnlyContact, exact: true })).toHaveAttribute("href", `tel:${testOnlyContact}`);
     await expect(page.getByRole("button", { name: "View your queue QR code", exact: true })).toBeVisible();
   } finally {
-    if (contactSnapshotLoaded) {
-      if (previousContact) {
-        const { error } = await admin.from("platform_public_contact").upsert(
-          { id: true, phone: previousContact.phone },
-          { onConflict: "id" },
-        );
-        if (error) throw error;
-      } else {
-        const { error } = await admin.from("platform_public_contact").delete().eq("id", true);
-        if (error) throw error;
+    try {
+      if (contactSnapshotLoaded) {
+        if (previousContact) {
+          const { error } = await admin.from("platform_public_contact").upsert(
+            { id: true, phone: previousContact.phone },
+            { onConflict: "id" },
+          );
+          if (error) throw error;
+        } else {
+          const { error } = await admin.from("platform_public_contact").delete().eq("id", true);
+          if (error) throw error;
+        }
       }
+    } finally {
+      await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
-    await cleanupOwnedBranch(admin, owner.businessId, branchName);
   }
 });
