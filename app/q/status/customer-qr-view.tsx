@@ -2,6 +2,7 @@
 
 import QRCode from "qrcode";
 import { useState } from "react";
+import { customerStatusQrUrl } from "@/lib/queue/customer-status-qr";
 
 export function CustomerQueueQrView({ queueNumber }: { queueNumber: string }) {
   const [open, setOpen] = useState(false);
@@ -13,7 +14,7 @@ export function CustomerQueueQrView({ queueNumber }: { queueNumber: string }) {
     setImage(null);
     setFailed(false);
     try {
-      const privateQueueUrl = new URL(window.location.pathname, window.location.origin).toString();
+      const privateQueueUrl = customerStatusQrUrl(window.location.origin, window.location.pathname);
       setImage(await QRCode.toDataURL(privateQueueUrl, {
         errorCorrectionLevel: "M",
         margin: 2,
