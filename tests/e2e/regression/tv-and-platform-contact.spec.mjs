@@ -132,7 +132,9 @@ test.describe("TV display and public platform contact",()=>{
       await page.goto("/dashboard/settings?view=branch-operating&branch="+f.branch.id);
       const operatingSettings=page.locator('form.settings-detail-form-v2').first();
       await expect(operatingSettings.locator('input[name="show_branch_contact"]')).toHaveValue("on");
-      await operatingSettings.locator('input[name="day_1_close_time"]').fill("23:59");
+      const mondayCloseTime = operatingSettings.locator('input[name="day_1_close_time"]');
+      const currentCloseTime = await mondayCloseTime.inputValue();
+      await mondayCloseTime.fill(currentCloseTime === "23:59" ? "23:58" : "23:59");
       await operatingSettings.getByRole("button",{name:"Save branch settings"}).click();
       await page.getByRole("dialog").getByRole("button",{name:"Confirm save"}).click();
       await expect.poll(async()=>checked(await f.admin.from("queue_configurations").select("show_branch_contact").eq("branch_id",f.branch.id).single()).show_branch_contact).toBe(true);
