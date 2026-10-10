@@ -11,6 +11,6 @@
   "certificateMatchesPrevious": false,
   "testEndpoint": "https://queuedrop-test.vercel.app",
   "testOnly": true,
-  "hardwarePrinterVerified": false,
+  "hardwarePrinterVerified": true,
   "installMigrationRequired": true
 }
