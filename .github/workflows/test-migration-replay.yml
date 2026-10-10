@@ -8,6 +8,13 @@ on:
       - "supabase/tests/migration_replay_assertions.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
+  push:
+    branches: [test]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/test-migration-replay.yml"
 
 permissions:
   contents: read
