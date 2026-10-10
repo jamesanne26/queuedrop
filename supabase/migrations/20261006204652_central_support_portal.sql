@@ -143,3 +143,33 @@ end $$;
 revoke all on function public.support_call(text,text,jsonb) from public;
 grant execute on function public.support_call(text,text,jsonb) to anon,authenticated;
 notify pgrst,'reload schema';
+
+-- The notification outbox existed in the hosted Test schema but was missing
+-- from the tracked migration chain. Keep its schema in source so clean replay
+-- creates the same object before the owner-notification migration runs.
+CREATE TABLE IF NOT EXISTS support_private.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  report_id uuid NOT NULL,
+  event_key text NOT NULL,
+  recipient text NOT NULL,
+  body text NOT NULL,
+  state text NOT NULL DEFAULT 'pending',
+  attempts integer NOT NULL DEFAULT 0,
+  claim text,
+  lease_until timestamp with time zone,
+  next_attempt_at timestamp with time zone NOT NULL DEFAULT now(),
+  provider_id text,
+  last_error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  sent_at timestamp with time zone,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_event_key_key UNIQUE (event_key),
+  CONSTRAINT notifications_report_id_fkey FOREIGN KEY (report_id)
+    REFERENCES public.support_reports(id) ON DELETE CASCADE,
+  CONSTRAINT notifications_state_check
+    CHECK (state = ANY (ARRAY['pending','sending','sent','simulated','failed','unavailable']::text[]))
+);
+CREATE INDEX IF NOT EXISTS support_notification_pending
+  ON support_private.notifications USING btree (state, next_attempt_at);
+ALTER TABLE support_private.notifications ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE support_private.notifications FROM PUBLIC, anon, authenticated;
