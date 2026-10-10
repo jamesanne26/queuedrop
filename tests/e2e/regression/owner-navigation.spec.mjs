@@ -15,7 +15,8 @@ test.describe("owner dashboard navigation", () => {
   const destinations = [
     ["Queue", "/dashboard/queues", "h1"],
     ["History", "/dashboard/reports", "h1"],
-    // TV uses service names as h1 elements; a clean workspace can have no services yet.\n    ["TV Display", "/dashboard/tv", ".tv-queue-page"],
+    // TV uses service names as h1 elements; a clean workspace can have no services yet.
+    ["TV Display", "/dashboard/tv", ".tv-queue-page"],
     ["Settings", "/dashboard/settings", "h1"],
   ];
 
