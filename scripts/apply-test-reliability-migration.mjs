@@ -14,7 +14,7 @@ if (!["postgres:","postgresql:"].includes(database.protocol) ||
       (database.hostname.endsWith(".pooler.supabase.com") && decodeURIComponent(database.username) === `postgres.${project}`))) {
   throw new Error("Database URL does not match the dedicated TEST Supabase project. Migration refused.");
 }
-const sql = ["20261006050000_queue_reliability.sql", "20261006071000_printer_claim_fencing.sql",
+const sql = ["20261006055057_queue_reliability.sql", "20261006070929_printer_claim_fencing.sql",
   "20261007144253_tenant_boundary_hardening.sql", "20261007145134_browser_ticket_database_rate_limit.sql",
   "20261007150233_restrict_test_cleanup_rpc.sql",
   "20261007150525_enforce_queue_mutation_entrypoints.sql",

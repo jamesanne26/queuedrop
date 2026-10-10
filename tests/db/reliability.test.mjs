@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
-const migration = await readFile(new URL("../../supabase/migrations/20261006050000_queue_reliability.sql", import.meta.url), "utf8");
-const fencing = await readFile(new URL("../../supabase/migrations/20261006071000_printer_claim_fencing.sql", import.meta.url), "utf8");
+const migration = await readFile(new URL("../../supabase/migrations/20261006055057_queue_reliability.sql", import.meta.url), "utf8");
+const fencing = await readFile(new URL("../../supabase/migrations/20261006070929_printer_claim_fencing.sql", import.meta.url), "utf8");
 const device = "00000000-0000-4000-8000-000000000001";
 const branch = "00000000-0000-4000-8000-000000000002";
 const business = "00000000-0000-4000-8000-000000000003";
