@@ -7747,3 +7747,21 @@ select { padding-left: 12px !important; padding-right: 38px !important; }
   .customer-ticket-browserbar, .customer-ticket-hero > .ticket-live-row, .customer-ticket-hero > .notice, .customer-ticket-hero > .ticket-details, .customer-ticket-hero > .ticket-edit-panel, .customer-ticket-hero > .button-danger-outline, .customer-ticket-hero > .public-contact { margin-left: 20px; margin-right: 20px; }
   .customer-position-block { padding: 20px; }
 }
+
+/* Keep terminal setup controls within the available width on narrow screens. */
+.settings-terminal-create,
+.settings-terminal-create .form-stack,
+.settings-terminal-create .form-stack label,
+.settings-terminal-create .terminal-create-pin-fields,
+.settings-terminal-create .terminal-create-pin-fields label {
+  min-width: 0;
+  max-width: 100%;
+}
+.settings-terminal-create .form-stack input,
+.settings-terminal-create .form-stack select,
+.settings-terminal-create .form-stack button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
