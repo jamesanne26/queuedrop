@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 const url = process.env.QUEUEDROP_TEST_SUPABASE_URL;
 const serviceKey = process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.QUEUEDROP_TEST_SUPABASE_ANON_KEY;
-const forbiddenBusinessId = process.env.E2E_FORBIDDEN_BUSINESS_ID;
 const requireIntegration = process.env.QUEUEDROP_REQUIRE_INTEGRATION === "1";
 
 const adminMissing = [
@@ -15,7 +14,6 @@ const adminMissing = [
 const rlsMissing = [
   ["QUEUEDROP_TEST_SUPABASE_URL", url],
   ["QUEUEDROP_TEST_SUPABASE_ANON_KEY", anonKey],
-  ["E2E_FORBIDDEN_BUSINESS_ID", forbiddenBusinessId],
 ].filter(([, value]) => !value).map(([name]) => name);
 
 const adminEnabled = adminMissing.length === 0;
@@ -97,34 +95,68 @@ test("authenticated owner cannot read an explicitly foreign business", { skip: !
   const { createClient } = await import("@supabase/supabase-js");
   const admin = await adminClient();
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const email = `queuedrop-rls-${suffix}@example.com`;
+  const ownerEmail = `queuedrop-rls-owner-${suffix}@example.com`;
+  const foreignEmail = `queuedrop-rls-foreign-${suffix}@example.com`;
   const password = `Qd!${suffix}Aa9`;
-  let createdUserId = null;
-  let createdBusinessId = null;
-  const client = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  let ownerUserId = null;
+  let foreignUserId = null;
+  let ownerBusinessId = null;
+  let foreignBusinessId = null;
+  const ownerClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const foreignClient = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
   try {
-    const { data: createdAuth, error: createAuthError } = await admin.auth.admin.createUser({
-      email, password, email_confirm: true, user_metadata: { full_name: "QueueDrop RLS Test" },
+    const { data: ownerAuth, error: ownerCreateError } = await admin.auth.admin.createUser({
+      email: ownerEmail, password, email_confirm: true, user_metadata: { full_name: "QueueDrop RLS Owner Test" },
     });
-    assert.equal(createAuthError, null, createAuthError?.message);
-    createdUserId = createdAuth.user?.id ?? null;
-    assert.ok(createdUserId, "temporary RLS user was not created");
-    const { error: authError } = await client.auth.signInWithPassword({ email, password });
-    assert.equal(authError, null, authError?.message);
-    const { data: workspace, error: workspaceError } = await client.rpc("create_initial_business_workspace", {
-      business_name: `RLS Test ${suffix}`, branch_name: "RLS Branch", branch_address: null, branch_phone: null,
+    assert.equal(ownerCreateError, null, ownerCreateError?.message);
+    ownerUserId = ownerAuth.user?.id ?? null;
+    assert.ok(ownerUserId, "temporary RLS owner was not created");
+
+    const { error: ownerSignInError } = await ownerClient.auth.signInWithPassword({ email: ownerEmail, password });
+    assert.equal(ownerSignInError, null, ownerSignInError?.message);
+    const { data: ownerWorkspace, error: ownerWorkspaceError } = await ownerClient.rpc("create_initial_business_workspace", {
+      business_name: `RLS Owner ${suffix}`, branch_name: "Owner Branch", branch_address: null, branch_phone: null,
     });
-    assert.equal(workspaceError, null, workspaceError?.message);
-    const workspaceRow = Array.isArray(workspace) ? workspace[0] : workspace;
-    createdBusinessId = workspaceRow?.business_id ?? null;
-    assert.ok(createdBusinessId, "temporary owner workspace was not created");
-    const { data, error } = await client.from("businesses").select("id").eq("id", forbiddenBusinessId);
+    assert.equal(ownerWorkspaceError, null, ownerWorkspaceError?.message);
+    const ownerRow = Array.isArray(ownerWorkspace) ? ownerWorkspace[0] : ownerWorkspace;
+    ownerBusinessId = ownerRow?.business_id ?? null;
+    assert.ok(ownerBusinessId, "temporary owner workspace was not created");
+
+    const { data: foreignAuth, error: foreignCreateError } = await admin.auth.admin.createUser({
+      email: foreignEmail, password, email_confirm: true, user_metadata: { full_name: "QueueDrop Foreign Tenant Test" },
+    });
+    assert.equal(foreignCreateError, null, foreignCreateError?.message);
+    foreignUserId = foreignAuth.user?.id ?? null;
+    assert.ok(foreignUserId, "temporary foreign user was not created");
+
+    const { error: foreignSignInError } = await foreignClient.auth.signInWithPassword({ email: foreignEmail, password });
+    assert.equal(foreignSignInError, null, foreignSignInError?.message);
+    const { data: foreignWorkspace, error: foreignWorkspaceError } = await foreignClient.rpc("create_initial_business_workspace", {
+      business_name: `RLS Foreign ${suffix}`, branch_name: "Foreign Branch", branch_address: null, branch_phone: null,
+    });
+    assert.equal(foreignWorkspaceError, null, foreignWorkspaceError?.message);
+    const foreignRow = Array.isArray(foreignWorkspace) ? foreignWorkspace[0] : foreignWorkspace;
+    foreignBusinessId = foreignRow?.business_id ?? null;
+    assert.ok(foreignBusinessId, "temporary foreign workspace was not created");
+
+    const { data: existingForeign, error: existenceError } = await admin
+      .from("businesses")
+      .select("id")
+      .eq("id", foreignBusinessId)
+      .maybeSingle();
+    assert.equal(existenceError, null, existenceError?.message);
+    assert.equal(existingForeign?.id, foreignBusinessId, "foreign test business must exist before testing RLS");
+
+    const { data, error } = await ownerClient.from("businesses").select("id").eq("id", foreignBusinessId);
     assert.equal(error, null, error?.message);
-    assert.deepEqual(data, []);
+    assert.deepEqual(data, [], "an authenticated owner must not read another tenant's business");
   } finally {
-    await client.auth.signOut();
-    if (createdBusinessId) await admin.from("businesses").delete().eq("id", createdBusinessId);
-    if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
+    await Promise.all([ownerClient.auth.signOut(), foreignClient.auth.signOut()]);
+    if (ownerBusinessId) await admin.from("businesses").delete().eq("id", ownerBusinessId);
+    if (foreignBusinessId) await admin.from("businesses").delete().eq("id", foreignBusinessId);
+    if (ownerUserId) await admin.auth.admin.deleteUser(ownerUserId);
+    if (foreignUserId) await admin.auth.admin.deleteUser(foreignUserId);
   }
 });
 
