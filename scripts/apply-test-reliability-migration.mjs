@@ -18,6 +18,7 @@ const sql = ["20261006055057_queue_reliability.sql", "20261006070929_printer_cla
   "20261007144253_tenant_boundary_hardening.sql", "20261007145134_browser_ticket_database_rate_limit.sql",
   "20261007150233_restrict_test_cleanup_rpc.sql",
   "20261007150525_enforce_queue_mutation_entrypoints.sql",
+  "20261010193000_restore_clean_rebuild_permission_catalog.sql",
 ].map(name => readFileSync(`supabase/migrations/${name}`, "utf8")).join("\n");
 // Keep credentials out of command-line arguments and error output.
 const result = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "--single-transaction"], {
@@ -30,7 +31,7 @@ if (result.status !== 0) {
   console.error("TEST migration failed; transaction rolled back. Check database access and migration compatibility.");
   process.exit(1);
 }
-console.log("TEST reliability and tenant security migrations committed successfully.");
+console.log("TEST reliability, tenant security, and clean-rebuild role catalog migrations committed successfully.");
 const isolation = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1"], {
   env: { ...process.env, PGHOST: database.hostname, PGPORT: database.port || "5432",
     PGUSER: decodeURIComponent(database.username), PGPASSWORD: decodeURIComponent(database.password),

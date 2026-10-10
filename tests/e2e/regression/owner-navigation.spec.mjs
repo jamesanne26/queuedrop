@@ -13,15 +13,16 @@ test.describe("owner dashboard navigation", () => {
   });
 
   const destinations = [
-    ["Queue", "/dashboard/queues"],
-    ["History", "/dashboard/reports"],
-    ["TV Display", "/dashboard/tv"],
-    ["Settings", "/dashboard/settings"],
+    ["Queue", "/dashboard/queues", "h1"],
+    ["History", "/dashboard/reports", "h1"],
+    // TV uses service names as h1 elements; a clean workspace can have no services yet.
+    ["TV Display", "/dashboard/tv", ".tv-queue-page"],
+    ["Settings", "/dashboard/settings", "h1"],
   ];
 
-  for (const [label, path] of destinations) {
+  for (const [label, path, loadedSelector] of destinations) {
     test(`owner can open ${label}`, async ({ page }) => {
-      await openDashboardDestination(page, label, path);
+      await openDashboardDestination(page, label, path, loadedSelector);
     });
   }
 

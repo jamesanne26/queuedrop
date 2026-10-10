@@ -5,8 +5,8 @@ BEGIN
   SELECT count(*) INTO migration_count
   FROM supabase_migrations.schema_migrations;
 
-  IF migration_count <> 98 THEN
-    RAISE EXCEPTION 'Expected 98 migrations, found %', migration_count;
+  IF migration_count <> 99 THEN
+    RAISE EXCEPTION 'Expected 99 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
