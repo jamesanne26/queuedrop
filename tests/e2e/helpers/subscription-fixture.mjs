@@ -20,6 +20,27 @@ export async function ensureE2ESubscriptionAccess(admin, owner, testUrl, now = D
     throw new Error("E2E subscription has an unexpected billing state; fixture setup will not override it.");
   }
 
+  // The dedicated E2E owner is used for branch lifecycle scenarios. Restore a
+  // temporary branch-capacity override so the default one-branch Starter plan
+  // does not block those scenarios. This is guarded to the dedicated TEST
+  // Supabase project above and expires automatically.
+  const { data: capacity, error: capacityError } = await admin.from("business_subscriptions")
+    .select("custom_max_branches,override_expires_at").eq("id", subscription.id)
+    .eq("business_id", owner.businessId).maybeSingle();
+  if (capacityError) throw capacityError;
+  const capacityExpiresAt = capacity?.override_expires_at ? Date.parse(capacity.override_expires_at) : Infinity;
+  if ((capacity?.custom_max_branches ?? 0) < 20 || capacityExpiresAt < now + 60 * 60 * 1000) {
+    const { data: capacityUpdated, error: capacityUpdateError } = await admin.from("business_subscriptions")
+      .update({
+        custom_max_branches: 20,
+        override_reason: "Automated TEST E2E branch lifecycle capacity",
+        override_expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+      })
+      .eq("id", subscription.id).eq("business_id", owner.businessId).select("id").maybeSingle();
+    if (capacityUpdateError) throw capacityUpdateError;
+    if (!capacityUpdated) throw new Error("TEST E2E branch capacity fixture update affected no row.");
+  }
+
   const expiry = subscription.expires_at ? Date.parse(subscription.expires_at) : Infinity;
   if (subscription.status === "expired" || expiry < now + 60 * 60 * 1000) {
     const { data: updated, error: updateError } = await admin.from("business_subscriptions")
