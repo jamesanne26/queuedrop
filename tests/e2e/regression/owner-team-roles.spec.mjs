@@ -25,8 +25,15 @@ test.describe("owner team and role management", () => {
   test("Users and Roles navigation never renders unloaded empty data", async ({ page }) => {
     await loginAsOwner(page, credentials);
     await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /Users & Access/ }).click();
-    await page.getByRole("button", { name: "Users", exact: true }).click();
+    const accessGroup = page.locator('[data-settings-group="access"]');
+    await expect(accessGroup).toBeVisible();
+    if ((await accessGroup.getAttribute("aria-expanded")) !== "true") {
+      await accessGroup.click();
+    }
+
+    const usersTarget = page.locator('[data-settings-target="users"]');
+    await expect(usersTarget).toBeVisible();
+    await usersTarget.click();
     await expect(page).toHaveURL(/view=users/, { timeout: 20_000 });
     await expect(page.getByText("No users here yet.", { exact: true })).toHaveCount(0);
     await expect(page.locator("article.team-user-row").first()).toBeVisible({ timeout: 20_000 });

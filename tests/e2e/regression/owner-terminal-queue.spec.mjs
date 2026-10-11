@@ -381,6 +381,30 @@ test.describe("owner terminals and queue operations", () => {
       await expect(page.locator("body")).toContainText(setup.serviceName);
       await expect(page.locator("body")).toContainText(setup.branchName);
 
+      const viewQrButton = page.getByRole("button", { name: "View your queue QR code", exact: true });
+      await expect(viewQrButton).toBeVisible();
+      await viewQrButton.click();
+      const qrDialog = page.getByRole("dialog", { name: "Your queue QR code" });
+      await expect(qrDialog).toBeVisible();
+      const qrImage = qrDialog.getByRole("img", { name: `QR code for queue ${ticket.display_number}` });
+      expect(await qrImage.getAttribute("src")).toMatch(/^data:image/);
+      await expect.poll(() => qrImage.evaluate((image) => image.complete && image.naturalWidth === 280)).toBe(true);
+      const decodedQrUrl = await qrImage.evaluate(async (image) => {
+        if (!("BarcodeDetector" in window)) return null;
+        try {
+          const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+          return (await detector.detect(image))[0]?.rawValue ?? null;
+        } catch {
+          return null;
+        }
+      });
+      if (decodedQrUrl) {
+        const statusUrl = new URL(page.url());
+        expect(decodedQrUrl).toBe(`${statusUrl.origin}${statusUrl.pathname}`);
+      }
+      await qrDialog.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(qrDialog).toBeHidden();
+
       // Guard the QR/customer page at representative phone, tablet, and desktop widths.
       for (const viewport of responsiveViewports) {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });

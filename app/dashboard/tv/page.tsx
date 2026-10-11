@@ -1,5 +1,7 @@
+import { fetchAllPages } from "@/lib/queue/reliability";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { displayedTvServices } from "@/lib/tv/config";
 import { TvQueueDisplay } from "./tv-queue-display";
 
 type Props = { searchParams: Promise<{ branch?: string }> };
@@ -49,24 +51,36 @@ export default async function TvQueuePage({ searchParams }: Props) {
   if (!selectedBranch) redirect("/dashboard");
 
   const today = branchDate(selectedBranch.timezone);
-  const { data: tickets } = await supabase.from("tickets")
-    .select("id,branch_id,display_number,status,joined_at,called_at,serving_at,queue_sessions!inner(session_date,status)")
-    .eq("branch_id", selectedBranch.id)
-    .eq("queue_sessions.session_date", today)
-    .eq("queue_sessions.status", "open")
-    .in("status", ["waiting", "called", "serving"])
-    .order("joined_at", { ascending: true })
-    .limit(250);
+  const [serviceResult, settingsResult, sessionResult] = await Promise.all([
+    supabase.from("services").select("id,name,is_active").eq("branch_id", selectedBranch.id).order("created_at"),
+    supabase.from("branch_tv_settings").select("service_count,service_ids").eq("branch_id", selectedBranch.id).maybeSingle(),
+    supabase.from("queue_sessions").select("id").eq("branch_id", selectedBranch.id).eq("session_date", today).eq("status", "open"),
+  ]);
+  const services = displayedTvServices(serviceResult.data ?? [], settingsResult.data);
+  const sessionIds = (sessionResult.data ?? []).map(session => session.id);
+  const ticketResults = await Promise.all(services.map(service => sessionIds.length ? fetchAllPages((from, to) => supabase.from("tickets")
+    .select("id,branch_id,service_id,queue_session_id,display_number,status,joined_at,called_at,serving_at")
+    .eq("branch_id", selectedBranch.id).eq("service_id", service.id).in("queue_session_id", sessionIds)
+    .in("status", ["waiting", "called", "serving"]).order("joined_at", { ascending: true }).order("id").range(from, to))
+      .then(data => ({data, error: null}))
+      .catch(() => ({data: [], error: { message: "Unable to load service queue" }}))
+    : Promise.resolve({ data: [], error: null })));
+  const tickets = ticketResults.flatMap(result => result.data ?? []);
+  const loadError = Boolean(serviceResult.error || settingsResult.error || sessionResult.error || ticketResults.some(result => result.error));
 
   return (
     <div className="dashboard-content tv-dashboard-content">
       <TvQueueDisplay
-        key={`${selectedBranch.id}:${(tickets ?? []).map((ticket) => `${ticket.id}:${ticket.status}:${ticket.called_at ?? ""}:${ticket.serving_at ?? ""}`).join("|")}`}
         branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
         selectedBranchId={selectedBranch.id}
+        services={services}
+        sessionIds={sessionIds}
+        loadError={loadError}
         initialTickets={(tickets ?? []).map((ticket) => ({
           id: ticket.id,
           branch_id: ticket.branch_id,
+          service_id: ticket.service_id,
+          queue_session_id: ticket.queue_session_id,
           display_number: ticket.display_number,
           status: ticket.status as "waiting" | "called" | "serving",
           joined_at: ticket.joined_at,

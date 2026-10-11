@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSystemOwner } from "@/lib/auth/system-owner";
+import { resolveClientTrialAccess } from "@/lib/billing/subscription";
 
 function text(formData: FormData, key: string) { return String(formData.get(key) ?? "").trim(); }
 function num(raw: string, integer = false) {
@@ -33,11 +34,16 @@ export async function saveClientOverrides(formData: FormData) {
     const { data: plan, error: planError } = await admin.from("plans").select("id,price_monthly,currency").eq("id", planId).maybeSingle();
     if (planError || !plan) throw planError ?? new Error("Plan not found.");
 
-    const { data: existing } = await admin.from("business_subscriptions").select("id,plan_id,billing_price_monthly").eq("business_id", businessId).maybeSingle();
+    const { data: existing } = await admin.from("business_subscriptions")
+      .select("id,plan_id,billing_price_monthly,status,started_at,expires_at")
+      .eq("business_id", businessId).maybeSingle();
+    const access = resolveClientTrialAccess(customTrial, existing, new Date());
     const payload = {
       business_id: businessId,
       plan_id: planId,
-      status: "active",
+      status: access.status,
+      started_at: access.startedAt,
+      expires_at: access.expiresAt,
       billing_price_monthly: existing?.plan_id === planId && existing.billing_price_monthly !== null ? existing.billing_price_monthly : plan.price_monthly,
       billing_currency: plan.currency,
       custom_monthly_price: customPrice,

@@ -48,3 +48,35 @@ export function parseBillingInterval(value: FormDataEntryValue | string | null |
 export function parseRenewalMode(value: FormDataEntryValue | string | null | undefined): RenewalMode {
   return String(value ?? "manual").toLowerCase() === "auto" ? "auto" : "manual";
 }
+
+
+export type ExistingSubscriptionAccess = {
+  status?: string | null;
+  started_at?: string | null;
+  expires_at?: string | null;
+} | null | undefined;
+
+export function resolveClientTrialAccess(
+  customTrialDays: number | null,
+  existing: ExistingSubscriptionAccess,
+  now: Date,
+) {
+  if (customTrialDays !== null) {
+    if (!Number.isInteger(customTrialDays) || customTrialDays < 0) {
+      throw new Error("Trial days must be a non-negative whole number.");
+    }
+    const startedAt = now.toISOString();
+    const expiresAt = new Date(now.getTime() + customTrialDays * 86_400_000).toISOString();
+    return {
+      status: customTrialDays > 0 ? "trialing" : "expired",
+      startedAt,
+      expiresAt,
+    } as const;
+  }
+
+  return {
+    status: existing?.status ?? "active",
+    startedAt: existing?.started_at ?? now.toISOString(),
+    expiresAt: existing?.expires_at ?? null,
+  } as const;
+}

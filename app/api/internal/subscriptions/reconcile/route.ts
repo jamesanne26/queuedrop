@@ -28,10 +28,11 @@ export async function GET(request: NextRequest) {
       if (result.error) throw new Error("Support delivery operation failed");
       return result.data;
     }, { dryRun: !production || process.env.SUPPORT_NOTIFICATION_DRY_RUN === "true", apiKey: process.env.RESEND_API_KEY,
-      from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.QUEUEDROP_SUPPORT_EMAIL, appUrl: production ? "https://getqueuedrop.com" : "https://queuedrop-test.vercel.app", batchLimit: 10 });
+      from: process.env.SUPPORT_NOTIFICATION_FROM, replyTo: process.env.SUPPORT_NOTIFICATION_REPLY_TO || "jamesrae.rosario18@gmail.com", appUrl: production ? "https://getqueuedrop.com" : "https://queuedrop-test.vercel.app", batchLimit: 10 });
   } catch {
     supportDelivery = { state: "retry_pending" };
     console.error(JSON.stringify({ event: "support_delivery_retry_pending" }));
   }
   return NextResponse.json({ ok: true, reconciled: Number(data ?? 0), supportDelivery }, { headers: { "Cache-Control": "no-store" } });
 }
+

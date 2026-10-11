@@ -101,10 +101,10 @@ test.describe("owner settings and reports", () => {
     }
   });
 
-  test("Scenario 12 - completed queue record appears in filtered reports and CSV export", async ({ page }) => {
+  test("Scenario 12 - completed queue record appears in filtered reports and every export format", async ({ page }) => {
     // Queue lifecycle + reports render + export is a multi-action integration flow.
     // Give it the same realistic budget as the dedicated queue happy-path test.
-    test.setTimeout(90_000);
+    test.setTimeout(120_000);
     const id = scenarioId("reports");
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
@@ -149,8 +149,66 @@ test.describe("owner settings and reports", () => {
       expect(csv).toContain(ticket.display_number);
       expect(csv).toContain(data.branchName);
       expect(csv).toContain(data.serviceName);
+      for (const [format, contentType] of [["txt", "text/plain"], ["pdf", "application/pdf"], ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]]) {
+        const exported = await page.request.get(`/api/reports/export?${query.toString()}&format=${format}`);
+        expect(exported.status(), `${format} export must succeed`).toBe(200);
+        expect(exported.headers()["content-type"]).toContain(contentType);
+        expect(exported.headers()["content-disposition"]).toContain(`.${format}`);
+        const bytes = await exported.body();
+        expect(bytes.length).toBeGreaterThan(100);
+        if (format === "pdf") {
+          expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+          expect(bytes.toString()).toContain("%%EOF");
+        } else if (format === "docx" || format === "xlsx") {
+          expect(bytes.subarray(0, 4).toString("hex")).toBe("504b0304");
+          expect(bytes.toString()).toContain(format === "docx" ? "word/document.xml" : "xl/worksheets/sheet1.xml");
+        }
+        expect(bytes.toString(), `${format} must include the filtered completed ticket`).toContain(ticket.display_number);
+      }
+    } finally {
+      if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
+    }
+  });
+  test("unfinished history filter and summary/service exports preserve the selected records", async ({ page }) => {
+    test.setTimeout(90_000);
+    const admin = createAdminClient();
+    const owner = await getOwnerBusiness(admin, credentials.email);
+    let branchName = "";
+    try {
+      const data = await setupReportWorkspace(page, admin, owner, scenarioId("unfinished-report"));
+      branchName = data.branchName;
+      const today = new Date().toISOString().slice(0, 10);
+      const session = await admin.from("queue_sessions").upsert({ branch_id: data.branch.id, session_date: today, status: "closed" }, { onConflict: "branch_id,session_date" }).select("id").single();
+      expect(session.error).toBeNull();
+      const inserted = await admin.from("tickets").insert([
+        { queue_session_id: session.data.id, branch_id: data.branch.id, service_id: data.service.id, ticket_number: 1001, display_number: "OPEN-END1001", status: "not_completed" },
+        { queue_session_id: session.data.id, branch_id: data.branch.id, service_id: data.service.id, ticket_number: 1002, display_number: "DONE-END1002", status: "completed", completed_at: new Date().toISOString() },
+      ]);
+      expect(inserted.error).toBeNull();
+      const query = new URLSearchParams({ from: today, to: today, branch: data.branch.id, service: data.service.id, status: "not_completed", report: "history" });
+      await page.goto(`/dashboard/reports?${query}`);
+      await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("not_completed");
+      await expect(page.locator(".reports-history-card")).toContainText("OPEN-END1001");
+      await expect(page.locator(".reports-history-card")).not.toContainText("DONE-END1002");
+      const history = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(history.status()).toBe(200);
+      const csv = await history.text();
+      expect(csv).toContain("OPEN-END1001");
+      expect(csv).not.toContain("DONE-END1002");
+      query.set("status", "all");
+      query.set("report", "summary");
+      const summary = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(summary.status()).toBe(200);
+      const counts = await summary.text();
+      expect(counts).toContain('"Not Completed","1"');
+      expect(counts).toContain('"Completed","1"');
+      query.set("report", "service");
+      const performance = await page.request.get(`/api/reports/export?${query}&format=csv`);
+      expect(performance.status()).toBe(200);
+      expect(await performance.text()).toContain(`"${data.serviceName}","2","1","0","0","50%"`);
     } finally {
       if (branchName) await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
   });
 });
+

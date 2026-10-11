@@ -92,7 +92,9 @@ export async function startSubscriptionCheckout(formData: FormData) {
     redirect("/client/subscription?error=This%20billing%20option%20does%20not%20have%20a%20valid%20price.");
   }
 
-  const { data: order, error: orderError } = await supabase
+  // The authenticated owner and server-calculated price above authorize this write.
+  // Clients cannot insert arbitrary prices or payment states through the REST API.
+  const { data: order, error: orderError } = await admin
     .from("subscription_orders")
     .insert({
       business_id: membership.business_id,

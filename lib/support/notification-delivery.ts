@@ -1,3 +1,4 @@
+export const SUPPORT_NOTIFICATION_RECIPIENT = "jamesrae.rosario18@gmail.com";
 type Notification = { id: string; recipient: string; body: string; claim: string };
 type Rpc = (action: string, data?: Record<string, unknown>) => Promise<unknown>;
 type Options = { dryRun: boolean; apiKey?: string; from?: string; replyTo?: string; appUrl: string; send?: typeof fetch; batchLimit?: number; reportId?: string };
@@ -15,6 +16,12 @@ export async function dispatchNotifications(rpc: Rpc, options: Options) {
     const job = await rpc("notification_claim", options.reportId ? { report_id: options.reportId } : {}) as Partial<Notification>;
     if (!job.id) break;
     if (!job.recipient || !job.claim || !job.body) throw new Error("Invalid notification record");
+    // Never send a legacy reporter notification, including during retries.
+    if (job.recipient !== SUPPORT_NOTIFICATION_RECIPIENT) {
+      await rpc("notification_complete", { id: job.id, claim: job.claim, state: "failed", error: "Client support emails are disabled. Recipient rejected." });
+      failed++;
+      continue;
+    }
     if (options.dryRun) {
       await rpc("notification_complete", { id: job.id, claim: job.claim, state: "simulated", provider_id: "test-dry-run" });
       simulated++;
@@ -23,8 +30,8 @@ export async function dispatchNotifications(rpc: Rpc, options: Options) {
     try {
       const response = await (options.send || fetch)("https://api.resend.com/emails", {
         method: "POST",
-        headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `support-resolution/${job.id}` },
-        body: JSON.stringify({ from: options.from, ...(options.replyTo ? {reply_to: options.replyTo} : {}), to: [job.recipient], subject: "QueueDrop support: your report is resolved", text: `${job.body}\n\nOpen Support from your dashboard to view details or reopen your report:\n${app.origin}/dashboard` }),
+        headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `support-owner/${job.id}` },
+        body: JSON.stringify({ from: options.from, ...(options.replyTo ? {reply_to: options.replyTo} : {}), to: [SUPPORT_NOTIFICATION_RECIPIENT], subject: "QueueDrop support: new issue reported", text: `${job.body}\n\nOpen Support from your dashboard to investigate this report:\n${app.origin}/dashboard` }),
         signal: AbortSignal.timeout(10000),
       });
       const result = await response.json() as { id?: string };
@@ -38,3 +45,4 @@ export async function dispatchNotifications(rpc: Rpc, options: Options) {
   }
   return { sent, simulated, failed };
 }
+

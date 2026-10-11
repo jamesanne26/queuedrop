@@ -13,15 +13,16 @@ test.describe("owner dashboard navigation", () => {
   });
 
   const destinations = [
-    ["Queue", "/dashboard/queues"],
-    ["History", "/dashboard/reports"],
-    ["TV Display", "/dashboard/tv"],
-    ["Settings", "/dashboard/settings"],
+    ["Queue", "/dashboard/queues", "h1"],
+    ["History", "/dashboard/reports", "h1"],
+    // TV uses service names as h1 elements; a clean workspace can have no services yet.
+    ["TV Display", "/dashboard/tv", ".tv-queue-page"],
+    ["Settings", "/dashboard/settings", "h1"],
   ];
 
-  for (const [label, path] of destinations) {
+  for (const [label, path, loadedSelector] of destinations) {
     test(`owner can open ${label}`, async ({ page }) => {
-      await openDashboardDestination(page, label, path);
+      await openDashboardDestination(page, label, path, loadedSelector);
     });
   }
 
@@ -29,6 +30,7 @@ test.describe("owner dashboard navigation", () => {
     ["General", "branch-general"],
     ["Branch Services", "branch-services"],
     ["Branch Users", "branch-users"],
+    ["TV Display settings", "branch-tv"],
     ["Operating Hours", "branch-operating"],
     ["Queue Settings", "branch-queue"],
     ["Notifications", "branch-notifications"],
@@ -96,4 +98,26 @@ test.describe("owner dashboard navigation", () => {
     await signOut(page);
     await expect(page.getByRole("link", { name: "QueueDrop" }).first()).toBeVisible();
   });
+
+  for (const [field, invalid, error] of [
+    ["Full name", "X", "Full name must be between 2 and 100 characters."],
+    ["Mobile number", "123", "Mobile number must contain numbers only."],
+  ]) {
+    test(`account rejects invalid ${field} without persisting a profile change`, async ({ page }) => {
+      await page.goto("/dashboard/account");
+      const name = page.getByRole("textbox", { name: "Full name", exact: true });
+      const phone = page.getByRole("textbox", { name: "Mobile number", exact: true });
+      const before = { name: await name.inputValue(), phone: await phone.inputValue() };
+      await page.getByRole("textbox", { name: field, exact: true }).fill(invalid);
+      // Exercise server validation even when native minlength would stop submission.
+      // This changes only the disposable Test browser form, never application settings.
+      await page.getByRole("button", { name: "Save account & password", exact: true }).evaluate((button) => { button.form.noValidate = true; });
+      await page.getByRole("button", { name: "Save account & password", exact: true }).click();
+      await expect(page.getByText(error, { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(name).toHaveValue(before.name);
+      await expect(phone).toHaveValue(before.phone);
+    });
+  }
 });
+

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { normalizePlatformContact } from "@/lib/platform/contact";
 
 const features = [
   ["No app required", "Customers tap GET STUB, then scan only if they want live status."],
@@ -6,7 +8,16 @@ const features = [
   ["Real-time operations", "Staff can call, serve, complete, cancel, and mark no-shows from one live workspace."],
 ];
 
-export default function Home() {
+export default async function Home() {
+  let platformPhone: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.from("platform_public_contact").select("phone").eq("id", true).maybeSingle();
+    platformPhone = normalizePlatformContact(data?.phone ?? "");
+  } catch {
+    // Keep the public homepage available if contact settings are temporarily unavailable.
+  }
+
   return (
     <main>
       <section className="hero">
@@ -47,6 +58,18 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="homepage-contact-band" aria-labelledby="homepage-contact-heading">
+        <div>
+          <p className="eyebrow">For business owners</p>
+          <h2 id="homepage-contact-heading">Want QueueDrop for your business?</h2>
+          <p>Talk with the QueueDrop team about setting up digital queues for your branch.</p>
+        </div>
+        <div className="homepage-contact-actions">
+          {platformPhone ? <a className="button button-primary" href={`tel:${platformPhone}`}>Contact QueueDrop · {platformPhone}</a> : null}
+          <Link href="/pricing" className="button button-secondary">View plans</Link>
         </div>
       </section>
 

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { normalizePlatformContact } from "@/lib/platform/contact";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LiveStatus } from "./live-status";
+import { CustomerQueueQrView } from "../customer-qr-view";
 import { updateSmsNumber } from "./actions";
 import { DigitsOnlyInput } from "@/app/_components/digits-only-input";
 import { StickyPositionIndicator } from "./sticky-position-indicator";
@@ -15,6 +17,7 @@ type TicketStatus = {
   status: "waiting"|"called"|"serving"|"completed"|"cancelled"|"no_show";
   position: number;
   sms_phone: string|null;
+  branch_phone: string|null;
   customer_refresh_seconds: number;
   business_name: string;
   branch_name: string;
@@ -45,7 +48,11 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
   const { token } = await params;
   const notices = await searchParams;
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_stub_ticket_status", { target_session_token: token });
+  const [{ data, error }, contactResult] = await Promise.all([
+    supabase.rpc("get_stub_ticket_status", { target_session_token: token }),
+    supabase.from("platform_public_contact").select("phone").eq("id", true).maybeSingle(),
+  ]);
+  const platformPhone = normalizePlatformContact(contactResult.data?.phone ?? "");
   if (error || !data) notFound();
   const ticket = data as TicketStatus;
   const active = ["waiting", "called"].includes(ticket.status);
@@ -68,11 +75,14 @@ export default async function TicketStatusPage({ params, searchParams }: Props) 
         <div><dt>SMS alerts</dt><dd>{ticket.sms_phone ? "Enabled" : "Not enabled"}</dd></div>
         <div><dt>Branch</dt><dd>{ticket.branch_name}</dd></div>
       </dl>
+      <div className="customer-qr-actions"><CustomerQueueQrView queueNumber={ticket.display_number} /></div>
       {active ? <details className="ticket-edit-panel" open={!ticket.sms_phone}><summary>{ticket.sms_phone ? "SMS notification number" : "Notify me by SMS"}</summary>
         <form action={updateSmsNumber} className="form-stack compact-form"><input type="hidden" name="token" value={token}/><div className="customer-sms-phone-row"><label>Country code<select name="country_dial_code" defaultValue={smsInput.country.dialCode}>{SMS_COUNTRIES.map((country) => <option key={country.code} value={country.dialCode}>{country.flag} +{country.dialCode}</option>)}</select></label><label>Mobile number<DigitsOnlyInput name="phone" required maxLength={15} defaultValue={smsInput.local} placeholder={smsInput.country.code === "PH" ? "9171234567" : "Mobile number"}/></label></div><p className="muted">Optional. QueueDrop stores the number with its country code and uses it only for queue-position SMS alerts for this stub.</p><button className="button button-secondary" type="submit">{ticket.sms_phone ? "Update SMS number" : "Enable SMS alerts"}</button></form>
       </details> : null}
     </section>
     <section className="ticket-status-card customer-queue-list-card customer-queue-below"><div><p className="eyebrow">Current queue</p><h2>{ticket.service_name}</h2><p className="muted">Queue numbers only. Your queue number is highlighted.</p></div><div className="customer-queue-list"><div className="customer-queue-list-head"><span>Queue</span><span>Position</span></div>{(ticket.queue_list ?? []).map((item) => <div className={item.is_you ? "customer-queue-list-row customer-queue-list-row-you" : "customer-queue-list-row"} key={item.display_number}><div><strong>{item.display_number}</strong><small>{item.is_you ? "Your queue" : "Waiting"}</small></div><strong className="customer-queue-position">{item.position}</strong></div>)}</div></section>
+    {ticket.branch_phone ? <section className="ticket-status-card customer-platform-contact customer-branch-contact"><h2>Contact this branch</h2><p>For questions about this branch.</p><a className="button button-secondary" href={`tel:${ticket.branch_phone}`}>{ticket.branch_phone}</a></section> : null}
+    {platformPhone ? <section className="ticket-status-card customer-platform-contact"><h2>Contact QueueDrop</h2><p>For questions about the QueueDrop platform.</p><a className="button button-secondary" href={`tel:${platformPhone}`}>{platformPhone}</a></section> : null}
     <p className="ticket-security-note"><Link href="/">QueueDrop</Link> private queue link. Keep it private.</p>
   </main>;
 }

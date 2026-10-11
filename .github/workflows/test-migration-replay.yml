@@ -1,0 +1,48 @@
+name: Test migration replay
+
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/test-migration-replay.yml"
+  push:
+    branches: [test]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/config.toml"
+      - ".github/workflows/test-migration-replay.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Start isolated local Supabase
+        run: npx --yes supabase@2.120.0 start
+
+      - name: Rebuild database from migrations
+        run: npx --yes supabase@2.120.0 db reset --local --no-seed
+
+      - name: Assert schema and migration history
+        run: |
+          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
+          test -n "$db_container"
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/migration_replay_assertions.sql
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.120.0 stop --no-backup

@@ -18,11 +18,11 @@ export async function dismissDashboardResultModal(page, expectedMessage) {
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 }
 
-export async function openDashboardDestination(page, label, path) {
+export async function openDashboardDestination(page, label, path, loadedSelector = "h1") {
   const link = page.getByRole("link", { name: label, exact: true });
   await expect(link).toBeVisible();
   await link.click();
   await page.waitForURL((url) => url.pathname === path, { timeout: 15_000 });
-  await expect(page.locator("h1").first()).toBeVisible();
+  await expect(page.locator(loadedSelector).first()).toBeVisible();
   await expectNoAppError(page);
 }
