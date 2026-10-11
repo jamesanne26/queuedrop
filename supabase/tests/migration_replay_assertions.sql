@@ -1,12 +1,26 @@
 DO $$
 DECLARE
   migration_count integer;
+  expected_indexes text[] := ARRAY[
+    'idx_branch_users_user_branch',
+    'idx_branches_business_created',
+    'idx_business_users_business_created',
+    'idx_business_users_user_active',
+    'idx_notifications_branch_created',
+    'uq_notifications_queue_position_once',
+    'idx_operating_hours_branch_day',
+    'idx_position_rules_branch_position',
+    'idx_queue_configurations_branch_edit_flags',
+    'idx_services_branch_active_created',
+    'idx_tickets_branch_status_created_desc',
+    'idx_tickets_branch_status_joined'
+  ];
 BEGIN
   SELECT count(*) INTO migration_count
   FROM supabase_migrations.schema_migrations;
 
-  IF migration_count <> 100 THEN
-    RAISE EXCEPTION 'Expected 100 migrations, found %', migration_count;
+  IF migration_count <> 101 THEN
+    RAISE EXCEPTION 'Expected 101 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
@@ -71,6 +85,25 @@ BEGIN
        OR NOT has_table_privilege('service_role', sms.table_name, 'INSERT')
   ) THEN
     RAISE EXCEPTION 'service_role is missing required SMS operational table grants';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = ANY (expected_indexes)
+  ) <> cardinality(expected_indexes) THEN
+    RAISE EXCEPTION 'A Production performance/uniqueness index is missing after replay';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.notifications'::regclass
+      AND conname = 'notifications_queue_position_check'
+      AND convalidated
+  ) THEN
+    RAISE EXCEPTION 'Queue position CHECK constraint is missing or unvalidated';
   END IF;
 END;
 $$;
