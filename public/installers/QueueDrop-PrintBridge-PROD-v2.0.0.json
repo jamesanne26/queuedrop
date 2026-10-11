@@ -11,5 +11,5 @@
   "certificateMatchesPrevious": false,
   "installMigrationRequired": true,
   "testOnly": false,
-  "hardwarePrinterVerified": false
+  "hardwarePrinterVerified": true
 }
