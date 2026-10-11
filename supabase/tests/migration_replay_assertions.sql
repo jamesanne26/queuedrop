@@ -5,8 +5,8 @@ BEGIN
   SELECT count(*) INTO migration_count
   FROM supabase_migrations.schema_migrations;
 
-  IF migration_count <> 99 THEN
-    RAISE EXCEPTION 'Expected 99 migrations, found %', migration_count;
+  IF migration_count <> 100 THEN
+    RAISE EXCEPTION 'Expected 100 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
@@ -42,6 +42,35 @@ BEGIN
       AND policyname = 'Business members can view branch users'
   ) THEN
     RAISE EXCEPTION 'The superseded broad branch visibility policy remains';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = ANY (ARRAY[
+        'sms_delivery_attempts',
+        'sms_delivery_methods',
+        'sms_gateway_devices',
+        'sms_routing_rules'
+      ])
+      AND grantee IN ('anon', 'authenticated')
+  ) THEN
+    RAISE EXCEPTION 'Client roles retain direct grants on SMS operational tables';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM (VALUES
+      ('public.sms_delivery_attempts'),
+      ('public.sms_delivery_methods'),
+      ('public.sms_gateway_devices'),
+      ('public.sms_routing_rules')
+    ) AS sms(table_name)
+    WHERE NOT has_table_privilege('service_role', sms.table_name, 'SELECT')
+       OR NOT has_table_privilege('service_role', sms.table_name, 'INSERT')
+  ) THEN
+    RAISE EXCEPTION 'service_role is missing required SMS operational table grants';
   END IF;
 END;
 $$;
