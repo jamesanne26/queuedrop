@@ -28,7 +28,6 @@ create index if not exists idx_tickets_branch_status_created_desc
   on public.tickets using btree (branch_id, status, created_at desc);
 create index if not exists idx_tickets_branch_status_joined
   on public.tickets using btree (branch_id, status, joined_at);
-
 do $$
 begin
   if not exists (
@@ -41,6 +40,5 @@ begin
       check (queue_position is null or queue_position >= 1) not valid;
   end if;
 end $$;
-
 alter table public.notifications
   validate constraint notifications_queue_position_check;
