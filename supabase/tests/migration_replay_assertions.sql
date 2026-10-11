@@ -19,8 +19,8 @@ BEGIN
   SELECT count(*) INTO migration_count
   FROM supabase_migrations.schema_migrations;
 
-  IF migration_count <> 103 THEN
-    RAISE EXCEPTION 'Expected 103 migrations, found %', migration_count;
+  IF migration_count <> 104 THEN
+    RAISE EXCEPTION 'Expected 104 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
@@ -104,6 +104,28 @@ BEGIN
       AND convalidated
   ) THEN
     RAISE EXCEPTION 'Queue position CHECK constraint is missing or unvalidated';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    WHERE p.oid = to_regprocedure('public.support_return_path(text)')
+      AND p.prosecdef
+      AND has_function_privilege('anon', p.oid, 'EXECUTE')
+      AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+  ) THEN
+    RAISE EXCEPTION 'Support return-path RPC is missing or its expected client grants are absent';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    CROSS JOIN LATERAL aclexplode(p.proacl) acl
+    WHERE p.oid = 'public.support_return_path(text)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'Support return-path RPC must not grant EXECUTE to PUBLIC';
   END IF;
 END;
 $$;
