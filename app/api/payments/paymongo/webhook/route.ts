@@ -309,6 +309,11 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (existingError) return NextResponse.json({ error: "Unable to read current subscription" }, { status: 500 });
 
+  // A fully finalized order is already fulfilled. Replaying its webhook
+  // must not extend the paid-through date by another billing period.
+  if (order.status === "paid" && existing?.status === "active" && existing.plan_id === order.plan_id) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
   const changingPlan = Boolean(existing && existing.plan_id !== order.plan_id);
   const existingExpiry = existing?.expires_at ? new Date(existing.expires_at) : null;
   const periodBase = !changingPlan && existingExpiry && existingExpiry > paidAt ? existingExpiry : paidAt;
