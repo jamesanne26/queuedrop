@@ -114,6 +114,14 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
   const amount = Number(attrs.amount !== undefined ? Number(attrs.amount) / 100 : setupOrder?.amount ?? 0);
   const currency = String(attrs.currency ?? current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
+  const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
+  if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
+    return NextResponse.json({ error: "Invalid recurring invoice amount or currency" }, { status: 409 });
+  }
+  // The initial subscription invoice must match the amount authorized in its setup order.
+  if (!current && setupOrder && Math.abs(amount - Number(setupOrder.amount)) > 0.001) {
+    return NextResponse.json({ error: "Initial recurring invoice amount mismatch" }, { status: 409 });
+  }
   const now = new Date();
   const nextBilling = nextBillingFromResource(resource) ?? addBillingPeriod(now, interval);
 
@@ -161,6 +169,9 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const providerPaymentId = paymentIntentId ? await resolveInvoicePaymentId(paymentIntentId) : `subscription_invoice:${invoiceId}`;
   const { data: duplicate, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id").eq("provider_payment_id", providerPaymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
+  if (existingInvoicePayment && duplicate && existingInvoicePayment.subscription_order_id !== duplicate.subscription_order_id) {
+    return NextResponse.json({ error: "Conflicting invoice payment records" }, { status: 409 });
+  }
   if (duplicate && duplicate.subscription_order_id !== orderId) {
     return NextResponse.json({ error: "Invoice payment is linked to another order" }, { status: 409 });
   }
