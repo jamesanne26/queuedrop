@@ -68,3 +68,12 @@ test("invalid webhook signatures are rejected", () => {
   assert.equal(validPayMongoSignature("{}", "t=1,li=invalid", "secret"), false);
   assert.equal(validPayMongoSignature("{}", "t=1,li=" + "0".repeat(64), undefined), false);
 });
+
+test("checkout with only failed payments must not activate subscription", () => {
+  const event = { data: { attributes: { type: "checkout_session.payment.paid", data: {
+    attributes: { reference_number: "order-123", payments: [
+      { id: "pay_failed", attributes: { status: "failed", amount: 49900, currency: "PHP" } },
+    ] },
+  } } } } };
+  assert.equal(normalizePayMongoPaidEvent(event), null);
+});
