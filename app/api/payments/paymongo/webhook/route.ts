@@ -117,7 +117,17 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const now = new Date();
   const nextBilling = nextBillingFromResource(resource) ?? addBillingPeriod(now, interval);
 
-  let orderId = setupOrder?.status !== "paid" ? setupOrder?.id : null;
+  // Invoice idempotency must be checked BEFORE creating a renewal order.
+  // A webhook retry must reuse the original payment/order and still retry activation.
+  const { data: existingInvoicePayment, error: invoiceLookupError } = await admin
+    .from("payments")
+    .select("subscription_order_id")
+    .eq("provider", "paymongo")
+    .eq("provider_reference", invoiceId)
+    .maybeSingle();
+  if (invoiceLookupError) return NextResponse.json({ error: "Invoice payment lookup failed" }, { status: 500 });
+
+  let orderId = existingInvoicePayment?.subscription_order_id ?? (setupOrder?.status !== "paid" ? setupOrder?.id : null);
   if (!orderId) {
     const { data: renewalOrder, error: renewalOrderError } = await admin.from("subscription_orders").insert({
       business_id: businessId,
@@ -149,9 +159,12 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const paymentIntent = asRecord(attrs.payment_intent);
   const paymentIntentId = String(paymentIntent?.id ?? "");
   const providerPaymentId = paymentIntentId ? await resolveInvoicePaymentId(paymentIntentId) : `subscription_invoice:${invoiceId}`;
-  const { data: duplicate, error: duplicateError } = await admin.from("payments").select("id").eq("provider_payment_id", providerPaymentId).maybeSingle();
+  const { data: duplicate, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id").eq("provider_payment_id", providerPaymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
-  if (!duplicate) {
+  if (duplicate && duplicate.subscription_order_id !== orderId) {
+    return NextResponse.json({ error: "Invoice payment is linked to another order" }, { status: 409 });
+  }
+  if (!duplicate && !existingInvoicePayment) {
     const { error: paymentError } = await admin.from("payments").insert({
       business_id: businessId,
       subscription_order_id: orderId,
@@ -260,12 +273,14 @@ export async function POST(request: Request) {
 
   const { data: alreadyPaid, error: duplicateError } = await admin.from("payments").select("id").eq("provider_payment_id", paymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
-  if (alreadyPaid) return NextResponse.json({ received: true, duplicate: true });
+  // Do not return early: a previous delivery may have recorded the payment
+  // but failed before subscription activation or order finalization.
+  const isDuplicatePayment = Boolean(alreadyPaid);
 
   const paidAtValue = attrs.paid_at;
   const paidAt = typeof paidAtValue === "number" ? new Date(paidAtValue * 1000) : new Date();
   const source = attrs.source as { type?: string } | undefined;
-  const { error: paymentError } = await admin.from("payments").upsert({
+  const paymentPayload = {
     business_id: order.business_id,
     subscription_order_id: order.id,
     provider: "paymongo",
@@ -281,8 +296,11 @@ export async function POST(request: Request) {
     status: "paid",
     paid_at: paidAt.toISOString(),
     metadata: attrs,
-  }, { onConflict: "provider_payment_id" });
-  if (paymentError) return NextResponse.json({ error: "Unable to record payment" }, { status: 500 });
+  };
+  if (!isDuplicatePayment) {
+    const { error: paymentError } = await admin.from("payments").upsert(paymentPayload, { onConflict: "provider_payment_id" });
+    if (paymentError) return NextResponse.json({ error: "Unable to record payment" }, { status: 500 });
+  }
 
   const { data: existing, error: existingError } = await admin
     .from("business_subscriptions")
