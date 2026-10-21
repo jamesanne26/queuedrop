@@ -70,10 +70,18 @@ test("invalid webhook signatures are rejected", () => {
 });
 
 test("checkout with only failed payments must not activate subscription", () => {
-  const event = { data: { attributes: { type: "checkout_session.payment.paid", data: {
-    attributes: { reference_number: "order-123", payments: [
-      { id: "pay_failed", attributes: { status: "failed", amount: 49900, currency: "PHP" } },
-    ] },
-  } } } } };
+  const event = {
+    data: {
+      attributes: {
+        type: "checkout_session.payment.paid",
+        data: {
+          attributes: {
+            reference_number: "order-123",
+            payments: [{ id: "pay_failed", attributes: { status: "failed", amount: 49900, currency: "PHP" } }],
+          },
+        },
+      },
+    },
+  };
   assert.equal(normalizePayMongoPaidEvent(event), null);
 });
