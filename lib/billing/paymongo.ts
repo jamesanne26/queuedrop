@@ -48,3 +48,14 @@ export function normalizePayMongoPaidEvent(event: PayMongoEvent): NormalizedPaid
 
   return null;
 }
+
+/** Require provider-supplied payment details; never substitute the order's own amount. */
+export function verifiedCheckoutAmount(attributes: Record<string, unknown>, expectedAmount: number, expectedCurrency: string): number | null {
+  const cents = attributes.amount;
+  const currency = attributes.currency;
+  if (typeof cents !== "number" || !Number.isSafeInteger(cents) || cents < 0 || typeof currency !== "string") return null;
+  const expectedCents = Math.round(expectedAmount * 100);
+  if (!Number.isSafeInteger(expectedCents) || Math.abs(expectedAmount * 100 - expectedCents) > 0.000001) return null;
+  if (cents !== expectedCents || currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
+  return cents / 100;
+}
