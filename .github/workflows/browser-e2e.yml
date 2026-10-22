@@ -42,6 +42,14 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
         run: npm run test:e2e
+      - name: Report every skipped browser test
+        if: always()
+        run: |
+          if [ -f test-results/results.json ]; then
+            node scripts/report-e2e-skips.mjs test-results/results.json
+          else
+            echo "No Playwright JSON results produced"
+          fi
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v7
