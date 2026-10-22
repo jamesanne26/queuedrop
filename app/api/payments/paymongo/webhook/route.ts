@@ -112,8 +112,9 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const businessId = current?.business_id ?? setupOrder!.business_id;
   const planId = current?.plan_id ?? setupOrder!.plan_id;
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
-  const amount = Number(attrs.amount !== undefined ? Number(attrs.amount) / 100 : setupOrder?.amount ?? 0);
-  const currency = String(attrs.currency ?? current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
+  const invoiceCents = attrs.amount;
+  const amount = typeof invoiceCents === "number" && Number.isSafeInteger(invoiceCents) && invoiceCents > 0 ? invoiceCents / 100 : NaN;
+  const currency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
   if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
     return NextResponse.json({ error: "Invalid recurring invoice amount or currency" }, { status: 409 });
