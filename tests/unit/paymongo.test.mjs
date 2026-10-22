@@ -85,3 +85,15 @@ test("checkout with only failed payments must not activate subscription", () => 
   };
   assert.equal(normalizePayMongoPaidEvent(event), null);
 });
+
+import { verifiedCheckoutAmount } from "../../lib/billing/paymongo.ts";
+
+test("checkout amount verification requires provider-supplied exact amount and currency", () => {
+  assert.equal(verifiedCheckoutAmount({ amount: 49900, currency: "PHP" }, 499, "PHP"), 499);
+  assert.equal(verifiedCheckoutAmount({ currency: "PHP" }, 499, "PHP"), null);
+  assert.equal(verifiedCheckoutAmount({ amount: 49900 }, 499, "PHP"), null);
+  assert.equal(verifiedCheckoutAmount({ amount: 49901, currency: "PHP" }, 499, "PHP"), null);
+  assert.equal(verifiedCheckoutAmount({ amount: 49900, currency: "USD" }, 499, "PHP"), null);
+  assert.equal(verifiedCheckoutAmount({ amount: "49900", currency: "PHP" }, 499, "PHP"), null);
+  assert.equal(verifiedCheckoutAmount({ amount: 49900.5, currency: "PHP" }, 499, "PHP"), null);
+});
