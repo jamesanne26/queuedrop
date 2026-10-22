@@ -64,34 +64,42 @@ test.describe("owner dashboard navigation", () => {
   }
 
   test("switching Settings branches refreshes branch-specific General data", async ({ page }) => {
-    await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
-    await expectNoAppError(page);
-
-    const branchGroup = page.locator('[data-settings-group="branches"]');
-    if ((await branchGroup.getAttribute("aria-expanded")) !== "true") await branchGroup.click();
-
-    const branchButtons = page.locator('[data-branch-id]');
-    const count = await branchButtons.count();
-    test.skip(count < 2, "At least two branches are required for the branch-switching regression check.");
-
-    const current = page.locator('[data-branch-id][aria-current="page"]');
-    await expect(current).toHaveCount(1);
-
-    // Always exercise a real branch change. The active branch is not
-    // guaranteed to be first because the sidebar is sorted by display name.
-    const target = page.locator('[data-branch-id]:not([aria-current="page"])').first();
-    const targetId = await target.getAttribute("data-branch-id");
-    const targetName = (await target.locator("strong").textContent())?.trim();
-    expect(targetId).toBeTruthy();
-    expect(targetName).toBeTruthy();
-    expect(targetId).not.toBe(await current.getAttribute("data-branch-id"));
-
-    await target.click();
-    await expect(page).toHaveURL(new RegExp(`branch=${targetId}`));
-    await expect(page.locator(".settings-branch-hero h2")).toHaveText(targetName);
-    await expect(page.locator('form.settings-general-form-v3 input[name="branch_id"]')).toHaveValue(targetId);
-    await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(targetName);
-    await expectNoAppError(page);
+    const { createAdminClient, getOwnerBusiness } = await import("../helpers/admin-db.mjs");
+    const { hasAdminTestEnvironment } = await import("../helpers/env.mjs");
+    test.skip(!hasAdminTestEnvironment(), "Dedicated TEST database access is required for isolated branch fixture.");
+    const admin = createAdminClient();
+    const owner = await getOwnerBusiness(admin, credentials.email);
+    const id = crypto.randomUUID();
+    const name = "E2E Branch Switch " + id.slice(0, 8);
+    const { data: branch, error: insertError } = await admin.from("branches")
+      .insert({ business_id: owner.businessId, name, slug: "e2e-switch-" + id, timezone: "Asia/Manila" })
+      .select("id").single();
+    if (insertError) throw insertError;
+    try {
+      const { error: assignmentError } = await admin.from("branch_users").insert({ branch_id: branch.id, user_id: owner.userId });
+      if (assignmentError) throw assignmentError;
+      await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
+      const branchGroup = page.locator('[data-settings-group="branches"]');
+      if ((await branchGroup.getAttribute("aria-expanded")) !== "true") await branchGroup.click();
+      const target = page.locator('[data-branch-id="' + branch.id + '"]');
+      await expect(target).toBeVisible();
+      const current = page.locator('[data-branch-id][aria-current="page"]');
+      if (await target.getAttribute("aria-current") === "page") {
+        const other = page.locator('[data-branch-id]:not([aria-current="page"])').first();
+        await expect(other).toBeVisible();
+        await other.click();
+      }
+      await target.click();
+      await expect(page).toHaveURL(new RegExp("branch=" + branch.id));
+      await expect(page.locator(".settings-branch-hero h2")).toHaveText(name);
+      await expect(page.locator('form.settings-general-form-v3 input[name="branch_id"]')).toHaveValue(branch.id);
+      await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(name);
+      await expectNoAppError(page);
+    } finally {
+      const { error } = await admin.from("branches").delete().eq("id", branch.id).eq("business_id", owner.businessId);
+      if (error) throw error;
+    }
   });
 
   test("owner can sign out", async ({ page }) => {
