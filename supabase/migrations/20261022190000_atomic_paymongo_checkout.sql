@@ -17,7 +17,7 @@ BEGIN
    RETURN jsonb_build_object('duplicate',true,'order_id',o.id);
  END IF;
  IF prior.id IS NOT NULL THEN RAISE EXCEPTION 'payment exists but order not finalized'; END IF;
- IF o.status NOT IN ('pending','failed') THEN RAISE EXCEPTION 'order cannot be finalized'; END IF;
+ IF o.status NOT IN ('pending','checkout_created','failed') THEN RAISE EXCEPTION 'order cannot be finalized'; END IF;
  change_plan:=s.id IS NOT NULL AND s.plan_id IS DISTINCT FROM o.plan_id;
  billing:=CASE WHEN o.billing_interval='yearly' THEN 'yearly' ELSE 'monthly' END;
  new_expiry:=CASE WHEN billing='yearly' THEN (CASE WHEN NOT change_plan AND s.expires_at>p_paid_at THEN s.expires_at ELSE p_paid_at END)+interval '1 year'
