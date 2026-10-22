@@ -169,6 +169,9 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const providerPaymentId = paymentIntentId ? await resolveInvoicePaymentId(paymentIntentId) : `subscription_invoice:${invoiceId}`;
   const { data: duplicate, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id").eq("provider_payment_id", providerPaymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
+  if (alreadyPaid && (alreadyPaid.subscription_order_id !== order.id || alreadyPaid.business_id !== order.business_id)) {
+    return NextResponse.json({ error: "Payment ID belongs to another order or business" }, { status: 409 });
+  }
   if (existingInvoicePayment && duplicate && existingInvoicePayment.subscription_order_id !== duplicate.subscription_order_id) {
     return NextResponse.json({ error: "Conflicting invoice payment records" }, { status: 409 });
   }
@@ -282,7 +285,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
   }
 
-  const { data: alreadyPaid, error: duplicateError } = await admin.from("payments").select("id").eq("provider_payment_id", paymentId).maybeSingle();
+  const { data: alreadyPaid, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id,business_id").eq("provider_payment_id", paymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
   // Do not return early: a previous delivery may have recorded the payment
   // but failed before subscription activation or order finalization.
