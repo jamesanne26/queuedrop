@@ -15,7 +15,7 @@ DECLARE
 BEGIN
  SELECT expires_at INTO before_expiry FROM public.business_subscriptions WHERE business_id=v_business;
  INSERT INTO public.subscription_orders(id,business_id,plan_id,amount,subtotal,currency,provider,payment_mode,status,billing_interval,renewal_mode)
- VALUES(v_order,v_business,v_plan,499,499,'PHP','paymongo','online','pending','monthly','manual');
+ VALUES(v_order,v_business,v_plan,499,499,'PHP','paymongo','online','checkout_created','monthly','manual');
  first_result:=public.finalize_paymongo_checkout_atomic(v_order,v_payment,499,'PHP',now(),'gcash','{}'::jsonb);
  second_result:=public.finalize_paymongo_checkout_atomic(v_order,v_payment,499,'PHP',now(),'gcash','{}'::jsonb);
  IF first_result->>'duplicate'<>'false' OR second_result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'checkout idempotency assertion failed'; END IF;
