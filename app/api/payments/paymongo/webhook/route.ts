@@ -126,117 +126,24 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const now = new Date();
   const nextBilling = nextBillingFromResource(resource) ?? addBillingPeriod(now, interval);
 
-  // Invoice idempotency must be checked BEFORE creating a renewal order.
-  // A webhook retry must reuse the original payment/order and still retry activation.
-  const { data: existingInvoicePayment, error: invoiceLookupError } = await admin
-    .from("payments")
-    .select("subscription_order_id")
-    .eq("provider", "paymongo")
-    .eq("provider_reference", invoiceId)
-    .maybeSingle();
-  if (invoiceLookupError) return NextResponse.json({ error: "Invoice payment lookup failed" }, { status: 500 });
-
-  let orderId = existingInvoicePayment?.subscription_order_id ?? (setupOrder?.status !== "paid" ? setupOrder?.id : null);
-  if (!orderId) {
-    const { data: renewalOrder, error: renewalOrderError } = await admin.from("subscription_orders").insert({
-      business_id: businessId,
-      plan_id: planId,
-      requested_by: null,
-      amount,
-      subtotal: setupOrder?.subtotal ?? amount,
-      tax_mode: setupOrder?.tax_mode ?? "non_vat",
-      vat_rate: setupOrder?.vat_rate ?? 0,
-      tax_amount: setupOrder?.tax_amount ?? 0,
-      tax_price_mode: setupOrder?.tax_price_mode ?? "inclusive",
-      currency,
-      billing_interval: interval,
-      renewal_mode: "auto",
-      payment_mode: "subscription",
-      provider: "paymongo",
-      provider_subscription_id: providerSubscriptionId,
-      provider_customer_id: current?.paymongo_customer_id ?? setupOrder?.provider_customer_id ?? null,
-      provider_plan_id: current?.paymongo_plan_id ?? setupOrder?.provider_plan_id ?? null,
-      status: "paid",
-    }).select("id").single();
-    if (renewalOrderError || !renewalOrder) return NextResponse.json({ error: "Unable to record renewal order" }, { status: 500 });
-    orderId = renewalOrder.id;
-  } else {
-    const { error: finalizeError } = await admin.from("subscription_orders").update({ status: "paid", updated_at: now.toISOString() }).eq("id", orderId);
-    if (finalizeError) return NextResponse.json({ error: "Unable to finalize subscription order" }, { status: 500 });
-  }
-
   const paymentIntent = asRecord(attrs.payment_intent);
   const paymentIntentId = String(paymentIntent?.id ?? "");
   const providerPaymentId = paymentIntentId ? await resolveInvoicePaymentId(paymentIntentId) : `subscription_invoice:${invoiceId}`;
-  const { data: duplicate, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id").eq("provider_payment_id", providerPaymentId).maybeSingle();
-  if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
-  if (existingInvoicePayment && duplicate && existingInvoicePayment.subscription_order_id !== duplicate.subscription_order_id) {
-    return NextResponse.json({ error: "Conflicting invoice payment records" }, { status: 409 });
-  }
-  if (duplicate && duplicate.subscription_order_id !== orderId) {
-    return NextResponse.json({ error: "Invoice payment is linked to another order" }, { status: 409 });
-  }
-  if (!duplicate && !existingInvoicePayment) {
-    const { error: paymentError } = await admin.from("payments").insert({
-      business_id: businessId,
-      subscription_order_id: orderId,
-      provider: "paymongo",
-      provider_payment_id: providerPaymentId,
-      provider_reference: invoiceId,
-      amount,
-      subtotal: setupOrder?.subtotal ?? amount,
-      tax_mode: setupOrder?.tax_mode ?? "non_vat",
-      vat_rate: setupOrder?.vat_rate ?? 0,
-      tax_amount: setupOrder?.tax_amount ?? 0,
-      currency,
-      payment_method: "subscription",
-      status: "paid",
-      paid_at: now.toISOString(),
-      metadata: attrs,
-    });
-    if (paymentError) return NextResponse.json({ error: "Unable to record subscription payment" }, { status: 500 });
-  }
-
-  const { data: existingBusinessSubscription, error: existingBusinessError } = await admin
-    .from("business_subscriptions")
-    .select("plan_id")
-    .eq("business_id", businessId)
-    .maybeSingle();
-  if (existingBusinessError) return NextResponse.json({ error: "Unable to read current QueueDrop subscription" }, { status: 500 });
-  const changingPlan = Boolean(existingBusinessSubscription && existingBusinessSubscription.plan_id !== planId);
-
-  const subscriptionPayload: Record<string, unknown> = {
-    business_id: businessId,
-    plan_id: planId,
-    status: "active",
-    billing_interval: interval,
-    renewal_mode: "auto",
-    billing_currency: currency,
-    paymongo_subscription_id: providerSubscriptionId,
-    paymongo_customer_id: current?.paymongo_customer_id ?? setupOrder?.provider_customer_id ?? null,
-    paymongo_plan_id: current?.paymongo_plan_id ?? setupOrder?.provider_plan_id ?? null,
-    next_billing_at: nextBilling.toISOString(),
-    expires_at: nextBilling.toISOString(),
-    updated_at: now.toISOString(),
-  };
-  if (!current) subscriptionPayload.started_at = now.toISOString();
-  if (interval === "yearly") subscriptionPayload.billing_price_yearly = Number(setupOrder?.tax_price_mode === "inclusive" ? setupOrder?.amount ?? amount : setupOrder?.subtotal ?? amount);
-  else subscriptionPayload.billing_price_monthly = Number(setupOrder?.tax_price_mode === "inclusive" ? setupOrder?.amount ?? amount : setupOrder?.subtotal ?? amount);
-  if (changingPlan) Object.assign(subscriptionPayload, {
-    custom_monthly_price: null,
-    custom_max_branches: null,
-    custom_max_active_queues_per_branch: null,
-    custom_max_services_per_branch: null,
-    custom_trial_days: null,
-    custom_max_users: null,
-    custom_max_terminals: null,
-    override_reason: null,
-    override_expires_at: null,
+  const { error: fulfillmentError, data: result } = await admin.rpc("finalize_paymongo_invoice_atomic", {
+    p_invoice_id: invoiceId,
+    p_subscription_id: providerSubscriptionId,
+    p_payment_id: providerPaymentId,
+    p_amount: amount,
+    p_currency: currency,
+    p_next_billing: nextBilling.toISOString(),
+    p_metadata: attrs,
   });
+  if (fulfillmentError) {
+    console.error("Atomic PayMongo invoice fulfillment failed", fulfillmentError.code);
+    return NextResponse.json({ error: "Unable to finalize subscription invoice" }, { status: 500 });
+  }
+  return NextResponse.json({ received: true, result });
 
-  const { error: subscriptionError } = await admin.from("business_subscriptions").upsert(subscriptionPayload, { onConflict: "business_id" });
-  if (subscriptionError) return NextResponse.json({ error: "Unable to activate recurring subscription" }, { status: 500 });
-  return NextResponse.json({ received: true });
 }
 
 export async function POST(request: Request) {
