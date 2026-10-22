@@ -1,12 +1,12 @@
 -- Read-only migration / PayMongo acceptance audit. Run on TEST.
 -- Counts of migration versions are NOT equivalent to schema parity.
 WITH fn AS (
- SELECT proname, prosecdef, has_function_privilege('anon',oid,'EXECUTE') AS anon_can_execute,
- has_function_privilege('authenticated',oid,'EXECUTE') AS user_can_execute,
- has_function_privilege('service_role',oid,'EXECUTE') AS service_can_execute,
- pg_get_functiondef(oid) LIKE '%pg_advisory_xact_lock%' AS advisory_lock,
- pg_get_functiondef(oid) LIKE '%FOR UPDATE%' AS row_lock
- FROM pg_proc JOIN pg_namespace n ON n.oid=pronamespace
+ SELECT proname, prosecdef, has_function_privilege('anon',p.oid,'EXECUTE') AS anon_can_execute,
+ has_function_privilege('authenticated',p.oid,'EXECUTE') AS user_can_execute,
+ has_function_privilege('service_role',p.oid,'EXECUTE') AS service_can_execute,
+ pg_get_functiondef(p.oid) LIKE '%pg_advisory_xact_lock%' AS advisory_lock,
+ pg_get_functiondef(p.oid) LIKE '%FOR UPDATE%' AS row_lock
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
  WHERE n.nspname='public' AND proname IN ('finalize_paymongo_checkout_atomic','finalize_paymongo_invoice_atomic')
 )
 SELECT 'payment_rpc_security' AS check_name,
