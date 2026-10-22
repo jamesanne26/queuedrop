@@ -112,8 +112,8 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const businessId = current?.business_id ?? setupOrder!.business_id;
   const planId = current?.plan_id ?? setupOrder!.plan_id;
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
-  const amount = Number(attrs.amount !== undefined ? Number(attrs.amount) / 100 : setupOrder?.amount ?? 0);
-  const currency = String(attrs.currency ?? current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
+  const amount = typeof attrs.amount === "number" ? attrs.amount / 100 : NaN;
+  const currency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
   if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
     return NextResponse.json({ error: "Invalid recurring invoice amount or currency" }, { status: 409 });
@@ -275,8 +275,8 @@ export async function POST(request: Request) {
   if (orderError) return NextResponse.json({ error: "Billing lookup failed" }, { status: 500 });
   if (!order) return NextResponse.json({ error: "Subscription order not found" }, { status: 404 });
 
-  const paidAmount = attrs.amount !== undefined ? Number(attrs.amount) / 100 : Number(order.amount);
-  const paidCurrency = String(attrs.currency ?? order.currency).toUpperCase();
+  const paidAmount = typeof attrs.amount === "number" ? attrs.amount / 100 : NaN;
+  const paidCurrency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - Number(order.amount)) > 0.001 || paidCurrency !== String(order.currency).toUpperCase()) {
     await admin.from("subscription_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id).neq("status", "paid");
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
