@@ -75,7 +75,15 @@ test.describe("owner dashboard navigation", () => {
       .insert({ business_id: owner.businessId, name, slug: "e2e-switch-" + id, timezone: "Asia/Manila" })
       .select("id").single();
     if (insertError) throw insertError;
+    let secondBranch;
     try {
+      const second = await admin.from("branches")
+        .insert({ business_id: owner.businessId, name: name + " B", slug: "e2e-switch-b-" + id, timezone: "Asia/Manila" })
+        .select("id").single();
+      if (second.error) throw second.error;
+      secondBranch = second.data;
+      const { error: secondAssignmentError } = await admin.from("branch_users").insert({ branch_id: secondBranch.id, user_id: owner.userId });
+      if (secondAssignmentError) throw secondAssignmentError;
       const { error: assignmentError } = await admin.from("branch_users").insert({ branch_id: branch.id, user_id: owner.userId });
       if (assignmentError) throw assignmentError;
       await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
@@ -97,8 +105,11 @@ test.describe("owner dashboard navigation", () => {
       await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(name);
       await expectNoAppError(page);
     } finally {
-      const { error } = await admin.from("branches").delete().eq("id", branch.id).eq("business_id", owner.businessId);
-      if (error) throw error;
+      for (const candidate of [secondBranch, branch]) {
+        if (!candidate) continue;
+        const { error } = await admin.from("branches").delete().eq("id", candidate.id).eq("business_id", owner.businessId);
+        if (error) throw error;
+      }
     }
   });
 
