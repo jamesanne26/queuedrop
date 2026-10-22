@@ -25,15 +25,17 @@ export async function ensureE2ESubscriptionAccess(admin, owner, testUrl, now = D
   // does not block those scenarios. This is guarded to the dedicated TEST
   // Supabase project above and expires automatically.
   const { data: capacity, error: capacityError } = await admin.from("business_subscriptions")
-    .select("custom_max_branches,override_expires_at").eq("id", subscription.id)
+    .select("custom_max_branches,custom_max_active_queues_per_branch,custom_max_services_per_branch,override_expires_at").eq("id", subscription.id)
     .eq("business_id", owner.businessId).maybeSingle();
   if (capacityError) throw capacityError;
   const capacityExpiresAt = capacity?.override_expires_at ? Date.parse(capacity.override_expires_at) : Infinity;
-  if ((capacity?.custom_max_branches ?? 0) < 20 || capacityExpiresAt < now + 60 * 60 * 1000) {
+  if ((capacity?.custom_max_branches ?? 0) < 20 || (capacity?.custom_max_active_queues_per_branch ?? 0) < 20 || (capacity?.custom_max_services_per_branch ?? 0) < 20 || capacityExpiresAt < now + 60 * 60 * 1000) {
     const { data: capacityUpdated, error: capacityUpdateError } = await admin.from("business_subscriptions")
       .update({
         custom_max_branches: 20,
-        override_reason: "Automated TEST E2E branch lifecycle capacity",
+        custom_max_active_queues_per_branch: 20,
+        custom_max_services_per_branch: 20,
+        override_reason: "Automated TEST E2E branch and service capacity",
         override_expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
       })
       .eq("id", subscription.id).eq("business_id", owner.businessId).select("id").maybeSingle();
