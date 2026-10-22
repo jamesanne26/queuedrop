@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addBillingPeriod, type BillingInterval } from "@/lib/billing/subscription";
-import { normalizePayMongoPaidEvent, validPayMongoSignature } from "@/lib/billing/paymongo";
+import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedCheckoutAmount } from "@/lib/billing/paymongo";
 
 type EventResource = { id?: string; type?: string; attributes?: Record<string, unknown> };
 type PayMongoEvent = { data?: { attributes?: { type?: string; data?: EventResource } } };
@@ -275,9 +275,9 @@ export async function POST(request: Request) {
   if (orderError) return NextResponse.json({ error: "Billing lookup failed" }, { status: 500 });
   if (!order) return NextResponse.json({ error: "Subscription order not found" }, { status: 404 });
 
-  const paidAmount = attrs.amount !== undefined ? Number(attrs.amount) / 100 : Number(order.amount);
-  const paidCurrency = String(attrs.currency ?? order.currency).toUpperCase();
-  if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - Number(order.amount)) > 0.001 || paidCurrency !== String(order.currency).toUpperCase()) {
+  const paidAmount = verifiedCheckoutAmount(attrs, Number(order.amount), String(order.currency));
+  const paidCurrency = String(attrs.currency ?? "").toUpperCase();
+  if (paidAmount === null) {
     await admin.from("subscription_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id).neq("status", "paid");
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
   }
