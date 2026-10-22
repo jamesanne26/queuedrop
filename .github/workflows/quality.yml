@@ -28,11 +28,11 @@ jobs:
           set -o pipefail
           for attempt in 1 2 3; do
             log="$(mktemp)"
-            if npm audit --omit=dev --audit-level=high 2>&1 | tee "$log"; then
+            if npm audit --omit=dev --audit-level=high --fetch-retries=0 --fetch-timeout=30000 2>&1 | tee "$log"; then
               rm -f "$log"
               exit 0
             fi
-            if ! grep -Eqi '(^|[^0-9])(429|500|502|503|504)([^0-9]|$)|Service Unavailable|Too Many Requests|ECONNRESET|ETIMEDOUT|EAI_AGAIN' "$log"; then
+            if ! grep -Eqi '(^|[^0-9])(429|500|502|503|504)([^0-9]|$)|Service Unavailable|Too Many Requests|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network timeout|socket hang up|ENOTFOUND' "$log"; then
               echo "::error::Security audit failed for a non-transient reason; not retrying."
               rm -f "$log"
               exit 1
