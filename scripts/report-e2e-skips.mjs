@@ -21,4 +21,15 @@ function walk(suites, ancestors = []) {
 walk(data.suites);
 console.log("Playwright skipped cases:", skipped.length);
 for (const [index, item] of skipped.entries()) console.log(`${index + 1}. ${item.title}\n   Reason: ${item.reason}\n   File: ${item.file}`);
+// Only the platform-owner-only browser case may be skipped on the business-owner TEST account.
+// Any new skipped scenario is a release regression, not a silently accepted pass.
+const allowedReasons = new Set([
+  "Configured E2E owner does not have platform-owner access in TEST.",
+]);
+const unexpected = skipped.filter(item => !allowedReasons.has(item.reason));
+if (unexpected.length) {
+  console.error("Unexpected Playwright skips:", unexpected.length);
+  process.exitCode = 1;
+}
 if (process.env.QUEUEDROP_FAIL_ON_E2E_SKIP === "1" && skipped.length) process.exitCode = 1;
+
