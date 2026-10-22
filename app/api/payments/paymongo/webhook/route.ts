@@ -283,8 +283,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
   }
 
-  const { data: alreadyPaid, error: duplicateError } = await admin.from("payments").select("id").eq("provider_payment_id", paymentId).maybeSingle();
+  const { data: alreadyPaid, error: duplicateError } = await admin.from("payments").select("id,subscription_order_id,business_id").eq("provider_payment_id", paymentId).maybeSingle();
   if (duplicateError) return NextResponse.json({ error: "Payment lookup failed" }, { status: 500 });
+  // Never allow one provider payment to fulfill another order or tenant.
+  if (alreadyPaid && (alreadyPaid.subscription_order_id !== order.id || alreadyPaid.business_id !== order.business_id)) {
+    return NextResponse.json({ error: "Payment already belongs to another order" }, { status: 409 });
+  }
   // Do not return early: a previous delivery may have recorded the payment
   // but failed before subscription activation or order finalization.
   const isDuplicatePayment = Boolean(alreadyPaid);
