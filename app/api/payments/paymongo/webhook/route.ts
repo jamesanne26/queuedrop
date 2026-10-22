@@ -187,7 +187,6 @@ export async function POST(request: Request) {
   const paidAmount = verifiedAmount ?? NaN;
   const paidCurrency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - Number(order.amount)) > 0.001 || paidCurrency !== String(order.currency).toUpperCase()) {
-    await admin.from("subscription_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id).neq("status", "paid");
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
   }
 
