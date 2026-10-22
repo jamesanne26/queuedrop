@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addBillingPeriod, type BillingInterval } from "@/lib/billing/subscription";
-import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedCheckoutAmount } from "@/lib/billing/paymongo";
+import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedCheckoutAmount, verifiedRecurringInvoiceAmount } from "@/lib/billing/paymongo";
 
 type EventResource = { id?: string; type?: string; attributes?: Record<string, unknown> };
 type PayMongoEvent = { data?: { attributes?: { type?: string; data?: EventResource } } };
@@ -112,17 +112,12 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const businessId = current?.business_id ?? setupOrder!.business_id;
   const planId = current?.plan_id ?? setupOrder!.plan_id;
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
-  const invoiceCents = attrs.amount;
-  const amount = typeof invoiceCents === "number" && Number.isSafeInteger(invoiceCents) && invoiceCents > 0 ? invoiceCents / 100 : NaN;
-  const currency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
-  if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
+  const amount = verifiedRecurringInvoiceAmount(attrs, expectedCurrency, !current && setupOrder ? Number(setupOrder.amount) : undefined);
+  if (amount === null) {
     return NextResponse.json({ error: "Invalid recurring invoice amount or currency" }, { status: 409 });
   }
-  // The initial subscription invoice must match the amount authorized in its setup order.
-  if (!current && setupOrder && Math.abs(amount - Number(setupOrder.amount)) > 0.001) {
-    return NextResponse.json({ error: "Initial recurring invoice amount mismatch" }, { status: 409 });
-  }
+  const currency = expectedCurrency;
   const now = new Date();
   const nextBilling = nextBillingFromResource(resource) ?? addBillingPeriod(now, interval);
 
