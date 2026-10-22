@@ -59,3 +59,16 @@ export function verifiedCheckoutAmount(attributes: Record<string, unknown>, expe
   if (cents !== expectedCents || currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
   return cents / 100;
 }
+
+/** Validate provider-reported recurring invoice amounts before granting access. */
+export function verifiedRecurringInvoiceAmount(attributes: Record<string, unknown>, expectedCurrency: string, initialAmount?: number): number | null {
+  const cents = attributes.amount;
+  const currency = attributes.currency;
+  if (typeof cents !== "number" || !Number.isSafeInteger(cents) || cents <= 0 || typeof currency !== "string") return null;
+  if (currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
+  if (initialAmount !== undefined) {
+    const expectedCents = Math.round(initialAmount * 100);
+    if (!Number.isSafeInteger(expectedCents) || cents !== expectedCents) return null;
+  }
+  return cents / 100;
+}
