@@ -97,3 +97,16 @@ test("checkout amount verification requires provider-supplied exact amount and c
   assert.equal(verifiedCheckoutAmount({ amount: "49900", currency: "PHP" }, 499, "PHP"), null);
   assert.equal(verifiedCheckoutAmount({ amount: 49900.5, currency: "PHP" }, 499, "PHP"), null);
 });
+
+import { verifiedRecurringInvoiceAmount } from "../../lib/billing/paymongo.ts";
+
+test("recurring invoice rejects absent, invalid and mismatched provider payment details", () => {
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: 49900, currency: "PHP" }, "PHP", 499), 499);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: 49900, currency: "PHP" }, "PHP"), 499);
+  assert.equal(verifiedRecurringInvoiceAmount({ currency: "PHP" }, "PHP"), null);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: 49900 }, "PHP"), null);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: 49901, currency: "PHP" }, "PHP", 499), null);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: 49900, currency: "USD" }, "PHP"), null);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: -1, currency: "PHP" }, "PHP"), null);
+  assert.equal(verifiedRecurringInvoiceAmount({ amount: "49900", currency: "PHP" }, "PHP"), null);
+});
