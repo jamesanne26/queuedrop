@@ -48,3 +48,10 @@ export function normalizePayMongoPaidEvent(event: PayMongoEvent): NormalizedPaid
 
   return null;
 }
+
+/** Only accept a provider-reported integer amount in minor currency units. */
+export function verifiedPayMongoAmount(amount: unknown, currency: unknown, expectedCurrency: string): number | null {
+  if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount <= 0) return null;
+  if (typeof currency !== "string" || currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
+  return amount / 100;
+}
