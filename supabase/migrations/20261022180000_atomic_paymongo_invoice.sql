@@ -29,12 +29,12 @@ BEGIN
  SELECT * INTO s FROM public.business_subscriptions WHERE paymongo_subscription_id=p_subscription_id FOR UPDATE;
  SELECT * INTO o FROM public.subscription_orders WHERE provider_subscription_id=p_subscription_id ORDER BY created_at ASC LIMIT 1;
  IF NOT FOUND THEN RAISE EXCEPTION 'subscription setup order missing'; END IF;
- IF s.id IS NULL AND o.amount <> p_amount THEN RAISE EXCEPTION 'initial invoice amount mismatch'; END IF;
+ IF o.amount <> p_amount THEN RAISE EXCEPTION 'invoice amount mismatch against authorized subscription order'; END IF;
  IF upper(coalesce(s.billing_currency,o.currency)) <> upper(p_currency) THEN RAISE EXCEPTION 'currency mismatch'; END IF;
  IF EXISTS (SELECT 1 FROM public.payments WHERE provider_payment_id=p_payment_id) THEN RAISE EXCEPTION 'payment id already used'; END IF;
  interval_name := coalesce(s.billing_interval,o.billing_interval,'monthly');
  expiry := coalesce(p_next_billing,CASE WHEN interval_name='yearly' THEN now()+interval '1 year' ELSE now()+interval '1 month' END);
- IF s.id IS NOT NULL AND s.expires_at IS NOT NULL AND expiry < s.expires_at THEN RAISE EXCEPTION 'invoice would shorten subscription'; END IF;
+ IF s.id IS NOT NULL AND s.expires_at IS NOT NULL AND expiry <= s.expires_at THEN RAISE EXCEPTION 'invoice does not advance subscription expiration'; END IF;
  IF o.status <> 'paid' AND s.id IS NULL THEN
    new_order_id := o.id;
  ELSE
