@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addBillingPeriod, type BillingInterval } from "@/lib/billing/subscription";
-import { normalizePayMongoPaidEvent, validPayMongoSignature } from "@/lib/billing/paymongo";
+import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedPayMongoAmount } from "@/lib/billing/paymongo";
 
 type EventResource = { id?: string; type?: string; attributes?: Record<string, unknown> };
 type PayMongoEvent = { data?: { attributes?: { type?: string; data?: EventResource } } };
@@ -112,7 +112,8 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const businessId = current?.business_id ?? setupOrder!.business_id;
   const planId = current?.plan_id ?? setupOrder!.plan_id;
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
-  const amount = typeof attrs.amount === "number" ? attrs.amount / 100 : NaN;
+  const verifiedAmount = verifiedPayMongoAmount(attrs.amount, attrs.currency, expectedCurrency);
+  const amount = verifiedAmount ?? NaN;
   const currency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
   if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
@@ -278,7 +279,8 @@ export async function POST(request: Request) {
   if (orderError) return NextResponse.json({ error: "Billing lookup failed" }, { status: 500 });
   if (!order) return NextResponse.json({ error: "Subscription order not found" }, { status: 404 });
 
-  const paidAmount = typeof attrs.amount === "number" ? attrs.amount / 100 : NaN;
+  const verifiedAmount = verifiedPayMongoAmount(attrs.amount, attrs.currency, String(order.currency));
+  const paidAmount = verifiedAmount ?? NaN;
   const paidCurrency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
   if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - Number(order.amount)) > 0.001 || paidCurrency !== String(order.currency).toUpperCase()) {
     await admin.from("subscription_orders").update({ status: "failed", updated_at: new Date().toISOString() }).eq("id", order.id).neq("status", "paid");
