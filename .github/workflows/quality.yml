@@ -11,7 +11,7 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -23,7 +23,28 @@ jobs:
       - run: npm ci
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        shell: bash
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            log="$(mktemp)"
+            if npm audit --omit=dev --audit-level=high 2>&1 | tee "$log"; then
+              rm -f "$log"
+              exit 0
+            fi
+            if ! grep -Eqi '(^|[^0-9])(429|500|502|503|504)([^0-9]|$)|Service Unavailable|Too Many Requests|ECONNRESET|ETIMEDOUT|EAI_AGAIN' "$log"; then
+              echo "::error::Security audit failed for a non-transient reason; not retrying."
+              rm -f "$log"
+              exit 1
+            fi
+            rm -f "$log"
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Security audit unavailable after three attempts; failing closed."
+              exit 1
+            fi
+            echo "::warning::Transient npm registry audit error; retrying ($attempt/3)."
+            sleep $((attempt * 10))
+          done
 
       - run: npm run quality
 
