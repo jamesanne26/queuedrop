@@ -4,7 +4,7 @@ import { assertDedicatedTestProject, ensureE2ESubscriptionAccess } from "../e2e/
 
 test("E2E capacity override is restricted to dedicated TEST Supabase", () => {
   assert.doesNotThrow(() => assertDedicatedTestProject("https://tcgiwtfhqssulxwawimh.supabase.co"));
-  assert.throws(() => assertDedicatedTestProject("https://sylvegfbkxgjfctbjfec.supabase.co"), /dedicated TEST/);
+  assert.throws(() => assertDedicatedTestProject("https://sylvegfbkxgjfctbjfec.supabase.co"), /non-TEST Supabase/);
 });
 
 test("E2E setup raises service, active queue and branch limits with 24-hour expiry", async () => {
