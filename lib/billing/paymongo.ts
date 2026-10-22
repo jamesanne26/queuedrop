@@ -34,7 +34,7 @@ export function normalizePayMongoPaidEvent(event: PayMongoEvent): NormalizedPaid
   if(eventType==="checkout_session.payment.paid"){
     const reference=String(attrs.reference_number ?? (attrs.metadata as Record<string,unknown>|undefined)?.reference_number ?? "").trim();
     const payments=Array.isArray(attrs.payments) ? attrs.payments as PayMongoResource[] : [];
-    const payment=payments.find((item)=>String(item?.attributes?.status ?? "")==="paid") ?? payments[0];
+    const payment=payments.find((item)=>String(item?.attributes?.status ?? "")==="paid");
     if(!reference || !payment?.id) return null;
     return {eventType,reference,paymentId:payment.id,attributes:(payment.attributes ?? {}) as PayMongoAttributes};
   }
@@ -47,4 +47,11 @@ export function normalizePayMongoPaidEvent(event: PayMongoEvent): NormalizedPaid
   }
 
   return null;
+}
+
+/** Only accept a provider-reported integer amount in minor currency units. */
+export function verifiedPayMongoAmount(amount: unknown, currency: unknown, expectedCurrency: string): number | null {
+  if (typeof amount !== "number" || !Number.isSafeInteger(amount) || amount <= 0) return null;
+  if (typeof currency !== "string" || currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
+  return amount / 100;
 }
