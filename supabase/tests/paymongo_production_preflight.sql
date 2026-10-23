@@ -8,8 +8,8 @@ UNION ALL SELECT 'duplicate_paymongo_subscription_invoices',count(*)::text FROM 
 UNION ALL SELECT 'missing_atomic_checkout_function',CASE WHEN to_regprocedure('public.finalize_paymongo_checkout_atomic(uuid,text,numeric,text,timestamp with time zone,text,jsonb)') IS NULL THEN 'YES' ELSE 'NO' END
 UNION ALL SELECT 'missing_atomic_invoice_function',CASE WHEN to_regprocedure('public.finalize_paymongo_invoice_atomic(text,text,text,numeric,text,timestamp with time zone,jsonb)') IS NULL THEN 'YES' ELSE 'NO' END
 UNION ALL SELECT 'duplicate_paymongo_invoice_references_all_methods',count(*)::text FROM (SELECT provider_reference FROM public.payments WHERE provider='paymongo' AND provider_reference LIKE 'in_%' GROUP BY provider_reference HAVING count(*)>1) x
-UNION ALL SELECT 'checkout_function_exposed_to_authenticated',CASE WHEN has_function_privilege('authenticated','public.finalize_paymongo_checkout_atomic(uuid,text,numeric,text,timestamp with time zone,text,jsonb)','EXECUTE') THEN 'YES' ELSE 'NO' END
-UNION ALL SELECT 'invoice_function_exposed_to_authenticated',CASE WHEN has_function_privilege('authenticated','public.finalize_paymongo_invoice_atomic(text,text,text,numeric,text,timestamp with time zone,jsonb)','EXECUTE') THEN 'YES' ELSE 'NO' END
+UNION ALL SELECT 'checkout_function_exposed_to_authenticated',CASE WHEN coalesce(has_function_privilege('authenticated',to_regprocedure('public.finalize_paymongo_checkout_atomic(uuid,text,numeric,text,timestamp with time zone,text,jsonb)'),'EXECUTE'),false) THEN 'YES' ELSE 'NO' END
+UNION ALL SELECT 'invoice_function_exposed_to_authenticated',CASE WHEN coalesce(has_function_privilege('authenticated',to_regprocedure('public.finalize_paymongo_invoice_atomic(text,text,text,numeric,text,timestamp with time zone,jsonb)'),'EXECUTE'),false) THEN 'YES' ELSE 'NO' END
 UNION ALL SELECT 'missing_invoice_unique_index',CASE WHEN to_regclass('public.payments_paymongo_invoice_unique_all') IS NULL THEN 'YES' ELSE 'NO' END
 UNION ALL SELECT 'missing_invoice_reference_index',CASE WHEN to_regclass('public.payments_paymongo_invoice_reference_unique') IS NULL THEN 'YES' ELSE 'NO' END
 ORDER BY check_name;
