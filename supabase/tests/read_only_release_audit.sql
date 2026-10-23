@@ -22,6 +22,14 @@ SELECT 'invoice_reference_unique_index',CASE WHEN count(*)=1 THEN 'PASS' ELSE 'F
  jsonb_build_object('count',count(*))
 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_paymongo_invoice_reference_unique'
 UNION ALL
+SELECT 'invoice_indexes_are_unique',
+ CASE WHEN count(*)=2 AND bool_and(i.indisunique AND i.indisvalid AND i.indisready) THEN 'PASS' ELSE 'FAIL' END,
+ jsonb_build_object('verified_indexes',count(*),'all_unique_valid_ready',coalesce(bool_and(i.indisunique AND i.indisvalid AND i.indisready),false))
+FROM pg_index i
+JOIN pg_class c ON c.oid=i.indexrelid
+JOIN pg_namespace n ON n.oid=c.relnamespace
+WHERE n.nspname='public' AND c.relname IN ('payments_paymongo_invoice_unique_all','payments_paymongo_invoice_reference_unique')
+UNION ALL
 SELECT 'duplicate_paymongo_invoice_references',CASE WHEN count(*)=0 THEN 'PASS' ELSE 'FAIL' END,
  jsonb_build_object('duplicate_references',count(*))
 FROM (
