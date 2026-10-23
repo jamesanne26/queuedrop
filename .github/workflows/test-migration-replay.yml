@@ -56,10 +56,10 @@ jobs:
           test -n "$db_container"
           result="$(docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/paymongo_production_preflight.sql)"
           printf '%s\n' "$result"
-          for name in missing_atomic_checkout_function missing_atomic_invoice_function missing_invoice_unique_index missing_invoice_reference_index; do
+          for name in missing_atomic_checkout_function missing_atomic_invoice_function missing_invoice_unique_index missing_invoice_reference_index checkout_function_exposed_to_authenticated invoice_function_exposed_to_authenticated; do
             printf '%s\n' "$result" | grep -qx "$name|NO"
           done
-          for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices; do
+          for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices duplicate_paymongo_invoice_references_all_methods; do
             printf '%s\n' "$result" | grep -qx "$name|0"
           done
       - name: Assert parallel PayMongo checkout fulfillment
