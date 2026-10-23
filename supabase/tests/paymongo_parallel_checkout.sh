@@ -4,9 +4,9 @@ set -euo pipefail
 db="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
 psql_local() { docker exec -i "$db" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -At "$@"; }
 suffix="$(date +%s)-$$"
-business="$(psql_local -c "INSERT INTO public.businesses(name,slug) VALUES ('Parallel QA','parallel-qa-$suffix') RETURNING id" | head -1)"
-plan="$(psql_local -c "INSERT INTO public.plans(name,price_monthly) VALUES ('Parallel QA $suffix',499) RETURNING id" | head -1)"
-order="$(psql_local -c "INSERT INTO public.subscription_orders(business_id,plan_id,amount,subtotal,currency,provider,payment_mode,status,billing_interval,renewal_mode) VALUES ('$business','$plan',499,499,'PHP','paymongo','online','checkout_created','monthly','manual') RETURNING id" | head -1)"
+business="$(psql_local -c "INSERT INTO public.businesses(name,slug) VALUES ('Parallel QA','parallel-qa-$suffix') RETURNING id" | sed -n '1p')"
+plan="$(psql_local -c "INSERT INTO public.plans(name,price_monthly) VALUES ('Parallel QA $suffix',499) RETURNING id" | sed -n '1p')"
+order="$(psql_local -c "INSERT INTO public.subscription_orders(business_id,plan_id,amount,subtotal,currency,provider,payment_mode,status,billing_interval,renewal_mode) VALUES ('$business','$plan',499,499,'PHP','paymongo','online','checkout_created','monthly','manual') RETURNING id" | sed -n '1p')"
 payment="pay_parallel_$suffix"
 cleanup() { psql_local -c "DELETE FROM public.payments WHERE business_id='$business'; DELETE FROM public.business_subscriptions WHERE business_id='$business'; DELETE FROM public.subscription_orders WHERE business_id='$business'; DELETE FROM public.businesses WHERE id='$business'; DELETE FROM public.plans WHERE id='$plan';" >/dev/null || true; }
 trap cleanup EXIT
