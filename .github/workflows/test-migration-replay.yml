@@ -59,6 +59,13 @@ jobs:
           for name in missing_atomic_checkout_function missing_atomic_invoice_function missing_invoice_unique_index missing_invoice_reference_index checkout_function_exposed_to_authenticated invoice_function_exposed_to_authenticated; do
             printf '%s\n' "$result" | grep -qx "$name|NO"
           done
+          for name in checkout_function_exposed_to_anon invoice_function_exposed_to_anon; do
+            printf '%s\n' "$result" | grep -qx "$name|NO"
+          done
+          for name in checkout_function_executable_by_service_role invoice_function_executable_by_service_role; do
+            printf '%s\n' "$result" | grep -qx "$name|YES"
+          done
+          printf '%s\n' "$result" | grep -qx 'invalid_or_unready_invoice_indexes|0'
           for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices duplicate_paymongo_invoice_references_all_methods; do
             printf '%s\n' "$result" | grep -qx "$name|0"
           done
