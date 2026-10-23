@@ -18,5 +18,23 @@ SELECT 'invoice_unique_index',CASE WHEN count(*)=1 THEN 'PASS' ELSE 'FAIL' END,
  jsonb_build_object('count',count(*))
 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_paymongo_invoice_unique_all'
 UNION ALL
+SELECT 'invoice_reference_unique_index',CASE WHEN count(*)=1 THEN 'PASS' ELSE 'FAIL' END,
+ jsonb_build_object('count',count(*))
+FROM pg_indexes WHERE schemaname='public' AND indexname='payments_paymongo_invoice_reference_unique'
+UNION ALL
+SELECT 'duplicate_paymongo_invoice_references',CASE WHEN count(*)=0 THEN 'PASS' ELSE 'FAIL' END,
+ jsonb_build_object('duplicate_references',count(*))
+FROM (
+ SELECT provider_reference FROM public.payments
+ WHERE provider='paymongo' AND provider_reference LIKE 'in_%'
+ GROUP BY provider_reference HAVING count(*)>1
+) duplicates
+UNION ALL
+SELECT 'support_return_path_length_guard',
+ CASE WHEN to_regprocedure('public.support_return_path(text)') IS NOT NULL
+ AND position('length(source) > 500' in pg_get_functiondef(to_regprocedure('public.support_return_path(text)'))) > 0
+ THEN 'PASS' ELSE 'FAIL' END,
+ jsonb_build_object('requires_500_character_limit',true)
+UNION ALL
 SELECT 'migration_history', 'INFO', jsonb_build_object('recorded_versions',count(*),'latest_version',max(version))
 FROM supabase_migrations.schema_migrations;
