@@ -74,40 +74,10 @@ jobs:
       - name: Enforce read-only release audit
         run: |
           set -euo pipefail
-          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop
-        run: bash supabase/tests/paymongo_parallel_checkout.sh
-
-      - name: Assert parallel PayMongo invoice renewal
-        run: bash supabase/tests/paymongo_parallel_invoice.sh
-
-      - name: Rehearse isolated database backup and restore
-        run: |
-          set -euo pipefail
-          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
-          test -n "$db_container"
-          docker exec "$db_container" pg_dump -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
-          test -s /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
-          # Supply a minimal auth.users dependency in this disposable database; no real users are copied.
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';"
-          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
-          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --no-acl --exit-on-error < /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
-
-      - name: Stop local Supabase
-        if: always()
-        run: npx --yes supabase@2.120.0 stop --no-backup
-)"
-          test -n "$db_container"
-          result="$(docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql)"
-          printf '%s\n' "$result"
-          if printf '%s\n' "$result" | grep -E '\|FAIL\|'; then
-            echo "Release audit failed"
-            exit 1
-          fi
-          test "$(printf '%s\n' "$result" | grep -c '|PASS|')" -eq 6
+          docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql > /tmp/queuedrop-release-audit.txt
+          cat /tmp/queuedrop-release-audit.txt
+          ! grep -F '|FAIL|' /tmp/queuedrop-release-audit.txt
+          test "$(grep -Fc '|PASS|' /tmp/queuedrop-release-audit.txt)" -eq 6
 
       - name: Assert parallel PayMongo checkout fulfillment
         run: bash supabase/tests/paymongo_parallel_checkout.sh
