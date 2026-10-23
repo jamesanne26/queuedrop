@@ -20,8 +20,8 @@ BEGIN
   FROM supabase_migrations.schema_migrations;
 
   -- Updated when a new forward-only migration is introduced; prevents silent replay omissions.
-  IF migration_count <> 107 THEN
-    RAISE EXCEPTION 'Expected 107 migrations, found %', migration_count;
+  IF migration_count <> 108 THEN
+    RAISE EXCEPTION 'Expected 108 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
