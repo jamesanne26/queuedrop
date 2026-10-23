@@ -48,26 +48,7 @@ jobs:
       - name: Assert PayMongo migration preflight
         run: |
           set -euo pipefail
-          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop
-        run: |
-          set -euo pipefail
           db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
-          test -n "$db_container"
-          docker exec "$db_container" pg_dump -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
-          test -s /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
-          # Supply a minimal auth.users dependency in this disposable database; no real users are copied.
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';"
-          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
-          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --no-acl --exit-on-error < /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
-
-      - name: Stop local Supabase
-        if: always()
-        run: npx --yes supabase@2.120.0 stop --no-backup
-)"
           test -n "$db_container"
           result="$(docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/paymongo_production_preflight.sql)"
           printf '%s\n' "$result"
