@@ -8,6 +8,7 @@ on:
       - "supabase/tests/migration_replay_assertions.sql"
       - "supabase/tests/paymongo_production_preflight.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
+      - "supabase/tests/paymongo_parallel_invoice.sh"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
   push:
@@ -17,6 +18,7 @@ on:
       - "supabase/tests/migration_replay_assertions.sql"
       - "supabase/tests/paymongo_production_preflight.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
+      - "supabase/tests/paymongo_parallel_invoice.sh"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
 
@@ -62,6 +64,9 @@ jobs:
           done
       - name: Assert parallel PayMongo checkout fulfillment
         run: bash supabase/tests/paymongo_parallel_checkout.sh
+
+      - name: Assert parallel PayMongo invoice renewal
+        run: bash supabase/tests/paymongo_parallel_invoice.sh
 
       - name: Rehearse isolated database backup and restore
         run: |
