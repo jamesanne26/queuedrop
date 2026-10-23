@@ -52,7 +52,8 @@ jobs:
           test -s /tmp/queuedrop-rehearsal.dump
           docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
           docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
-          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
+          # Supply a minimal auth.users dependency in this disposable database; no real users are copied.
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"\n          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
           docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --no-acl --exit-on-error < /tmp/queuedrop-rehearsal.dump
           docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
 
