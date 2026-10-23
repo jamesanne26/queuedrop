@@ -14,6 +14,7 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/tests/paymongo_production_preflight.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
 
@@ -76,7 +77,6 @@ jobs:
           for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices; do
             printf '%s\n' "$result" | grep -qx "$name|0"
           done
-
       - name: Rehearse isolated database backup and restore
         run: |
           set -euo pipefail
