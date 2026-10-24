@@ -46,6 +46,8 @@ jobs:
         run: npm run test:e2e
       - name: Report every skipped browser test
         if: always()
+        env:
+          QUEUEDROP_FAIL_ON_E2E_SKIP: "1"
         run: |
           if [ -f test-results/results.json ]; then
             node scripts/report-e2e-skips.mjs test-results/results.json
