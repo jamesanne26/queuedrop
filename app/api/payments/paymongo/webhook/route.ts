@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addBillingPeriod, type BillingInterval } from "@/lib/billing/subscription";
-import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedPayMongoAmount } from "@/lib/billing/paymongo";
+import { normalizePayMongoPaidEvent, validPayMongoSignature, verifiedPayMongoAmount, verifiedPayMongoExpectedAmount } from "@/lib/billing/paymongo";
 
 type EventResource = { id?: string; type?: string; attributes?: Record<string, unknown> };
 type PayMongoEvent = { data?: { attributes?: { type?: string; data?: EventResource } } };
@@ -113,16 +113,13 @@ async function handleSubscriptionInvoicePaid(resource: EventResource | undefined
   const planId = current?.plan_id ?? setupOrder!.plan_id;
   const interval = String(current?.billing_interval ?? setupOrder?.billing_interval ?? "monthly") as BillingInterval;
   const expectedCurrency = String(current?.billing_currency ?? setupOrder?.currency ?? "PHP").toUpperCase();
-  const verifiedAmount = verifiedPayMongoAmount(attrs.amount, attrs.currency, expectedCurrency);
-  const amount = verifiedAmount ?? NaN;
-  const currency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
-  if (!Number.isFinite(amount) || amount <= 0 || currency !== expectedCurrency) {
+  const amount = !current && setupOrder
+    ? verifiedPayMongoExpectedAmount(attrs.amount, attrs.currency, Number(setupOrder.amount), expectedCurrency)
+    : verifiedPayMongoAmount(attrs.amount, attrs.currency, expectedCurrency);
+  if (amount === null) {
     return NextResponse.json({ error: "Invalid recurring invoice amount or currency" }, { status: 409 });
   }
-  // The initial subscription invoice must match the amount authorized in its setup order.
-  if (!current && setupOrder && Math.abs(amount - Number(setupOrder.amount)) > 0.001) {
-    return NextResponse.json({ error: "Initial recurring invoice amount mismatch" }, { status: 409 });
-  }
+  const currency = expectedCurrency;
   const now = new Date();
   const nextBilling = nextBillingFromResource(resource) ?? addBillingPeriod(now, interval);
 
@@ -183,10 +180,9 @@ export async function POST(request: Request) {
   if (orderError) return NextResponse.json({ error: "Billing lookup failed" }, { status: 500 });
   if (!order) return NextResponse.json({ error: "Subscription order not found" }, { status: 404 });
 
-  const verifiedAmount = verifiedPayMongoAmount(attrs.amount, attrs.currency, String(order.currency));
-  const paidAmount = verifiedAmount ?? NaN;
+  const paidAmount = verifiedPayMongoExpectedAmount(attrs.amount, attrs.currency, Number(order.amount), String(order.currency));
   const paidCurrency = typeof attrs.currency === "string" ? attrs.currency.toUpperCase() : "";
-  if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - Number(order.amount)) > 0.001 || paidCurrency !== String(order.currency).toUpperCase()) {
+  if (paidAmount === null) {
     return NextResponse.json({ error: "Payment amount or currency mismatch" }, { status: 409 });
   }
 
