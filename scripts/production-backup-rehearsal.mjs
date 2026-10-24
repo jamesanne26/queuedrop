@@ -81,7 +81,7 @@ async function rehearse() {
     return String(r.stdout ?? "").trim();
   }
   function sourceSql(sql) {
-    return run([...remoteArgs, "psql", "-X", "-Atq", "-v", "ON_ERROR_STOP=1", "-c", sql], { remote: true });
+    return run([...remoteArgs, "psql", "-X", "-Atq", "-v", "ON_ERROR_STOP=1", "-c", "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout = 180000; " + sql + "; ROLLBACK;"], { remote: true });
   }
   function localSql(sql) {
     return run(["exec", "-i", container, "psql", "-U", "postgres", "-d", "rehearsal", "-X", "-Atq", "-v", "ON_ERROR_STOP=1"], { input: sql });
@@ -102,7 +102,7 @@ async function rehearse() {
     for (let n = 0; n < 150 && !keeperOutput.includes("\n"); n++) await delay(100);
     const snapshot = keeperOutput.trim().split("\n")[0];
     assert.match(snapshot, /^[0-9A-F]+-[0-9A-F]+-[0-9]+$/i, "could not export Production snapshot");
-    const inSnapshot = sql => sourceSql("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SET TRANSACTION SNAPSHOT " + literal(snapshot) + "; " + sql + "; COMMIT;");
+    const inSnapshot = sql => sourceSql("SET TRANSACTION SNAPSHOT " + literal(snapshot) + "; " + sql);
     const roleNames = JSON.parse(inSnapshot("SELECT coalesce(json_agg(rolname ORDER BY rolname),'[]') FROM pg_roles WHERE rolname !~ '^pg_' AND rolname<>'postgres'"));
     const tables = JSON.parse(inSnapshot("SELECT coalesce(json_agg(json_build_object('schema',schemaname,'name',tablename) ORDER BY schemaname,tablename),'[]') FROM pg_tables WHERE schemaname IN (" + schemas.map(literal).join(",") + ")"));
     assert.ok(tables.length > 0, "no backup tables found");
