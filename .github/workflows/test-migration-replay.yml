@@ -10,6 +10,8 @@ on:
       - "supabase/tests/read_only_release_audit.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
+      - "scripts/build-production-delta.mjs"
+      - "supabase/tests/production_delta_baseline.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
   push:
@@ -21,6 +23,8 @@ on:
       - "supabase/tests/read_only_release_audit.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
+      - "scripts/build-production-delta.mjs"
+      - "supabase/tests/production_delta_baseline.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
 
@@ -78,6 +82,30 @@ jobs:
           cat /tmp/queuedrop-release-audit.txt
           ! grep -F '|FAIL|' /tmp/queuedrop-release-audit.txt
           test "$(grep -Fc '|PASS|' /tmp/queuedrop-release-audit.txt)" -eq 6
+
+
+      - name: Rehearse scoped Production delta and transaction rollback
+        run: |
+          set -euo pipefail
+          node scripts/build-production-delta.mjs > /tmp/queuedrop-production-delta.sql
+          docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/production_delta_baseline.sql
+          audit() {
+            docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql
+          }
+          audit > /tmp/queuedrop-baseline-audit.txt
+          test "$(grep -Fc '|FAIL|' /tmp/queuedrop-baseline-audit.txt)" -eq 5
+          # Rehearse all DDL then roll back, and verify original gaps remain.
+          sed 's/^COMMIT;$/ROLLBACK;/' /tmp/queuedrop-production-delta.sql | docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1
+          audit > /tmp/queuedrop-rollback-audit.txt
+          cmp /tmp/queuedrop-baseline-audit.txt /tmp/queuedrop-rollback-audit.txt
+          # Apply twice to check idempotency; no scheduler/history changes included.
+          for attempt in 1 2; do
+            docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/queuedrop-production-delta.sql
+            audit > /tmp/queuedrop-delta-audit.txt
+            ! grep -F '|FAIL|' /tmp/queuedrop-delta-audit.txt
+            test "$(grep -Fc '|PASS|' /tmp/queuedrop-delta-audit.txt)" -eq 6
+          done
+          echo "PASS: scoped delta, transaction rollback, repeat application and six release checks"
 
       - name: Assert parallel PayMongo checkout fulfillment
         run: bash supabase/tests/paymongo_parallel_checkout.sh
