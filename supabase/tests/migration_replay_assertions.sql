@@ -19,8 +19,9 @@ BEGIN
   SELECT count(*) INTO migration_count
   FROM supabase_migrations.schema_migrations;
 
-  IF migration_count <> 104 THEN
-    RAISE EXCEPTION 'Expected 104 migrations, found %', migration_count;
+  -- Updated when a new forward-only migration is introduced; prevents silent replay omissions.
+  IF migration_count <> 108 THEN
+    RAISE EXCEPTION 'Expected 108 migrations, found %', migration_count;
   END IF;
 
   IF to_regclass('public.businesses') IS NULL
@@ -126,6 +127,30 @@ BEGIN
       AND acl.privilege_type = 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'Support return-path RPC must not grant EXECUTE to PUBLIC';
+  END IF;
+  IF to_regprocedure('public.finalize_paymongo_checkout_atomic(uuid,text,numeric,text,timestamptz,text,jsonb)') IS NULL
+     OR to_regprocedure('public.finalize_paymongo_invoice_atomic(text,text,text,numeric,text,timestamptz,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'Atomic PayMongo fulfillment RPCs are missing after replay';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    WHERE p.oid IN (
+      'public.finalize_paymongo_checkout_atomic(uuid,text,numeric,text,timestamptz,text,jsonb)'::regprocedure,
+      'public.finalize_paymongo_invoice_atomic(text,text,text,numeric,text,timestamptz,jsonb)'::regprocedure
+    )
+    AND (
+      NOT p.prosecdef
+      OR has_function_privilege('anon',p.oid,'EXECUTE')
+      OR has_function_privilege('authenticated',p.oid,'EXECUTE')
+      OR NOT has_function_privilege('service_role',p.oid,'EXECUTE')
+    )
+  ) THEN
+    RAISE EXCEPTION 'Atomic PayMongo RPC permissions are insecure';
+  END IF;
+
+  IF to_regclass('public.payments_paymongo_invoice_unique_all') IS NULL THEN
+    RAISE EXCEPTION 'PayMongo invoice uniqueness index is missing';
   END IF;
 END;
 $$;

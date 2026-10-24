@@ -15,7 +15,9 @@ export async function loginAsOwner(page, credentials) {
 
   await signInButton.click();
   await page.waitForURL((url) => {
-    if (/\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
+    // A TEST platform owner is redirected to /system after sign-in.
+    // Owner regression tests still need the business dashboard shell.
+    if (url.pathname === "/dashboard" || url.pathname === "/system") return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
   }, { timeout: 20_000 });
 
@@ -25,6 +27,13 @@ export async function loginAsOwner(page, credentials) {
       "Owner E2E login failed. Verify E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD belong to the configured TEST Supabase project.",
     );
   }
+
+  // Platform owners land in /system, which has no dashboard sidebar. Navigate
+  // explicitly to the business workspace before testing owner features.
+  if (loginResult.pathname === "/system") {
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+  }
+  await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/);
 
   // The Account/Sign out controls now live inside a collapsible sidebar menu and
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.

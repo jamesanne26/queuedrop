@@ -49,7 +49,7 @@ test("system owner contact setting reaches homepage and customer queue page", as
     const phoneInput = page.getByLabel("Public contact number");
     await phoneInput.fill(testOnlyContact);
     await page.getByRole("button", { name: "Save public contact", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("Public contact saved.", { timeout: 20_000 });
+    await expect(page.locator("p.notice-success[role=\"status\"]")).toContainText("Public contact saved.", { timeout: 20_000 });
     await expect.poll(async () => {
       const { data, error } = await admin.from("platform_public_contact").select("phone").eq("id", true).maybeSingle();
       if (error) throw error;

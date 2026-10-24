@@ -1,0 +1,39 @@
+name: Repair Next.js security lockfile
+
+on:
+  push:
+    branches: [fix/next-security-audit-20261023]
+    paths:
+      - .github/workflows/repair-next-security.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/next-security-audit-20261023
+          persist-credentials: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Upgrade to patched Next.js 16 and regenerate lockfile
+        run: |
+          npm install --save-exact 'next@^16.4.1'
+          npm install --save-dev --save-exact 'eslint-config-next@^16.4.1'
+          npm audit --omit=dev --audit-level=high
+          npm run quality
+      - name: Commit lockfile and dependency updates
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: upgrade Next.js to patched 16.x release'
+            git push origin HEAD:fix/next-security-audit-20261023
+          fi

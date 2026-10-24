@@ -1,0 +1,57 @@
+name: PayMongo sandbox webhook setup
+
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - "scripts/setup-paymongo-test-webhook.mjs"
+      - "ops/paymongo-test-transport-public.pem"
+      - ".github/workflows/paymongo-sandbox-setup.yml"
+  push:
+    branches: [test]
+    paths:
+      - "scripts/setup-paymongo-test-webhook.mjs"
+      - "ops/paymongo-test-transport-public.pem"
+      - ".github/workflows/paymongo-sandbox-setup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: queuedrop-paymongo-sandbox-setup
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --check scripts/setup-paymongo-test-webhook.mjs
+      - run: node scripts/setup-paymongo-test-webhook.mjs --self-test
+
+  configure-test:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/test'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node scripts/setup-paymongo-test-webhook.mjs
+        env:
+          QUEUEDROP_PAYMONGO_TEST_SECRET_KEY: ${{ secrets.QUEUEDROP_PAYMONGO_TEST_SECRET_KEY }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: paymongo-sandbox-encrypted-configuration
+          path: paymongo-test-setup/
+          retention-days: 1
+          if-no-files-found: error
+      - if: always()
+        run: rm -rf paymongo-test-setup

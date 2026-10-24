@@ -6,6 +6,16 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/tests/paymongo_production_preflight.sql"
+      - "supabase/tests/read_only_release_audit.sql"
+      - "supabase/tests/paymongo_parallel_checkout.sh"
+      - "supabase/tests/paymongo_parallel_invoice.sh"
+      - "scripts/build-production-delta.mjs"
+      - "scripts/test-local-payment-webhooks.mjs"
+      - "app/api/payments/paymongo/**"
+      - "lib/billing/paymongo.ts"
+      - "supabase/tests/production_delta_baseline.sql"
+      - "supabase/tests/restore_rehearsal_*.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
   push:
@@ -13,6 +23,16 @@ on:
     paths:
       - "supabase/migrations/**"
       - "supabase/tests/migration_replay_assertions.sql"
+      - "supabase/tests/paymongo_production_preflight.sql"
+      - "supabase/tests/read_only_release_audit.sql"
+      - "supabase/tests/paymongo_parallel_checkout.sh"
+      - "supabase/tests/paymongo_parallel_invoice.sh"
+      - "scripts/build-production-delta.mjs"
+      - "scripts/test-local-payment-webhooks.mjs"
+      - "app/api/payments/paymongo/**"
+      - "lib/billing/paymongo.ts"
+      - "supabase/tests/production_delta_baseline.sql"
+      - "supabase/tests/restore_rehearsal_*.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
 
@@ -42,6 +62,101 @@ jobs:
           db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
           test -n "$db_container"
           docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/migration_replay_assertions.sql
+
+      - name: Assert PayMongo migration preflight
+        run: |
+          set -euo pipefail
+          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
+          test -n "$db_container"
+          result="$(docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/paymongo_production_preflight.sql)"
+          printf '%s\n' "$result"
+          for name in missing_atomic_checkout_function missing_atomic_invoice_function missing_invoice_unique_index missing_invoice_reference_index checkout_function_exposed_to_authenticated invoice_function_exposed_to_authenticated; do
+            printf '%s\n' "$result" | grep -qx "$name|NO"
+          done
+          for name in checkout_function_exposed_to_anon invoice_function_exposed_to_anon; do
+            printf '%s\n' "$result" | grep -qx "$name|NO"
+          done
+          for name in checkout_function_executable_by_service_role invoice_function_executable_by_service_role; do
+            printf '%s\n' "$result" | grep -qx "$name|YES"
+          done
+          printf '%s\n' "$result" | grep -qx 'invalid_or_unready_invoice_indexes|0'
+          for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices duplicate_paymongo_invoice_references_all_methods; do
+            printf '%s\n' "$result" | grep -qx "$name|0"
+          done
+      - name: Enforce read-only release audit
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql > /tmp/queuedrop-release-audit.txt
+          cat /tmp/queuedrop-release-audit.txt
+          ! grep -F '|FAIL|' /tmp/queuedrop-release-audit.txt
+          test "$(grep -Fc '|PASS|' /tmp/queuedrop-release-audit.txt)" -eq 6
+
+
+      - name: Rehearse scoped Production delta and transaction rollback
+        run: |
+          set -euo pipefail
+          node scripts/build-production-delta.mjs > /tmp/queuedrop-production-delta.sql
+          docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/production_delta_baseline.sql
+          audit() {
+            docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql
+          }
+          audit > /tmp/queuedrop-baseline-audit.txt
+          test "$(grep -Fc '|FAIL|' /tmp/queuedrop-baseline-audit.txt)" -eq 5
+          # Rehearse all DDL then roll back, and verify original gaps remain.
+          sed 's/^COMMIT;$/ROLLBACK;/' /tmp/queuedrop-production-delta.sql | docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1
+          audit > /tmp/queuedrop-rollback-audit.txt
+          cmp /tmp/queuedrop-baseline-audit.txt /tmp/queuedrop-rollback-audit.txt
+          # Apply twice to check idempotency; no scheduler/history changes included.
+          for attempt in 1 2; do
+            docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/queuedrop-production-delta.sql
+            audit > /tmp/queuedrop-delta-audit.txt
+            ! grep -F '|FAIL|' /tmp/queuedrop-delta-audit.txt
+            test "$(grep -Fc '|PASS|' /tmp/queuedrop-delta-audit.txt)" -eq 6
+          done
+          echo "PASS: scoped delta, transaction rollback, repeat application and six release checks"
+
+      - name: Assert parallel PayMongo checkout fulfillment
+        run: bash supabase/tests/paymongo_parallel_checkout.sh
+
+      - name: Assert parallel PayMongo invoice renewal
+        run: bash supabase/tests/paymongo_parallel_invoice.sh
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Verify signed HTTP payment flow on local database
+        run: node scripts/test-local-payment-webhooks.mjs
+
+      - name: Rehearse isolated database backup and restore
+        run: |
+          set -euo pipefail
+          db_container="$(docker ps --format '{{.Names}}' | grep '^supabase_db_queuedrop$')"
+          test -n "$db_container"
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/restore_rehearsal_seed.sql
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/restore_rehearsal_snapshot.sql > /tmp/restore-before.txt
+          test "$(wc -l < /tmp/restore-before.txt)" -eq 5
+          test "$(grep -Ec '^[a-z_]+\|1\|[a-f0-9]{32}$' /tmp/restore-before.txt)" -eq 5
+          docker exec "$db_container" pg_dump -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
+          test -s /tmp/queuedrop-rehearsal.dump
+          docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
+          # Supply a minimal auth.users dependency in this disposable database; no real users are copied.
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';"
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS 'SELECT current_setting(''request.jwt.claim.role'',true)';"
+          # Restore application ACLs as well as data. Roles are cluster-wide in this disposable instance.
+          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
+          # Managed supabase_admin default privileges are provisioned by the platform,
+          # and postgres cannot recreate them. Keep application object ACLs and other defaults.
+          docker exec -i "$db_container" pg_restore --list < /tmp/queuedrop-rehearsal.dump | sed '/ DEFAULT ACL .* supabase_admin$/d' > /tmp/queuedrop-restore.list
+          docker cp /tmp/queuedrop-restore.list "$db_container":/tmp/queuedrop-restore.list
+          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --exit-on-error --use-list=/tmp/queuedrop-restore.list < /tmp/queuedrop-rehearsal.dump
+          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
+
+          docker exec -i "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 < supabase/tests/restore_rehearsal_verify.sql
+          docker exec -i "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/restore_rehearsal_snapshot.sql > /tmp/restore-after.txt
+          cmp /tmp/restore-before.txt /tmp/restore-after.txt
+          echo "PASS: restored billing rows match exactly, RPC grants preserved and payment retry is idempotent"
 
       - name: Stop local Supabase
         if: always()

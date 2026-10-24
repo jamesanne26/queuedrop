@@ -17,7 +17,7 @@ permissions:
 jobs:
   browser-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
       QUEUEDROP_TEST_BASE_URL: ${{ secrets.QUEUEDROP_TEST_BASE_URL }}
       E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
@@ -38,10 +38,20 @@ jobs:
         run: |
           export GITHUB_SHA="$(git rev-parse HEAD)"
           node scripts/verify-test-deployment.mjs
+      - name: Ensure TEST E2E platform-owner permission
+        run: node scripts/ensure-test-e2e-system-owner.mjs
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
         run: npm run test:e2e
+      - name: Report every skipped browser test
+        if: always()
+        run: |
+          if [ -f test-results/results.json ]; then
+            node scripts/report-e2e-skips.mjs test-results/results.json
+          else
+            echo "No Playwright JSON results produced"
+          fi
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v7
