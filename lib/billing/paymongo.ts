@@ -55,3 +55,22 @@ export function verifiedPayMongoAmount(amount: unknown, currency: unknown, expec
   if (typeof currency !== "string" || currency.toUpperCase() !== expectedCurrency.toUpperCase()) return null;
   return amount / 100;
 }
+
+/**
+ * Require exact equality in provider minor units. Never tolerate a difference
+ * smaller than one peso via floating-point comparisons or round a non-cent
+ * order total into a paid amount.
+ */
+export function verifiedPayMongoExpectedAmount(
+  amount: unknown,
+  currency: unknown,
+  expectedAmount: number,
+  expectedCurrency: string,
+): number | null {
+  const paidAmount = verifiedPayMongoAmount(amount, currency, expectedCurrency);
+  if (paidAmount === null || !Number.isFinite(expectedAmount) || expectedAmount <= 0) return null;
+  const expectedMinorUnits = Math.round(expectedAmount * 100);
+  if (!Number.isSafeInteger(expectedMinorUnits)) return null;
+  if (Math.abs(expectedAmount * 100 - expectedMinorUnits) > 0.000001) return null;
+  return amount === expectedMinorUnits ? paidAmount : null;
+}

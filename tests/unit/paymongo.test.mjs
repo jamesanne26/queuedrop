@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { validPayMongoSignature, verifiedPayMongoAmount } from "../../lib/billing/paymongo.ts";
+import { validPayMongoSignature, verifiedPayMongoAmount, verifiedPayMongoExpectedAmount } from "../../lib/billing/paymongo.ts";
 test("PayMongo signature validation accepts matching live signature",()=>{const raw='{"ok":true}',secret="secret",t="123";const sig=crypto.createHmac("sha256",secret).update(`${t}.${raw}`).digest("hex");assert.equal(validPayMongoSignature(raw,`t=${t},li=${sig}`,secret),true);});
 test("PayMongo signature validation rejects tampering",()=>{assert.equal(validPayMongoSignature("x","t=1,li="+"0".repeat(64),"secret"),false);});
 
@@ -94,4 +94,18 @@ test("PayMongo amount verification rejects missing, malformed and wrong-currency
   assert.equal(verifiedPayMongoAmount(49900, undefined, "PHP"), null);
   assert.equal(verifiedPayMongoAmount(49900, "USD", "PHP"), null);
   assert.equal(verifiedPayMongoAmount(49900, "php", "PHP"), 499);
+});
+
+test("checkout and initial invoice require exact provider minor units", () => {
+  assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", 499, "PHP"), 499);
+  assert.equal(verifiedPayMongoExpectedAmount(49901, "PHP", 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49899, "PHP", 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(undefined, "PHP", 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49900, undefined, 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49900, "USD", 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount("49900", "PHP", 499, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", 499.0005, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", Number.NaN, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", 0, "PHP"), null);
+  assert.equal(verifiedPayMongoExpectedAmount(50001, "PHP", 500.01, "PHP"), 500.01);
 });
