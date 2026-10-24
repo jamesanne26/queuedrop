@@ -11,6 +11,9 @@ on:
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
       - "scripts/build-production-delta.mjs"
+      - "scripts/test-local-payment-webhooks.mjs"
+      - "app/api/payments/paymongo/**"
+      - "lib/billing/paymongo.ts"
       - "supabase/tests/production_delta_baseline.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
@@ -24,6 +27,9 @@ on:
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
       - "scripts/build-production-delta.mjs"
+      - "scripts/test-local-payment-webhooks.mjs"
+      - "app/api/payments/paymongo/**"
+      - "lib/billing/paymongo.ts"
       - "supabase/tests/production_delta_baseline.sql"
       - "supabase/config.toml"
       - ".github/workflows/test-migration-replay.yml"
@@ -112,6 +118,12 @@ jobs:
 
       - name: Assert parallel PayMongo invoice renewal
         run: bash supabase/tests/paymongo_parallel_invoice.sh
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Verify signed HTTP payment flow on local database
+        run: node scripts/test-local-payment-webhooks.mjs
 
       - name: Rehearse isolated database backup and restore
         run: |
