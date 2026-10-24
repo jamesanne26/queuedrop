@@ -38,6 +38,29 @@ jobs:
         run: |
           export GITHUB_SHA="$(git rev-parse HEAD)"
           node scripts/verify-test-deployment.mjs
+      - name: Require reachable TEST health endpoint
+        shell: bash
+        run: |
+          if [[ -z "${QUEUEDROP_TEST_BASE_URL:-}" ]]; then
+            echo "::error::QUEUEDROP_TEST_BASE_URL is not configured"
+            exit 1
+          fi
+          health_url="${QUEUEDROP_TEST_BASE_URL%/}/api/health"
+          for attempt in 1 2 3; do
+            status="$(curl --silent --show-error --location --max-time 20 --dump-header /tmp/queuedrop-test-health-headers.txt --output /tmp/queuedrop-test-health.txt --write-out '%{http_code}' "$health_url")" || status="000"
+            if [[ "$status" == "200" ]]; then
+              echo "TEST health endpoint is reachable (HTTP 200)"
+              exit 0
+            fi
+            if [[ "$status" == "402" ]] && { grep -Eiq '^x-vercel-error:[[:space:]]*DEPLOYMENT_DISABLED[[:space:]]*\r?$' /tmp/queuedrop-test-health-headers.txt || grep -q 'DEPLOYMENT_DISABLED' /tmp/queuedrop-test-health.txt; }; then
+              echo "::error::Vercel TEST is disabled (HTTP 402 DEPLOYMENT_DISABLED). Restore deployment availability before browser E2E."
+              exit 1
+            fi
+            echo "TEST health attempt $attempt/3 returned HTTP $status"
+            if [[ "$attempt" -lt 3 ]]; then sleep 5; fi
+          done
+          echo "::error::TEST health endpoint unavailable (HTTP $status). Browser E2E not started."
+          exit 1
       - name: Ensure TEST E2E platform-owner permission
         run: node scripts/ensure-test-e2e-system-owner.mjs
       - name: Install Chromium
@@ -64,4 +87,3 @@ jobs:
             test-results
           if-no-files-found: ignore
           retention-days: 7
-
