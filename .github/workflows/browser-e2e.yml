@@ -47,12 +47,48 @@ jobs:
           fi
           health_url="${QUEUEDROP_TEST_BASE_URL%/}/api/health"
           for attempt in 1 2 3; do
-            status="$(curl --silent --show-error --location --max-time 20 --output /tmp/queuedrop-test-health.txt --write-out '%{http_code}' "$health_url")" || status="000"
+            status="$(curl --silent --show-error --location --max-time 20 --dump-header /tmp/queuedrop-test-health-headers.txt --output /tmp/queuedrop-test-health.txt --write-out '%{http_code}' "$health_url")" || status="000"
             if [[ "$status" == "200" ]]; then
               echo "TEST health endpoint is reachable (HTTP 200)"
               exit 0
             fi
-            if [[ "$status" == "402" ]] && grep -q "DEPLOYMENT_DISABLED" /tmp/queuedrop-test-health.txt; then
+            if [[ "$status" == "402" ]] && { grep -Eiq '^x-vercel-error:[[:space:]]*DEPLOYMENT_DISABLED[[:space:]]*
+              echo "::error::Vercel TEST is disabled (HTTP 402 DEPLOYMENT_DISABLED). Restore deployment availability before browser E2E."
+              exit 1
+            fi
+            echo "TEST health attempt $attempt/3 returned HTTP $status"
+            if [[ "$attempt" -lt 3 ]]; then sleep 5; fi
+          done
+          echo "::error::TEST health endpoint unavailable (HTTP $status). Browser E2E not started."
+          exit 1
+      - name: Ensure TEST E2E platform-owner permission
+        run: node scripts/ensure-test-e2e-system-owner.mjs
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run browser E2E regression
+        run: npm run test:e2e
+      - name: Report every skipped browser test
+        if: always()
+        env:
+          QUEUEDROP_FAIL_ON_E2E_SKIP: "1"
+        run: |
+          if [ -f test-results/results.json ]; then
+            node scripts/report-e2e-skips.mjs test-results/results.json
+          else
+            echo "No Playwright JSON results produced"
+          fi
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+ /tmp/queuedrop-test-health-headers.txt || grep -q "DEPLOYMENT_DISABLED" /tmp/queuedrop-test-health.txt; }; then
               echo "::error::Vercel TEST is disabled (HTTP 402 DEPLOYMENT_DISABLED). Restore deployment availability before browser E2E."
               exit 1
             fi
