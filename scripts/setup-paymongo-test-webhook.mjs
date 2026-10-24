@@ -11,7 +11,7 @@ if (process.argv.includes("--self-test")) {
   console.log("PASS: sandbox setup syntax and public-key encryption configuration");
 } else {
   assert.ok(key?.startsWith("sk_test_"), "A PayMongo sk_test_ key is required; live keys are refused");
-  assert.equal(key, key.trim(), "Remove whitespace from the TEST secret");
+  assert.ok(key === key.trim(), "Remove whitespace from the TEST secret");
   async function api(path, method = "GET", body) {
     const response = await fetch("https://api.paymongo.com/v1" + path, {
       method, headers: { Authorization: "Basic " + Buffer.from(key + ":").toString("base64"), Accept: "application/json",
