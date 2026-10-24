@@ -1,0 +1,45 @@
+name: PayMongo actual sandbox checkout
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - "scripts/paymongo-actual-sandbox-checkout.mjs"
+      - "ops/paymongo-sandbox-checkout.json"
+      - ".github/workflows/paymongo-actual-checkout.yml"
+  push:
+    branches: [test]
+    paths:
+      - "scripts/paymongo-actual-sandbox-checkout.mjs"
+      - "ops/paymongo-sandbox-checkout.json"
+      - ".github/workflows/paymongo-actual-checkout.yml"
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --check scripts/paymongo-actual-sandbox-checkout.mjs
+  checkout:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node scripts/paymongo-actual-sandbox-checkout.mjs
+        env:
+          QUEUEDROP_PAYMONGO_TEST_SECRET_KEY: ${{ secrets.QUEUEDROP_PAYMONGO_TEST_SECRET_KEY }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: paymongo-actual-sandbox-checkout
+          path: paymongo-checkout-result/
+          retention-days: 1
+          if-no-files-found: ignore
