@@ -108,9 +108,10 @@ async function rehearse() {
     assert.ok(tables.length > 0, "no backup tables found");
     const fingerprintSql = tables.map(t => {
       const label = t.schema + "." + t.name, name = ident(t.schema) + "." + ident(t.name);
-      return "SELECT " + literal(label) + "||'|'||count(*)::text||'|'||coalesce(md5(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text)),md5('')) FROM " + name + " t";
+      return "SELECT " + literal(label) + "||'|'||count(*)::text||'|'||coalesce(md5(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text COLLATE \"C\")),md5('')) FROM " + name + " t";
     }).join(" UNION ALL ") + " ORDER BY 1";
-    const fingerprints = inSnapshot(fingerprintSql);
+    const canonical = value => value.split("\n").sort().join("\n");
+    const fingerprints = canonical(inSnapshot(fingerprintSql));
     const metadata = { project: "sylvegfbkxgjfctbjfec", created_at: new Date().toISOString(),
       schemas, roleNames, tables, fingerprints, fingerprintSql,
       exclusions: "Storage object bytes, platform configuration, Vault encryption keys, Edge Function code and provider secrets are not in this logical database archive." };
@@ -152,7 +153,7 @@ async function rehearse() {
     stage = "restoring Production database archive";
     run(["cp", join(recovered, "database.dump"), container + ":/tmp/database.dump"]);
     run(["exec", container, "pg_restore", "-U", "postgres", "-d", "rehearsal", "--no-owner", "--exit-on-error", "/tmp/database.dump"]);
-    assert.equal(localSql(manifest.fingerprintSql), manifest.fingerprints, "restored Production table fingerprints differ");
+    assert.equal(canonical(localSql(manifest.fingerprintSql)), manifest.fingerprints, "restored Production table fingerprints differ");
     console.log("PASS: restored Production records match across " + manifest.tables.length + " tables");
     stage = "migration rehearsal on Production restore";
     const generation = spawnSync(process.execPath, ["scripts/build-production-delta.mjs"], { encoding: "utf8" });
@@ -161,7 +162,7 @@ async function rehearse() {
     const audit = localSql(readFileSync("supabase/tests/read_only_release_audit.sql", "utf8"));
     assert.equal(audit.split("\n").filter(l => l.includes("|PASS|")).length, 6, "restored Production delta did not pass six release checks");
     assert.ok(!audit.includes("|FAIL|"), "restored Production release audit failed");
-    assert.equal(localSql(manifest.fingerprintSql), manifest.fingerprints, "migration changed Production business records");
+    assert.equal(canonical(localSql(manifest.fingerprintSql)), manifest.fingerprints, "migration changed Production business records");
     console.log("PASS: six release checks after migration on restored Production; all backed-up rows unchanged");
     writeFileSync(join(artifactDir, "verification.txt"),
       "Production logical backup export, authenticated encryption, isolated restore and migration rehearsal PASSED.\nNo Production writes were performed.\nArchive includes database schemas listed in the manifest; Storage files and platform secrets/configuration need separate recovery coverage.\n");
