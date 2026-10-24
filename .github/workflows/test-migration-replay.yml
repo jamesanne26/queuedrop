@@ -135,7 +135,8 @@ jobs:
           docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/restore_rehearsal_seed.sql
           docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/restore_rehearsal_snapshot.sql > /tmp/restore-before.txt
           test "$(wc -l < /tmp/restore-before.txt)" -eq 5
-          test "$(grep -Ec '^[a-z_]+\|1\|[a-f0-9]{32} -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
+          test "$(grep -Ec '^[a-z_]+\|1\|[a-f0-9]{32}$' /tmp/restore-before.txt)" -eq 5
+          docker exec "$db_container" pg_dump -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
           test -s /tmp/queuedrop-rehearsal.dump
           docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
           docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
@@ -152,21 +153,6 @@ jobs:
           docker exec -i "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/restore_rehearsal_snapshot.sql > /tmp/restore-after.txt
           cmp /tmp/restore-before.txt /tmp/restore-after.txt
           echo "PASS: restored billing rows match exactly, RPC grants preserved and payment retry is idempotent"
-
-      - name: Stop local Supabase
-        if: always()
-        run: npx --yes supabase@2.120.0 stop --no-backup
- /tmp/restore-before.txt)" -eq 5
-          docker exec "$db_container" pg_dump -U postgres -d postgres -Fc --schema=public --schema=support_private > /tmp/queuedrop-rehearsal.dump
-          test -s /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" createdb -U postgres queuedrop_restore_rehearsal
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE;"
-          # Supply a minimal auth.users dependency in this disposable database; no real users are copied.
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY);"
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';"
-          # Restore only application schemas; managed Supabase system schemas are provisioned separately.
-          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --no-acl --exit-on-error < /tmp/queuedrop-rehearsal.dump
-          docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
 
       - name: Stop local Supabase
         if: always()
