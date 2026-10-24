@@ -4,7 +4,10 @@ const url = process.env.QUEUEDROP_TEST_SUPABASE_URL ?? "";
 const key = process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY ?? "";
 const email = (process.env.E2E_OWNER_EMAIL ?? "").trim().toLowerCase();
 const baseUrl = process.env.QUEUEDROP_TEST_BASE_URL ?? "";
-if (!url.includes("tcgiwtfhqssulxwawimh.supabase.co") || !new URL(baseUrl).hostname.includes("queuedrop-test")) {
+const localRunner = process.env.QUEUEDROP_E2E_RUNNER_LOCAL === "true" &&
+  baseUrl === "http://127.0.0.1:3000";
+if (new URL(url).hostname !== "tcgiwtfhqssulxwawimh.supabase.co" ||
+    (!localRunner && new URL(baseUrl).hostname !== "queuedrop-test.vercel.app")) {
   throw new Error("Refusing to grant platform-owner permission outside the designated TEST environment");
 }
 if (!key || !email) throw new Error("Missing TEST service-role credentials or E2E owner email");
