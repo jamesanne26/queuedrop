@@ -1,11 +1,30 @@
 import crypto from "node:crypto";
 
-export function validPayMongoSignature(raw:string,header:string|null,secret:string|undefined){
-  if(!secret||!header)return false; const parts:Record<string,string>={};
-  for(const segment of header.split(",")){const i=segment.indexOf("=");if(i>0)parts[segment.slice(0,i).trim()]=segment.slice(i+1).trim();}
-  const timestamp=parts.t;const signature=parts.li||parts.te;if(!timestamp||!signature||!/^[a-f0-9]{64}$/i.test(signature))return false;
-  const expected=crypto.createHmac("sha256",secret).update(`${timestamp}.${raw}`).digest("hex");
-  try{return crypto.timingSafeEqual(Buffer.from(signature,"hex"),Buffer.from(expected,"hex"));}catch{return false;}
+export function validPayMongoSignature(
+  raw: string,
+  header: string | null,
+  secret: string | undefined,
+  nowSeconds = Math.floor(Date.now() / 1000),
+) {
+  if (!secret || !header || !Number.isSafeInteger(nowSeconds)) return false;
+  const parts: Record<string, string> = {};
+  for (const segment of header.split(",")) {
+    const index = segment.indexOf("=");
+    if (index <= 0) return false;
+    const key = segment.slice(0, index).trim();
+    if (Object.hasOwn(parts, key)) return false;
+    parts[key] = segment.slice(index + 1).trim();
+  }
+  const timestamp = parts.t;
+  if (!timestamp || !/^[0-9]+$/.test(timestamp)) return false;
+  const signedAt = Number(timestamp);
+  // Bound replay age and clock skew using the delivery's signed timestamp,
+  // not the event creation time. Provider retries must carry a fresh signature.
+  if (!Number.isSafeInteger(signedAt) || Math.abs(nowSeconds - signedAt) > 300) return false;
+  const signature = parts.li || parts.te;
+  if (!signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
+  const expected = crypto.createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"));
 }
 
 type PayMongoAttributes = Record<string, unknown>;

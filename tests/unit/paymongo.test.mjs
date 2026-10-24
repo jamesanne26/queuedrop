@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { validPayMongoSignature, verifiedPayMongoAmount, verifiedPayMongoExpectedAmount } from "../../lib/billing/paymongo.ts";
-test("PayMongo signature validation accepts matching live signature",()=>{const raw='{"ok":true}',secret="secret",t="123";const sig=crypto.createHmac("sha256",secret).update(`${t}.${raw}`).digest("hex");assert.equal(validPayMongoSignature(raw,`t=${t},li=${sig}`,secret),true);});
+test("PayMongo signature validation accepts matching live signature",()=>{const raw='{"ok":true}',secret="secret",t=String(Math.floor(Date.now()/1000));const sig=crypto.createHmac("sha256",secret).update(`${t}.${raw}`).digest("hex");assert.equal(validPayMongoSignature(raw,`t=${t},li=${sig}`,secret),true);});
 test("PayMongo signature validation rejects tampering",()=>{assert.equal(validPayMongoSignature("x","t=1,li="+"0".repeat(64),"secret"),false);});
 
 import { normalizePayMongoPaidEvent } from "../../lib/billing/paymongo.ts";
@@ -108,4 +108,47 @@ test("checkout and initial invoice require exact provider minor units", () => {
   assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", Number.NaN, "PHP"), null);
   assert.equal(verifiedPayMongoExpectedAmount(49900, "PHP", 0, "PHP"), null);
   assert.equal(verifiedPayMongoExpectedAmount(50001, "PHP", 500.01, "PHP"), 500.01);
+});
+
+function signedHeader(raw, timestamp, field = "li") {
+  const sig = crypto.createHmac("sha256", "secret").update(`${timestamp}.${raw}`).digest("hex");
+  return `t=${timestamp},${field}=${sig}`;
+}
+
+test("fresh signed test and live webhook deliveries are accepted", () => {
+  for (const field of ["te", "li"]) {
+    assert.equal(validPayMongoSignature("{}", signedHeader("{}", 1000, field), "secret", 1000), true);
+  }
+});
+
+test("signed replay age and future clock skew are bounded to five minutes", () => {
+  for (const offset of [-300, 300]) {
+    assert.equal(validPayMongoSignature("{}", signedHeader("{}", 1000 + offset), "secret", 1000), true);
+  }
+  for (const offset of [-301, 301]) {
+    assert.equal(validPayMongoSignature("{}", signedHeader("{}", 1000 + offset), "secret", 1000), false);
+  }
+});
+
+test("a provider retry can use a fresh signature for an older event body", () => {
+  const raw = '{"data":{"attributes":{"created_at":1}}}';
+  assert.equal(validPayMongoSignature(raw, signedHeader(raw, 1000), "secret", 1000), true);
+});
+
+test("signed timestamps must be finite safe integer Unix seconds", () => {
+  for (const timestamp of ["NaN", "Infinity", "1e3", "1000.5", "-1000", "9007199254740992", ""]) {
+    assert.equal(validPayMongoSignature("{}", signedHeader("{}", timestamp), "secret", 1000), false);
+  }
+});
+
+test("duplicate header fields cannot override the signed timestamp or signature", () => {
+  const header = signedHeader("{}", 1000);
+  assert.equal(validPayMongoSignature("{}", header + ",t=1000", "secret", 1000), false);
+  assert.equal(validPayMongoSignature("{}", header + ",li=" + "0".repeat(64), "secret", 1000), false);
+});
+
+test("fresh signatures still reject body changes and a different secret", () => {
+  const header = signedHeader("{}", 1000);
+  assert.equal(validPayMongoSignature('{"changed":true}', header, "secret", 1000), false);
+  assert.equal(validPayMongoSignature("{}", header, "different", 1000), false);
 });
