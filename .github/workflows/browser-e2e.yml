@@ -38,6 +38,8 @@ jobs:
         run: |
           export GITHUB_SHA="$(git rev-parse HEAD)"
           node scripts/verify-test-deployment.mjs
+      - name: Ensure TEST E2E platform-owner permission
+        run: node scripts/ensure-test-e2e-system-owner.mjs
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
