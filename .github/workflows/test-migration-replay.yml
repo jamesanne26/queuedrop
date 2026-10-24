@@ -7,6 +7,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/migration_replay_assertions.sql"
       - "supabase/tests/paymongo_production_preflight.sql"
+      - "supabase/tests/read_only_release_audit.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
       - "supabase/config.toml"
@@ -17,6 +18,7 @@ on:
       - "supabase/migrations/**"
       - "supabase/tests/migration_replay_assertions.sql"
       - "supabase/tests/paymongo_production_preflight.sql"
+      - "supabase/tests/read_only_release_audit.sql"
       - "supabase/tests/paymongo_parallel_checkout.sh"
       - "supabase/tests/paymongo_parallel_invoice.sh"
       - "supabase/config.toml"
@@ -69,6 +71,14 @@ jobs:
           for name in duplicate_provider_payment_ids duplicate_paymongo_subscription_invoices duplicate_paymongo_invoice_references_all_methods; do
             printf '%s\n' "$result" | grep -qx "$name|0"
           done
+      - name: Enforce read-only release audit
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_queuedrop psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -F '|' < supabase/tests/read_only_release_audit.sql > /tmp/queuedrop-release-audit.txt
+          cat /tmp/queuedrop-release-audit.txt
+          ! grep -F '|FAIL|' /tmp/queuedrop-release-audit.txt
+          test "$(grep -Fc '|PASS|' /tmp/queuedrop-release-audit.txt)" -eq 6
+
       - name: Assert parallel PayMongo checkout fulfillment
         run: bash supabase/tests/paymongo_parallel_checkout.sh
 
