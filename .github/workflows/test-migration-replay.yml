@@ -146,7 +146,11 @@ jobs:
           docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -c "CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS 'SELECT current_setting(''request.jwt.claim.role'',true)';"
           # Restore application ACLs as well as data. Roles are cluster-wide in this disposable instance.
           # Restore only application schemas; managed Supabase system schemas are provisioned separately.
-          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --exit-on-error < /tmp/queuedrop-rehearsal.dump
+          # Managed supabase_admin default privileges are provisioned by the platform,
+          # and postgres cannot recreate them. Keep application object ACLs and other defaults.
+          docker exec -i "$db_container" pg_restore --list < /tmp/queuedrop-rehearsal.dump | sed '/ DEFAULT ACL .* supabase_admin$/d' > /tmp/queuedrop-restore.list
+          docker cp /tmp/queuedrop-restore.list "$db_container":/tmp/queuedrop-restore.list
+          docker exec -i "$db_container" pg_restore -U postgres -d queuedrop_restore_rehearsal --no-owner --exit-on-error --use-list=/tmp/queuedrop-restore.list < /tmp/queuedrop-rehearsal.dump
           docker exec "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 -Atc "SELECT CASE WHEN to_regclass('public.businesses') IS NOT NULL AND to_regclass('public.tickets') IS NOT NULL AND to_regclass('public.payments') IS NOT NULL AND to_regclass('support_private.sessions') IS NOT NULL THEN 'RESTORE PASS' ELSE 'RESTORE FAIL' END" | grep -x 'RESTORE PASS'
 
           docker exec -i "$db_container" psql -U postgres -d queuedrop_restore_rehearsal -v ON_ERROR_STOP=1 < supabase/tests/restore_rehearsal_verify.sql
