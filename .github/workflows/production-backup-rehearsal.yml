@@ -1,0 +1,58 @@
+name: Production backup restore verification
+
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - "scripts/production-backup-rehearsal.mjs"
+      - ".github/workflows/production-backup-rehearsal.yml"
+  push:
+    branches: [test]
+    paths:
+      - "scripts/production-backup-rehearsal.mjs"
+      - ".github/workflows/production-backup-rehearsal.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: queuedrop-production-backup
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --check scripts/production-backup-rehearsal.mjs
+      - run: node scripts/production-backup-rehearsal.mjs --self-test
+
+  backup-restore:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/test'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Export read-only and verify isolated restore
+        run: node scripts/production-backup-rehearsal.mjs
+        env:
+          QUEUEDROP_PROD_DB_PASSWORD: ${{ secrets.QUEUEDROP_PROD_DB_PASSWORD }}
+      - name: Preserve only encrypted backup and verification summary
+        uses: actions/upload-artifact@v7
+        with:
+          name: queuedrop-production-encrypted-backup
+          path: encrypted-production-backup/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove runner files
+        if: always()
+        run: rm -rf encrypted-production-backup

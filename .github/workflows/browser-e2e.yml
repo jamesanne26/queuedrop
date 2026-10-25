@@ -17,9 +17,17 @@ permissions:
 jobs:
   browser-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     env:
-      QUEUEDROP_TEST_BASE_URL: ${{ secrets.QUEUEDROP_TEST_BASE_URL }}
+      QUEUEDROP_TEST_BASE_URL: http://127.0.0.1:3000
+      QUEUEDROP_E2E_RUNNER_LOCAL: "true"
+      NEXT_PUBLIC_APP_ENV: test
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+      SMS_DRY_RUN: "true"
       E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
       E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
       QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
@@ -34,14 +42,40 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Verify TEST schema and exact deployment
+      - name: Verify dedicated TEST schema
+        run: node scripts/verify-test-deployment.mjs --schema-only
+      - name: Build production server on cloud runner
         run: |
-          export GITHUB_SHA="$(git rev-parse HEAD)"
-          node scripts/verify-test-deployment.mjs
+          export VERCEL_GIT_COMMIT_SHA="$(git rev-parse HEAD)"
+          echo "VERCEL_GIT_COMMIT_SHA=$VERCEL_GIT_COMMIT_SHA" >> "$GITHUB_ENV"
+          npm run build
+      - name: Start and verify runner-local app
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/queuedrop-server.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/queuedrop-server.pid"
+          node scripts/verify-runner-e2e.mjs
+      - name: Ensure TEST E2E platform-owner permission
+        run: node scripts/ensure-test-e2e-system-owner.mjs
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
         run: npm run test:e2e
+      - name: Report every skipped browser test
+        if: always()
+        env:
+          QUEUEDROP_FAIL_ON_E2E_SKIP: "1"
+        run: |
+          if [ -f test-results/results.json ]; then
+            node scripts/report-e2e-skips.mjs test-results/results.json
+          else
+            echo "No Playwright JSON results produced"
+          fi
+      - name: Stop runner-local app
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/queuedrop-server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/queuedrop-server.pid")" 2>/dev/null || true
+          fi
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v7

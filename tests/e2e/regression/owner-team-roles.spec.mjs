@@ -32,6 +32,10 @@ test.describe("owner team and role management", () => {
     }
 
     const usersTarget = page.locator('[data-settings-target="users"]');
+    // Re-expand the access group if a delayed settings navigation rerender collapsed it.
+    if (!(await usersTarget.isVisible()) && (await accessGroup.getAttribute("aria-expanded")) !== "true") {
+      await accessGroup.click();
+    }
     await expect(usersTarget).toBeVisible();
     await usersTarget.click();
     await expect(page).toHaveURL(/view=users/, { timeout: 20_000 });

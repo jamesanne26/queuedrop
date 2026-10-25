@@ -1,0 +1,47 @@
+name: PayMongo actual recurring renewal
+on:
+  pull_request:
+    branches: [test]
+    paths:
+      - "scripts/paymongo-actual-renewal.mjs"
+      - ".github/workflows/paymongo-actual-renewal.yml"
+  push:
+    branches: [test]
+    paths:
+      - "scripts/paymongo-actual-renewal.mjs"
+      - ".github/workflows/paymongo-actual-renewal.yml"
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --check scripts/paymongo-actual-renewal.mjs
+  renewal:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/paymongo-actual-renewal.mjs
+        env:
+          QUEUEDROP_PAYMONGO_TEST_SECRET_KEY: ${{ secrets.QUEUEDROP_PAYMONGO_TEST_SECRET_KEY }}
+          QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: paymongo-actual-renewal
+          path: paymongo-renewal-result/
+          retention-days: 3
+          if-no-files-found: ignore
