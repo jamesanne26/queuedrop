@@ -29,6 +29,10 @@ const deadline = Date.now() + 10 * 60_000;
 while (Date.now() < deadline) {
   try {
     const response = await fetch(new URL("/api/health", base), { signal: AbortSignal.timeout(10_000), cache: "no-store" });
+    if (response.status === 402 && response.headers.get("x-vercel-error") === "DEPLOYMENT_DISABLED") {
+      console.error("Vercel TEST deployment is disabled (HTTP 402 DEPLOYMENT_DISABLED). Restore Vercel deployment access before rerunning.");
+      process.exit(1);
+    }
     const health = await response.json();
     if (response.ok && health.status === "ok" && health.database === "ok" && health.revision === expected) {
       console.log(`TEST deployment ${expected} is ready, including database connectivity.`); process.exit(0);
