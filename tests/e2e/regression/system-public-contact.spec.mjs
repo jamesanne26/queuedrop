@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { isDedicatedTestTarget } from "../helpers/test-target.mjs";
 import { loginAsOwner } from "../helpers/auth.mjs";
 import { hasAdminTestEnvironment, ownerCredentials } from "../helpers/env.mjs";
 import {
@@ -20,7 +21,7 @@ const testOnlyContact = "+15555550123";
 test("system owner contact setting reaches homepage and customer queue page", async ({ page }, testInfo) => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
   const baseUrl = testInfo.project.use.baseURL;
-  test.skip(!baseUrl || !new URL(baseUrl).hostname.includes("queuedrop-test"), "This contact-setting test only runs against the QueueDrop TEST deployment.");
+  test.skip(!isDedicatedTestTarget(baseUrl), "This contact-setting test only runs against the QueueDrop TEST deployment.");
   test.setTimeout(150_000);
 
   const admin = createAdminClient();
