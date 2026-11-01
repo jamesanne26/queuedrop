@@ -68,7 +68,8 @@ jobs:
           if [ -f test-results/results.json ]; then
             node scripts/report-e2e-skips.mjs test-results/results.json
           else
-            echo "No Playwright JSON results produced"
+            echo "No Playwright JSON results produced; cannot verify skipped-test gate" >&2
+            exit 1
           fi
       - name: Stop runner-local app
         if: always()
