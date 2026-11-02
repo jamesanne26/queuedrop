@@ -32,6 +32,10 @@ jobs:
       - name: Report safe dependency remediation candidates
         if: always()
         run: npm audit fix --dry-run --omit=dev || true
+      - name: Test patched Next.js dependencies in isolated CI workspace
+        run: |
+          npm install --no-save --package-lock=false next@16.4.3 eslint-config-next@16.4.3
+          npm audit --omit=dev --audit-level=high
       - name: Verify Next.js production build
         run: npm run build
       - name: Check Cloudflare vinext compatibility
