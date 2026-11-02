@@ -17,8 +17,6 @@ jobs:
     environment: test
     env:
       QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
-      E2E_OWNER_EMAIL: ${{ secrets.E2E_OWNER_EMAIL }}
-      E2E_OWNER_PASSWORD: ${{ secrets.E2E_OWNER_PASSWORD }}
       QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
       QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
     steps:
@@ -33,6 +31,11 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
           node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok") process.exit(1)'
+      - name: Create isolated CI-only business-owner credentials
+        run: |
+          set -euo pipefail
+          echo "E2E_OWNER_EMAIL=cloudflare-e2e-${GITHUB_RUN_ID}@example.com" >> "$GITHUB_ENV"
+          echo "E2E_OWNER_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
       - name: Validate dedicated TEST business-owner fixture
         run: node -e 'import("./tests/e2e/global-setup.mjs").then(m=>m.default())'
       - name: Install Chromium
