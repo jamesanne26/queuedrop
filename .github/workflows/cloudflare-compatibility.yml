@@ -1,0 +1,44 @@
+name: Cloudflare compatibility check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'app/**'
+      - 'src/**'
+      - 'next.config.*'
+      - '.github/workflows/cloudflare-compatibility.yml'
+permissions:
+  contents: read
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Report safe dependency remediation candidates
+        if: always()
+        run: npm audit fix --dry-run --omit=dev || true
+      - name: Audit pinned production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Verify Next.js production build
+        run: npm run build
+      - name: Check Cloudflare vinext compatibility
+        run: npx --yes vinext check
+      - name: Initialize Cloudflare vinext configuration in temporary CI workspace
+        run: npx --yes vinext init
+      - name: Build Cloudflare Workers runtime with vinext
+        run: npx vite build
