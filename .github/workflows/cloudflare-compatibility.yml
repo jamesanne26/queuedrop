@@ -36,3 +36,7 @@ jobs:
         run: npm run build
       - name: Check Cloudflare vinext compatibility
         run: npx --yes vinext check
+      - name: Initialize Cloudflare vinext configuration in temporary CI workspace
+        run: npx --yes vinext init
+      - name: Build Cloudflare Workers runtime with vinext
+        run: npx vite build
