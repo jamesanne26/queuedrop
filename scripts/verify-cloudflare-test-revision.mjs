@@ -44,6 +44,8 @@ export async function verifyCloudflareTestRevision(config, fetchImpl = fetch) {
   const { origin, expectedRevision } = assertCloudflareTestConfiguration(config);
   const response = await fetchImpl(`${origin}/api/health`, {
     cache: "no-store",
+    // Do not follow a TEST endpoint redirect to another environment.
+    redirect: "error",
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`Cloudflare TEST health HTTP ${response.status}`);
