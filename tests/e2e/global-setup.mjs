@@ -79,6 +79,20 @@ export default async function globalSetup() {
   const password = process.env.E2E_OWNER_PASSWORD;
 
   const owner = await ensureOwnerBusiness(admin, email, password);
+  // Business-owner browser tests must not reuse a platform system-owner account.
+  // System owners intentionally land on /system, not /dashboard.
+  const { data: systemOwner, error: systemOwnerError } = await admin
+    .from("system_owners")
+    .select("user_id")
+    .eq("user_id", owner.userId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (systemOwnerError) {
+    throw new Error(`E2E owner role preflight failed: ${systemOwnerError.message}`);
+  }
+  if (systemOwner) {
+    throw new Error("E2E_OWNER_EMAIL is a platform system owner. Configure a dedicated TEST business owner for dashboard regression tests; system owners are redirected to /system.");
+  }
   await ensureE2ESubscriptionAccess(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL);
   await ensureE2ETerminalCapacity(admin, owner.businessId);
 
