@@ -1,5 +1,8 @@
 name: Deploy QueueDrop to Cloudflare Workers
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cloudflare-deploy.yml']
   workflow_dispatch:
     inputs:
       environment:
@@ -14,8 +17,8 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    if: inputs.environment == 'test'
+    environment: test
+    if: github.event_name == 'push' || inputs.environment == 'test'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,9 +31,9 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DB_URL: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          DB_KEY: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          DB_SERVICE_ROLE: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DB_URL: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          DB_KEY: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          DB_SERVICE_ROLE: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           test -n "$CF_TOKEN" || { echo "::error::Missing Cloudflare API token"; exit 1; }
           test -n "$CF_ACCOUNT" || { echo "::error::Missing Cloudflare account ID"; exit 1; }
@@ -47,19 +50,19 @@ jobs:
           npx --yes vinext init
       - name: Build Cloudflare runtime
         env:
-          NEXT_PUBLIC_APP_ENV: ${{ inputs.environment }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ inputs.environment == 'test' && 'https://queuedrop-test.vercel.app' || 'https://getqueuedrop.com' }}
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_SUPABASE_URL: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ true && 'https://queuedrop-test.vercel.app' || 'https://getqueuedrop.com' }}
         run: npx vite build
       - name: Deploy Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --name "queuedrop-${{ inputs.environment }}"
+        run: npx wrangler deploy --name "queuedrop-test"
       - name: Configure server-only Supabase secret
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.environment == 'test' && secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name "queuedrop-${{ inputs.environment }}"
+          SUPABASE_SERVICE_ROLE_KEY: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name "queuedrop-test"
