@@ -33,3 +33,5 @@ jobs:
           git add package-lock.json
           git commit -m "chore: synchronize QueueDrop lockfile with patched Next.js"
           git push origin HEAD:chore/cloudflare-readiness-20261102
+
+# Trigger lockfile synchronization after verified Cloudflare compatibility build.
