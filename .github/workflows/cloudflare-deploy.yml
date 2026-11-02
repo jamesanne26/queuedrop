@@ -54,7 +54,7 @@ jobs:
           const path = 'cloudflare.config.ts';
           if (!fs.existsSync(path)) throw new Error('Cloudflare configuration missing after vinext init');
           let config = fs.readFileSync(path, 'utf8');
-          const pattern = /(\\bname\\s*:\\s*['\"])(queuedrop)(['\"])/g;
+          const pattern = /(\bname\s*:\s*['\"])(queuedrop)(['\"])/g;
           const matches = [...config.matchAll(pattern)];
           if (matches.length !== 1) throw new Error('Expected exactly one Worker name in Cloudflare config');
           config = config.replace(pattern, '$1queuedrop-test$3');
