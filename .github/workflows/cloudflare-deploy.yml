@@ -11,7 +11,6 @@ on:
         type: choice
         options:
           - test
-          - prod
 permissions:
   contents: read
 jobs:
@@ -31,9 +30,9 @@ jobs:
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DB_URL: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          DB_KEY: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          DB_SERVICE_ROLE: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DB_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          DB_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+          DB_SERVICE_ROLE: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           test -n "$CF_TOKEN" || { echo "::error::Missing Cloudflare API token"; exit 1; }
           test -n "$CF_ACCOUNT" || { echo "::error::Missing Cloudflare account ID"; exit 1; }
@@ -51,9 +50,9 @@ jobs:
       - name: Build Cloudflare runtime
         env:
           NEXT_PUBLIC_APP_ENV: test
-          NEXT_PUBLIC_SUPABASE_URL: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ true && secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
-          NEXT_PUBLIC_SITE_URL: ${{ true && 'https://queuedrop-test.vercel.app' || 'https://getqueuedrop.com' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://queuedrop.jamesrae-rosario18.workers.dev
         run: npx vite build
       - name: Deploy Worker
         env:
