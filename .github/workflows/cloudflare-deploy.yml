@@ -93,8 +93,8 @@ jobs:
           url="https://queuedrop-test.jamesrae-rosario18.workers.dev/"
           for attempt in 1 2 3 4 5; do
             code=$(curl --silent --show-error --location --max-time 25 --output /tmp/cloudflare-smoke.html --write-out '%{http_code}' "$url") || code=000
-            if [[ "$code" =~ ^(200|301|302|303|307|308|401|403)$ ]]; then
-              echo "TEST endpoint responded with HTTP $code"
+            if [[ "$code" == "200" ]] && [[ -s /tmp/cloudflare-smoke.html ]]; then
+              echo "TEST homepage returned HTTP 200 with non-empty response"
               exit 0
             fi
             echo "Attempt $attempt: HTTP $code"
