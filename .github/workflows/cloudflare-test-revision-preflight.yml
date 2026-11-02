@@ -16,10 +16,10 @@ jobs:
       QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
       QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           ref: test
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - name: Confirm checkout is the exact TEST revision
