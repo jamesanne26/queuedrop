@@ -46,6 +46,7 @@ test("read-only fetch accepts only exact revision", async () => {
   const fakeFetch = async (url, opts) => {
     assert.equal(url, `${valid.baseUrl}/api/health`);
     assert.equal(opts.cache, "no-store");
+    assert.equal(opts.redirect, "error", "health must not redirect to another environment");
     return { ok: true, json: async () => ({ status: "ok", database: "ok", revision: "a".repeat(12) }) };
   };
   assert.equal(await verifyCloudflareTestRevision(valid, fakeFetch), "a".repeat(12));
