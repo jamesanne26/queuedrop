@@ -74,6 +74,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx @vinext/cloudflare deploy
 
+      - name: Configure TEST runtime Supabase secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TEST_SUPABASE_URL" | npx wrangler secret put NEXT_PUBLIC_SUPABASE_URL --name queuedrop-test
+          printf '%s' "$TEST_SUPABASE_ANON_KEY" | npx wrangler secret put NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY --name queuedrop-test
+          printf '%s' "$TEST_SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name queuedrop-test
+
       - name: Smoke test Cloudflare TEST deployment
         run: |
           set -euo pipefail
