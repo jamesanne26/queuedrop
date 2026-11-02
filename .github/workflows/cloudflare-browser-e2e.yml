@@ -13,7 +13,7 @@ concurrency:
 jobs:
   browser-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     environment: test
     env:
       QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
@@ -33,6 +33,8 @@ jobs:
           set -euo pipefail
           curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
           node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok") process.exit(1)'
+      - name: Validate dedicated TEST business-owner fixture
+        run: node -e 'import("./tests/e2e/global-setup.mjs").then(m=>m.default())'
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run Cloudflare browser regression
