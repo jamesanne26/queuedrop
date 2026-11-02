@@ -29,6 +29,9 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm run test:unit
+      - name: Report safe dependency remediation candidates
+        if: always()
+        run: npm audit fix --dry-run --omit=dev || true
       - name: Verify Next.js production build
         run: npm run build
       - name: Check Cloudflare vinext compatibility
