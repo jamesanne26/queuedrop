@@ -1,0 +1,35 @@
+name: Regenerate migration dependency lockfile
+on:
+  push:
+    branches:
+      - chore/cloudflare-readiness-20261102
+    paths:
+      - package.json
+      - .github/workflows/cloudflare-lockfile.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regenerate lockfile from pinned manifest
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Verify reproducible install and production audit
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+      - name: Commit lockfile to migration branch only
+        run: |
+          if git diff --quiet -- package-lock.json; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: synchronize QueueDrop lockfile with patched Next.js"
+          git push origin HEAD:chore/cloudflare-readiness-20261102
