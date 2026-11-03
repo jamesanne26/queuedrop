@@ -107,17 +107,17 @@ export function SettingsUnifiedConsole({
   const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
 
+  // Must also run during SSR: these URLs are rendered as native anchor hrefs.
+  // Never access window/document while rendering a Server Component payload.
   const getBranchUrl = (branchId: string, targetView: ViewKey = (branchViews.has(view) ? view : "branch-general")) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("branch", branchId);
-    url.searchParams.set("view", targetView);
-    return `${url.pathname}?${url.searchParams.toString()}`;
+    const params = new URLSearchParams({ branch: branchId, view: targetView });
+    return `/dashboard/settings?${params.toString()}`;
   };
 
   const getViewUrl = (targetView: ViewKey) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", targetView);
-    return `${url.pathname}?${url.searchParams.toString()}`;
+    const params = new URLSearchParams({ view: targetView });
+    if (activeBranchId) params.set("branch", activeBranchId);
+    return `/dashboard/settings?${params.toString()}`;
   };
 
   const chooseView = (next: ViewKey) => {
