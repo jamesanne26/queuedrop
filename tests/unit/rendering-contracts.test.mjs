@@ -224,3 +224,14 @@ test("Cloudflare Settings serializes only its active RSC panel", async () => {
   assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
   assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
 });
+
+test("Settings saves cannot overwrite unrelated queue fields from stale hidden forms", async () => {
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(page, /const needsQueueConfig = \["branch-queue", "branch-notifications", "branch-operating"\]/);
+  assert.match(actions, /currentBranchResult\.data\.business_id/);
+  assert.match(actions, /target_hours: returnView === "branch-operating" \? hours : preservedHours/);
+  assert.match(actions, /target_position_rules: returnView === "branch-notifications" \? rules : preservedRules/);
+  assert.match(actions, /target_show_branch_contact: returnView === "branch-queue"/);
+  assert.match(actions, /if \(returnView === "branch-queue"\) \{\s*const \{ error: refreshError \}/);
+});
