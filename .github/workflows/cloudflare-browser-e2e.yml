@@ -4,10 +4,6 @@ on:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "tests/e2e/**"
 permissions:
   contents: read
 concurrency:
@@ -15,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-e2e:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Do not run stale main tests against the fix branch's TEST deployment.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test
@@ -25,6 +22,8 @@ jobs:
       QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,7 +38,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "E2E_OWNER_EMAIL=cloudflare-e2e-${GITHUB_RUN_ID}@example.com" >> "$GITHUB_ENV"
-          echo "E2E_OWNER_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"
       - name: Validate dedicated TEST business-owner fixture
         run: node -e 'import("./tests/e2e/global-setup.mjs").then(m=>m.default())'
       - name: Install Chromium
