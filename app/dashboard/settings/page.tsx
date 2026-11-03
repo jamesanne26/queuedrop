@@ -102,7 +102,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     (activeView === "users" && canManageTeam) ||
     (["roles","permissions"].includes(activeView) && canManageRoles);
   if (!viewAllowed) redirect("/dashboard");
-  const needsQueueConfig = ["branch-queue", "branch-notifications"].includes(activeView);
+  const needsQueueConfig = ["branch-queue", "branch-notifications", "branch-operating"].includes(activeView);
   const needsOperatingHours = activeView === "branch-operating";
   const needsNotificationRules = activeView === "branch-notifications";
   const needsServices = ["services", "branch-services", "branch-appearance", "branch-terminals"].includes(activeView);
@@ -253,7 +253,7 @@ export default async function SettingsPage({ searchParams }: Props) {
     {config?.is_active ?? true ? <input type="hidden" name="is_active" value="on" /> : null}
   </> : null;
 
-  const hiddenBranchContactSetting = config?.show_branch_contact ?? true ? <input type="hidden" name="show_branch_contact" value="on" /> : null;
+  const hiddenBranchContactSetting = (config?.show_branch_contact ?? false) ? <input type="hidden" name="show_branch_contact" value="on" /> : null;
 
   const hiddenHours = <div style={{ display: "none" }}>{DAYS.map((day) => { const row = hoursByDay.get(day.value); const isOpen = row?.is_open ?? true; return <span key={`hidden-hours-${day.value}`}>{isOpen ? <input type="hidden" name={`day_${day.value}_open`} value="on" /> : null}<input type="hidden" name={`day_${day.value}_open_time`} value={(row?.open_time ?? "00:00").slice(0, 5)} /><input type="hidden" name={`day_${day.value}_close_time`} value={(row?.close_time ?? "23:59").slice(0, 5)} /></span>; })}</div>;
   const hiddenRules = <><input type="hidden" name="position_rule_count" value={notificationRules.length} />{notificationRules.map((rule, index) => <span key={`hidden-rule-${rule.position}`} style={{ display: "none" }}><input type="hidden" name={`position_rule_${index}_position`} value={rule.position} />{rule.send_sms_once ? <input type="hidden" name={`position_rule_${index}_sms`} value="on" /> : null}{rule.browser_notification ? <input type="hidden" name={`position_rule_${index}_browser`} value="on" /> : null}</span>)}</>;
