@@ -74,12 +74,20 @@ jobs:
           console.log('Isolated TEST Worker name configured');
           NODE
       - name: Embed public Supabase configuration in browser bundles
+        env:
+          NEXT_PUBLIC_APP_ENV: test
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
           const configPath = 'vite.config.ts';
           if (!fs.existsSync(configPath)) throw new Error('vinext Vite configuration was not generated');
           let source = fs.readFileSync(configPath, 'utf8');
+          for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']) {
+            if (!process.env[key]) throw new Error(`Missing public build variable: ${key}`);
+          }
           const marker = /defineConfig\(\s*\{/;
           if (!marker.test(source)) throw new Error('Unexpected vinext Vite configuration format');
           // Vite does not automatically replace Next.js NEXT_PUBLIC_* references.
