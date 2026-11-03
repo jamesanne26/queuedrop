@@ -36,6 +36,7 @@ export async function openDashboardDestination(page, label, path, loadedSelector
       bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 900),
       errors: await page.locator("[role=alert]").allInnerTexts().catch(() => []),
       pageErrors: navigationErrors,
+      tvResponse: path === "/dashboard/tv" ? await page.request.get(page.url()).then(async (r) => ({ status: r.status(), body: (await r.text()).slice(0, 700) })).catch((e) => String(e)) : null,
     }));
     page.off("pageerror", captureError);
     throw error;
