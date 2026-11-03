@@ -1,5 +1,8 @@
 name: Cloudflare TEST Browser E2E
 on:
+  workflow_run:
+    workflows: ['Deploy QueueDrop to Cloudflare Workers']
+    types: [completed]
   workflow_dispatch:
   push:
     branches: [main]
@@ -14,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-e2e:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test
