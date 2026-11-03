@@ -70,6 +70,26 @@ jobs:
           fs.writeFileSync(path, config);
           console.log('Isolated TEST Worker name configured');
           NODE
+      - name: Embed public Supabase configuration in browser bundles
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const configPath = 'vite.config.ts';
+          if (!fs.existsSync(configPath)) throw new Error('vinext Vite configuration was not generated');
+          let source = fs.readFileSync(configPath, 'utf8');
+          const marker = /defineConfig\(\s*\{/;
+          if (!marker.test(source)) throw new Error('Unexpected vinext Vite configuration format');
+          // Vite does not automatically replace Next.js NEXT_PUBLIC_* references.
+          // Only publishable values are embedded; service-role credentials stay server-side.
+          source = source.replace(marker, `defineConfig({
+            define: {
+              "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL),
+              "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+              "process.env.NEXT_PUBLIC_SITE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL),
+              "process.env.NEXT_PUBLIC_APP_ENV": JSON.stringify(process.env.NEXT_PUBLIC_APP_ENV),
+            },`);
+          fs.writeFileSync(configPath, source);
+          NODE
       - name: Build Cloudflare runtime
         env:
           NEXT_PUBLIC_APP_ENV: test
