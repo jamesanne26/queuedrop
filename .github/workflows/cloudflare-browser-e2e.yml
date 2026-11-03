@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-e2e:
-    # Do not run stale main tests against the fix branch's TEST deployment.
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    # The default-branch workflow_run handler must also accept the Cloudflare release branch.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'fix/cloudflare-release-e2e-20261103'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test
@@ -35,11 +35,20 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Check Cloudflare TEST readiness
+      - name: Check Cloudflare TEST readiness and deployed revision
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
-          node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok") process.exit(1)'
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/queuedrop-health.json','utf8'));
+          const expected = process.env.EXPECTED_SHA.slice(0,12);
+          if (data.status !== 'ok') throw new Error('Cloudflare TEST health check failed');
+          if (data.revision !== expected) throw new Error(`TEST revision mismatch: expected ${expected}, got ${data.revision ?? '(missing)'}`);
+          console.log('TEST revision verified:', expected);
+          NODE
       - name: Create isolated CI-only business-owner credentials
         run: |
           set -euo pipefail
