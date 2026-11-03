@@ -127,6 +127,7 @@ jobs:
               exit 0
             fi
             echo "Database readiness attempt $attempt: HTTP $code"
+            node -e 'try { const d=JSON.parse(require("fs").readFileSync("/tmp/cloudflare-health.json","utf8")); console.log("Readiness diagnostic:",JSON.stringify({status:d.status,database:d.database,environment:d.environment})); } catch { console.log("Readiness response was not JSON"); }'
             sleep 5
           done
           echo "::error::Cloudflare TEST database readiness failed"
