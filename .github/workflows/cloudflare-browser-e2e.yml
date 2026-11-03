@@ -11,6 +11,7 @@ on:
       - 'tests/unit/**'
       - 'playwright.config.mjs'
       - '.github/workflows/cloudflare-browser-e2e.yml'
+      - '.github/workflows/cloudflare-deploy.yml'
 permissions:
   contents: read
 concurrency:
