@@ -21,6 +21,9 @@ export async function dismissDashboardResultModal(page, expectedMessage) {
 export async function openDashboardDestination(page, label, path, loadedSelector = "h1") {
   const link = page.getByRole("link", { name: label, exact: true });
   await expect(link).toBeVisible();
+  const navigationErrors = [];
+  const captureError = (error) => navigationErrors.push(String(error).slice(0, 500));
+  page.on("pageerror", captureError);
   await link.click();
   await page.waitForURL((url) => url.pathname === path, { timeout: 15_000 });
   try {
@@ -32,8 +35,11 @@ export async function openDashboardDestination(page, label, path, loadedSelector
       title: await page.title().catch(() => "unavailable"),
       bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 900),
       errors: await page.locator("[role=alert]").allInnerTexts().catch(() => []),
+      pageErrors: navigationErrors,
     }));
+    page.off("pageerror", captureError);
     throw error;
   }
+  page.off("pageerror", captureError);
   await expectNoAppError(page);
 }
