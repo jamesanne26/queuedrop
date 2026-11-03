@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
-import { enterTvFullscreen } from "@/lib/tv/fullscreen";
 
 type NavKey = "overview" | "queues" | "reports" | "tv" | "settings";
 
@@ -47,7 +46,7 @@ export function DashboardSidebar({ active, role = "owner", canViewQueue, canView
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><Link className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={(event) => { setOpen(false); if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) void enterTvFullscreen(); }}>TV Display</Link></> : null}
+      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><a className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</a></> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
