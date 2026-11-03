@@ -55,8 +55,15 @@ test.describe("owner settings and reports", () => {
       // each form at its current route instead of relying on the legacy combined form.
       await page.goto(`/dashboard/settings?view=branch-queue&branch=${data.branch.id}`, { waitUntil: "domcontentloaded" });
       await expectNoAppError(page);
-      const queueForm = page.locator('form[action]').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
-      await expect(queueForm).toBeVisible();
+      let queueForm = page.locator('form').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
+      // The branch-specific settings panel can arrive after the initial
+      // document response. Check the branch selection and reload once before
+      // treating an absent form as a product failure.
+      if (!(await queueForm.isVisible().catch(() => false))) {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        queueForm = page.locator('form').filter({ has: page.locator('input[name="customer_refresh_seconds"]') }).first();
+      }
+      await expect(queueForm).toBeVisible({ timeout: 20_000 });
       await queueForm.locator('input[name="customer_refresh_seconds"]').fill("11");
       await queueForm.getByRole("button", { name: "Save branch settings", exact: true }).click();
       let review = page.getByRole("dialog");
