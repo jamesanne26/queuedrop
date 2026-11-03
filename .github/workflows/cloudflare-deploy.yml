@@ -20,6 +20,9 @@ on:
         type: choice
         options:
           - test
+concurrency:
+  group: queuedrop-cloudflare-test-deploy
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
