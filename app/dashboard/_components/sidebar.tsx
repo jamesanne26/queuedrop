@@ -46,7 +46,7 @@ export function DashboardSidebar({ active, role = "owner", canViewQueue, canView
   const nav = (
     <>
       <Link className={`nav-item ${currentActive === "overview" ? "nav-item-active" : ""}`} href="/dashboard" onClick={() => setOpen(false)}>Overview</Link>
-      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><a className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={() => setOpen(false)}>TV Display</a></> : null}
+      {queueVisible ? <><Link className={`nav-item ${currentActive === "queues" ? "nav-item-active" : ""}`} href="/dashboard/queues" onClick={() => setOpen(false)}>Queue</Link><a className={`nav-item ${currentActive === "tv" ? "nav-item-active" : ""}`} href="/dashboard/tv" onClick={(event) => { setOpen(false); if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.button === 0) { event.preventDefault(); window.location.assign("/dashboard/tv"); } }}>TV Display</a></> : null}
       {reportsVisible ? <Link className={`nav-item ${currentActive === "reports" ? "nav-item-active" : ""}`} href="/dashboard/reports" onClick={() => setOpen(false)}>History</Link> : null}
     </>
   );
