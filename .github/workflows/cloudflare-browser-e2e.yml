@@ -3,7 +3,6 @@ on:
   workflow_run:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
-  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -11,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-e2e:
-    # Only run against a successful deployment of the same branch/revision.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'fix/cloudflare-release-e2e-20261103'))
+    # Run only after a successful TEST deployment, never against a pending revision.
+    if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'fix/cloudflare-release-e2e-20261103')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test
