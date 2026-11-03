@@ -55,11 +55,20 @@ test.describe("owner dashboard navigation", () => {
         button = page.locator(`[data-settings-target="${view}"]`).first();
       }
       await expect(button).toBeVisible();
+      const wasTab = (await button.getAttribute("role")) === "tab";
       await button.click();
-      await expect(page).toHaveURL(new RegExp(`/dashboard/settings(?:\\?.*)?$`));
-      await expect(page.locator("main.settings-unified-main")).toHaveAttribute("data-settings-view", view);
-      if ((await button.getAttribute("role")) === "tab") await expect(button).toHaveAttribute("aria-selected", "true");
-      else await expect(button).toHaveAttribute("aria-current", "page");
+      // The old URL assertion also matched the *previous* Settings page,
+      // which caused false stale-panel failures while a full navigation was
+      // still in progress. Assert the exact destination query first.
+      if (view !== "branch-general") {
+        await expect(page).toHaveURL((url) =>
+          url.pathname === "/dashboard/settings" && url.searchParams.get("view") === view,
+          { timeout: 25_000 });
+      }
+      await expect(page.locator("main.settings-unified-main")).toHaveAttribute("data-settings-view", view, { timeout: 20_000 });
+      const selectedButton = page.locator(`[data-settings-target="${view}"]`).first();
+      if (wasTab) await expect(selectedButton).toHaveAttribute("aria-selected", "true");
+      else await expect(selectedButton).toHaveAttribute("aria-current", "page");
       await expectNoAppError(page);
     });
   }
