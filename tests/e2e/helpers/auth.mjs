@@ -8,7 +8,8 @@ export async function loginAsOwner(page, credentials, { freshSession = false } =
     await page.context().addCookies(saved.cookies);
     const response = await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     if (!response || response.status() >= 400) {
-      throw new Error(`Cloudflare TEST owner session failed: HTTP ${response?.status() ?? "no response"}`);
+      const diagnostic = (await response?.text().catch(() => "") ?? "").replace(/\\s+/g, " ").slice(0, 320);
+      throw new Error(`Cloudflare TEST owner session failed: HTTP ${response?.status() ?? "no response"}; response=${diagnostic}`);
     }
     await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
     await expect(page.locator("aside.sidebar")).toBeAttached();
