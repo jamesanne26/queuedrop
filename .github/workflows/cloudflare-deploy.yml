@@ -99,6 +99,10 @@ jobs:
             define: {
               "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL),
               "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+              // vinext/Vite browser chunks may retain import.meta.env access.
+              // Explicitly inline these two public-only values as well.
+              "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL),
+              "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
               "process.env.NEXT_PUBLIC_SITE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL),
               "process.env.NEXT_PUBLIC_APP_ENV": JSON.stringify(process.env.NEXT_PUBLIC_APP_ENV),
               "process.env.VERCEL_GIT_COMMIT_SHA": JSON.stringify(process.env.GITHUB_SHA),
@@ -113,7 +117,35 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
-        run: npx vite build
+        run: |
+          set -euo pipefail
+          npx vite build
+          # Prevent a misleading green deployment when browser auth configuration
+          # was not actually inlined into generated client chunks.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const roots = ['.vinext', 'dist', '.output', '.vercel/output'];
+          let jsFiles = 0;
+          let foundPublicUrl = false;
+          const expectedUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          function walk(dir) {
+            if (!fs.existsSync(dir)) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full);
+              else if (entry.isFile() && /\.(?:js|mjs)$/.test(entry.name)) {
+                jsFiles++;
+                if (fs.readFileSync(full, 'utf8').includes(expectedUrl)) foundPublicUrl = true;
+              }
+            }
+          }
+          for (const root of roots) walk(root);
+          if (jsFiles && !foundPublicUrl) {
+            throw new Error('Cloudflare browser bundle lacks the TEST public Supabase URL');
+          }
+          console.log('Browser Supabase URL build verification:', { jsFiles, foundPublicUrl });
+          NODE
       - name: Deploy Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
