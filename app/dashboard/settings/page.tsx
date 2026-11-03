@@ -302,6 +302,26 @@ export default async function SettingsPage({ searchParams }: Props) {
     </details>
   ) : null;
 
+  const availablePanels = {
+    "branch-general": branchGeneralPanel,
+    "branch-services": servicesPanel,
+    "branch-users": branchUsersPanel,
+    "branch-tv": tvPanel,
+    "branch-operating": operatingPanel,
+    "branch-queue": queuePanel,
+    "branch-notifications": notificationsPanel,
+    "branch-appearance": appearancePanel,
+    "branch-terminals": terminalsPanel,
+    services: serviceCatalogPanel,
+    users: usersPanel,
+    roles: rolesPanel,
+    permissions: permissionsPanel,
+    business: businessPanel,
+    billing: billingPanel,
+    "android-app": androidAppPanel,
+  };
+  const activePanel = availablePanels[activeView as keyof typeof availablePanels] ?? branchGeneralPanel;
+
   return <>
     <PreserveDashboardScroll />
     <DashboardResultModal success={params.message} error={params.error} />
@@ -320,24 +340,10 @@ export default async function SettingsPage({ searchParams }: Props) {
         canViewPositionNotifications={canViewPositionNotifications}
         businessWide={businessWide}
         addBranchPanel={addBranchPanel}
-        panels={{
-          "branch-general": branchGeneralPanel,
-          "branch-services": servicesPanel,
-          "branch-users": branchUsersPanel,
-          "branch-tv": tvPanel,
-          "branch-operating": operatingPanel,
-          "branch-queue": queuePanel,
-          "branch-notifications": notificationsPanel,
-          "branch-appearance": appearancePanel,
-          "branch-terminals": terminalsPanel,
-          services: serviceCatalogPanel,
-          users: usersPanel,
-          roles: rolesPanel,
-          permissions: permissionsPanel,
-          business: businessPanel,
-          billing: billingPanel,
-          "android-app": androidAppPanel,
-        }}
+        // Passing every panel as a React Server Component prop forces vinext
+        // to serialize heavy inactive panels on every request. The Settings
+        // navigation uses document reloads, so only the active view is needed.
+        panels={{ [activeView]: activePanel }}
       />
     </section>
   </>;
