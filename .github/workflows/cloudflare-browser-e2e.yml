@@ -4,6 +4,12 @@ on:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/e2e/**'
+      - 'playwright.config.mjs'
+      - '.github/workflows/cloudflare-browser-e2e.yml'
 permissions:
   contents: read
 concurrency:
@@ -12,7 +18,7 @@ concurrency:
 jobs:
   browser-e2e:
     # Do not run stale main tests against the fix branch's TEST deployment.
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test
