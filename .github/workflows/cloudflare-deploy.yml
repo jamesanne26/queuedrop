@@ -1,10 +1,12 @@
 name: Deploy QueueDrop to Cloudflare Workers
 on:
   push:
-    branches: [main]
+    branches: [main, fix/cloudflare-release-e2e-20261103]
     paths:
       - '.github/workflows/cloudflare-deploy.yml'
       - 'app/**'
+      - 'tests/e2e/**'
+      - '.github/workflows/cloudflare-browser-e2e.yml'
       - 'lib/**'
       - 'components/**'
       - 'public/**'
@@ -22,7 +24,7 @@ on:
           - test
 concurrency:
   group: queuedrop-cloudflare-test-deploy
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref == 'refs/heads/fix/cloudflare-release-e2e-20261103' }}
 permissions:
   contents: read
 jobs:
@@ -33,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -98,6 +100,7 @@ jobs:
               "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
               "process.env.NEXT_PUBLIC_SITE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL),
               "process.env.NEXT_PUBLIC_APP_ENV": JSON.stringify(process.env.NEXT_PUBLIC_APP_ENV),
+              "process.env.VERCEL_GIT_COMMIT_SHA": JSON.stringify(process.env.GITHUB_SHA),
             },`);
           fs.writeFileSync(configPath, source);
           NODE
