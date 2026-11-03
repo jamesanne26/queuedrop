@@ -52,11 +52,23 @@ test.describe("owner dashboard navigation", () => {
       await expectNoAppError(page);
       let button = page.locator(`[data-settings-target="${view}"]`).first();
       if (!(await button.isVisible().catch(() => false))) {
-        if (view.startsWith("branch-")) await page.locator('[data-settings-group="branches"]').click();
-        if (["users", "roles", "permissions"].includes(view)) await page.locator('[data-settings-group="access"]').click();
-        button = page.locator(`[data-settings-target="${view}"]`).first();
+        const groupName = view.startsWith("branch-") ? "branches" :
+          ["users", "roles", "permissions"].includes(view) ? "access" : null;
+        if (groupName) {
+          const group = page.locator(`[data-settings-group="${groupName}"]`);
+          // Cloudflare streams the initial Settings HTML before the client
+          // component hydrates. Clicking the accordion too early can be
+          // ignored, leaving the target link absent. Wait for hydration and
+          // retry the group interaction until its real expanded state changes.
+          await expect(group).toBeVisible({ timeout: 20_000 });
+          await expect(async () => {
+            if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+            await expect(group).toHaveAttribute("aria-expanded", "true", { timeout: 3_000 });
+            await expect(button).toBeVisible({ timeout: 3_000 });
+          }).toPass({ timeout: 20_000, intervals: [500, 1000, 2000] });
+        }
       }
-      await expect(button).toBeVisible();
+      await expect(button).toBeVisible({ timeout: 20_000 });
       const wasTab = (await button.getAttribute("role")) === "tab";
       await button.click();
       // The old URL assertion also matched the *previous* Settings page,
