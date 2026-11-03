@@ -30,22 +30,26 @@ test("system owner contact setting reaches homepage and customer queue page", as
   let contactSnapshotLoaded = false;
   let previousContact = null;
 
-  await loginAsOwner(page, credentials);
-  await page.goto("/system/settings", { waitUntil: "domcontentloaded" });
-  if (new URL(page.url()).pathname !== "/system/settings") {
-    test.skip(true, "Configured E2E owner does not have platform-owner access in TEST.");
-  }
-
-  const { data: existingContact, error: contactReadError } = await admin
-    .from("platform_public_contact")
-    .select("id,phone")
-    .eq("id", true)
-    .maybeSingle();
-  if (contactReadError) throw contactReadError;
-  previousContact = existingContact ?? null;
-  contactSnapshotLoaded = true;
-
+  // Grant the disposable TEST owner platform permissions *only within this
+  // scenario* and restore its original role even when the test fails.
+  // This replaces an unconditional skip with genuine system-owner coverage.
+  const { data: originalSystemOwner, error: originalOwnerError } = await admin
+    .from("system_owners").select("is_active").eq("user_id", owner.userId).maybeSingle();
+  if (originalOwnerError) throw originalOwnerError;
   try {
+    await loginAsOwner(page, credentials);
+    const { error: enableError } = await admin.from("system_owners").upsert({
+      user_id: owner.userId, is_active: true,
+    }, { onConflict: "user_id" });
+    if (enableError) throw enableError;
+    await page.goto("/system/settings", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/system\/settings$/);
+
+    const { data: existingContact, error: contactReadError } = await admin
+      .from("platform_public_contact").select("id,phone").eq("id", true).maybeSingle();
+    if (contactReadError) throw contactReadError;
+    previousContact = existingContact ?? null;
+    contactSnapshotLoaded = true;
     const phoneInput = page.getByLabel("Public contact number");
     await phoneInput.fill(testOnlyContact);
     await page.getByRole("button", { name: "Save public contact", exact: true }).click();
@@ -98,7 +102,18 @@ test("system owner contact setting reaches homepage and customer queue page", as
         }
       }
     } finally {
-      await cleanupOwnedBranch(admin, owner.businessId, branchName);
+      try {
+        if (originalSystemOwner) {
+          const { error } = await admin.from("system_owners")
+            .update({ is_active: originalSystemOwner.is_active }).eq("user_id", owner.userId);
+          if (error) throw error;
+        } else {
+          const { error } = await admin.from("system_owners").delete().eq("user_id", owner.userId);
+          if (error) throw error;
+        }
+      } finally {
+        await cleanupOwnedBranch(admin, owner.businessId, branchName);
+      }
     }
   }
 });
