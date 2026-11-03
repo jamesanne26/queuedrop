@@ -96,15 +96,30 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
 
-test("settings navigation waits for server data before showing a new view", async () => {
+test("settings navigation reloads server data instead of showing a stale view", async () => {
   const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
-  assert.match(consoleSource, /const \[isViewSwitching, startViewTransition\] = useTransition\(\)/);
-  assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
-  assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
-  assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /const view = normalizeView\(initialView\)/);
+  assert.match(consoleSource, /window\.location\.assign\(getViewUrl\(next\)\)/);
+  assert.match(consoleSource, /window\.location\.assign\(getBranchUrl\(branchId, nextView\)\)/);
+  assert.doesNotMatch(consoleSource, /router\.replace\(/);
+  assert.doesNotMatch(consoleSource, /setView\(next\)/);
   assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.match(consoleSource, /prefetchBranch/);
-  assert.match(consoleSource, /prefetchView/);
+});
+
+test("Cloudflare SSR safely provides only public Supabase config to the browser", async () => {
+  const client = await readFile(new URL("../../lib/supabase/client.ts", import.meta.url), "utf8");
+  assert.match(layout, /<meta name="queuedrop-supabase-url"/);
+  assert.match(layout, /<meta name="queuedrop-supabase-publishable-key"/);
+  assert.doesNotMatch(layout, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(client, /publicMeta\("queuedrop-supabase-url"\)/);
+  assert.match(client, /publicMeta\("queuedrop-supabase-publishable-key"\)/);
+});
+
+test("Cloudflare E2E owner passwords are masked before writing job environment", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/cloudflare-browser-e2e.yml", import.meta.url), "utf8");
+  const maskAt = workflow.indexOf('echo "::add-mask::$password"');
+  const exportAt = workflow.indexOf('echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"');
+  assert.ok(maskAt >= 0 && exportAt > maskAt);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
