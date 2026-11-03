@@ -137,7 +137,7 @@ jobs:
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
               const full = path.join(dir, entry.name);
               if (entry.isDirectory()) walk(full, depth + 1);
-              else if (entry.isFile() && /\\.(?:js|mjs)$/.test(entry.name)) {
+              else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.mjs'))) {
                 jsFiles++;
                 const clientChunk = full.split(path.sep).some(part => ['client', 'assets', 'static', '_next'].includes(part));
                 if (clientChunk) {
@@ -149,11 +149,8 @@ jobs:
           }
           for (const root of scanRoots) walk(root);
           console.log('Browser bundle verification:', { jsFiles, browserFiles, browserUrlEmbedded });
-          if (browserFiles > 0 && !browserUrlEmbedded) {
-            throw new Error('Cloudflare browser JS chunks lack the public TEST Supabase URL');
-          }
-          if (!browserFiles) {
-            console.log('No browser chunk directory matched known output patterns; E2E browser validation remains mandatory');
+          if (browserFiles === 0 || !browserUrlEmbedded) {
+            throw new Error('Cloudflare browser JS chunks must embed the public TEST Supabase URL');
           }
           NODE
       - name: Deploy Worker
