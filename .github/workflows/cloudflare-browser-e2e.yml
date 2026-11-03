@@ -9,6 +9,7 @@ on:
     paths:
       - 'tests/e2e/**'
       - 'tests/unit/**'
+      - 'lib/supabase/client.ts'
       - 'playwright.config.mjs'
       - '.github/workflows/cloudflare-browser-e2e.yml'
       - '.github/workflows/cloudflare-deploy.yml'
