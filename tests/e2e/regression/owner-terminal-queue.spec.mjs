@@ -42,6 +42,18 @@ async function issueTestStub(page, admin, branch, service) {
   await expectNoAppError(page);
 
   const getStubButton = page.getByRole("button", { name: /Get test stub/i });
+  try {
+    await expect(getStubButton).toBeVisible({ timeout: 12_000 });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      body: document.body?.innerText?.slice(0, 2200),
+      buttons: Array.from(document.querySelectorAll('button')).map(b => b.innerText).slice(0, 30),
+    }));
+    console.error('Queue stub missing - rendered browser state:', JSON.stringify(diagnostic));
+    throw error;
+  }
   await getStubButton.click();
 
   // Get test stub is intentionally inline/realtime-first now: the queue updates
