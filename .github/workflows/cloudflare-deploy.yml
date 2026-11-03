@@ -103,6 +103,8 @@ jobs:
           NODE
       - name: Build Cloudflare runtime
         env:
+          VITE_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_APP_ENV: test
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
