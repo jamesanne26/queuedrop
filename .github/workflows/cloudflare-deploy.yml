@@ -2,7 +2,16 @@ name: Deploy QueueDrop to Cloudflare Workers
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/cloudflare-deploy.yml']
+    paths:
+      - '.github/workflows/cloudflare-deploy.yml'
+      - 'app/**'
+      - 'lib/**'
+      - 'components/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - 'proxy.ts'
   workflow_dispatch:
     inputs:
       environment:
