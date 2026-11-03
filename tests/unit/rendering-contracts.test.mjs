@@ -251,3 +251,15 @@ test("CI owner browser session is reused without revoking it on sign-out", async
   assert.match(auth, /page\.context\(\)\.addCookies\(saved\.cookies\)/);
   assert.match(navigation, /freshSession: testInfo\.title === "owner can sign out"/);
 });
+
+
+test("Settings saves keep unrelated branch configuration server-owned", async () => {
+  const settings = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(settings, /const needsQueueConfig = \["branch-queue", "branch-notifications", "branch-operating"\]/);
+  assert.match(actions, /returnView === "branch-queue"\s*\?\s*checked\(formData, "show_branch_contact"\)/);
+  assert.match(actions, /target_hours: returnView === "branch-operating" \? hours : preservedHours/);
+  assert.match(actions, /target_position_rules: returnView === "branch-notifications" \? rules : preservedRules/);
+  assert.match(actions, /if \(returnView === "branch-queue"\) \{\s*const \{ error: refreshError \}/);
+  assert.match(actions, /currentBranchResult\.data\.business_id/);
+});
