@@ -6,6 +6,7 @@ on:
       - '.github/workflows/cloudflare-deploy.yml'
       - 'app/**'
       - 'tests/e2e/**'
+      - 'tests/unit/**'
       - '.github/workflows/cloudflare-browser-e2e.yml'
       - 'lib/**'
       - 'components/**'

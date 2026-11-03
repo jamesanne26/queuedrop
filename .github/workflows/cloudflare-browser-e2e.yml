@@ -8,6 +8,7 @@ on:
     branches: [main, fix/cloudflare-release-e2e-20261103]
     paths:
       - 'tests/e2e/**'
+      - 'tests/unit/**'
       - 'playwright.config.mjs'
       - '.github/workflows/cloudflare-browser-e2e.yml'
 permissions:
