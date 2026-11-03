@@ -131,7 +131,7 @@ jobs:
           let jsFiles = 0;
           let browserFiles = 0;
           let browserUrlEmbedded = false;
-          const scanRoots = ['.vinext', 'dist', '.output', '.vercel', '.wrangler', 'build'];
+          const scanRoots = ['.cloudflare/output', '.vinext', 'dist', '.output', '.vercel', '.wrangler', 'build'];
           function walk(dir, depth = 0) {
             if (!fs.existsSync(dir) || depth > 14) return;
             for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
