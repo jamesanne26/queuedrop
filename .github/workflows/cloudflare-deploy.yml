@@ -13,6 +13,8 @@ on:
       - 'package-lock.json'
       - 'next.config.*'
       - 'proxy.ts'
+      - 'tests/e2e/**'
+      - 'playwright.config.mjs'
   workflow_dispatch:
     inputs:
       environment:
