@@ -13,6 +13,13 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       ...readiness,
+      ...(process.env.NEXT_PUBLIC_APP_ENV === "test" && readiness.status !== "ok"
+        ? { diagnostics: {
+            supabaseUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+            supabasePublishableKeyConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+            supabaseServiceRoleConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY),
+          } }
+        : {}),
       service: "queuedrop-web",
       environment: process.env.VERCEL_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? "development",
       revision: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null,
