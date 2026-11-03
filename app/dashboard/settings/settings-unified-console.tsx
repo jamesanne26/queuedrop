@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
 type BranchNav = { id: string; name: string; address?: string | null; status?: string | null };
 type ViewKey =
@@ -98,13 +97,12 @@ export function SettingsUnifiedConsole({
   addBranchPanel,
   panels,
 }: Props) {
-  const router = useRouter();
-  const [view, setView] = useState<ViewKey>(normalizeView(initialView));
+  const view = normalizeView(initialView);
   const [branchesOpen, setBranchesOpen] = useState(() => branchViews.has(normalizeView(initialView)) && Boolean(initialBranchId ?? branches[0]?.id));
   const [accessOpen, setAccessOpen] = useState(() => ["users", "roles", "permissions"].includes(normalizeView(initialView)));
-  const [activeBranchId, setActiveBranchId] = useState(initialBranchId ?? branches[0]?.id);
-  const [isBranchSwitching, startBranchTransition] = useTransition();
-  const [isViewSwitching, startViewTransition] = useTransition();
+  const activeBranchId = initialBranchId ?? branches[0]?.id;
+  const [isBranchSwitching, setIsBranchSwitching] = useState(false);
+  const [isViewSwitching, setIsViewSwitching] = useState(false);
   const selectedBranch = useMemo(() => branches.find((branch) => branch.id === activeBranchId) ?? branches[0], [branches, activeBranchId]);
   const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
@@ -122,25 +120,20 @@ export function SettingsUnifiedConsole({
     return `${url.pathname}?${url.searchParams.toString()}`;
   };
 
-  const prefetchView = (targetView: ViewKey) => router.prefetch(getViewUrl(targetView));
-  const prefetchBranch = (branchId: string) => router.prefetch(getBranchUrl(branchId));
-
   const chooseView = (next: ViewKey) => {
     if (next === view || isViewSwitching || isBranchSwitching) return;
-    const nextUrl = getViewUrl(next);
-    // Keep the current server-rendered panel visible until the next route payload
-    // arrives. Switching optimistically used to expose empty placeholder arrays
-    // for Users/Roles before their view-specific data had loaded.
-    startViewTransition(() => router.replace(nextUrl, { scroll: false }));
+    setIsViewSwitching(true);
+    // vinext's client RSC router can change the URL without refreshing the
+    // server-rendered settings panel. A document navigation guarantees that
+    // permissions, selected branch and view-specific data stay in sync.
+    window.location.assign(getViewUrl(next));
   };
 
   const chooseBranch = (branchId: string) => {
+    if (!branchId || branchId === activeBranchId || isBranchSwitching || isViewSwitching) return;
+    setIsBranchSwitching(true);
     const nextView: ViewKey = branchViews.has(view) ? view : "branch-general";
-    setActiveBranchId(branchId);
-    setView(nextView);
-    setBranchesOpen(true);
-    const nextUrl = getBranchUrl(branchId, nextView);
-    startBranchTransition(() => router.replace(nextUrl, { scroll: false }));
+    window.location.assign(getBranchUrl(branchId, nextView));
   };
 
   const hiddenBranchItem = (key: ViewKey) =>
@@ -182,8 +175,8 @@ export function SettingsUnifiedConsole({
                           data-branch-id={branch.id}
                           aria-current={selected ? "page" : undefined}
                           className={`settings-tree-branch settings-tree-branch-button ${selected ? "settings-tree-branch-active" : ""}`}
-                          onMouseEnter={() => prefetchBranch(branch.id)}
-                          onFocus={() => prefetchBranch(branch.id)}
+                         
+                         
                           onClick={() => chooseBranch(branch.id)}
                         >
                           <span className={`settings-tree-dot ${selected ? "settings-tree-dot-active" : ""}`} />
@@ -199,7 +192,7 @@ export function SettingsUnifiedConsole({
 
             {canManageServices ? (
               <section className="settings-tree-group settings-tree-services-group">
-                <button type="button" data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`} onMouseEnter={() => prefetchView("services")} onFocus={() => prefetchView("services")} onClick={() => chooseView("services")}>
+                <button type="button" data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("services")}>
                   <span className="settings-tree-icon settings-tree-icon-services"><Icon name="service" /></span>
                   <strong>Services</strong>
                   <span className="settings-tree-caret">›</span>
@@ -213,9 +206,9 @@ export function SettingsUnifiedConsole({
                   <span className="settings-tree-icon settings-tree-icon-team"><Icon name="users" /></span><strong>Users &amp; Access</strong><span className="settings-tree-caret">{accessOpen ? "⌄" : "›"}</span>
                 </button>
                 {accessOpen ? <div className="settings-tree-branch-sections settings-tree-access-sections">
-                  {canManageTeam ? <button type="button" data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("users")} onFocus={() => prefetchView("users")} onClick={() => chooseView("users")}><span><Icon name="users" /></span><span>Users</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("roles")} onFocus={() => prefetchView("roles")} onClick={() => chooseView("roles")}><span><Icon name="role" /></span><span>Roles</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("permissions")} onFocus={() => prefetchView("permissions")} onClick={() => chooseView("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></button> : null}
+                  {canManageTeam ? <button type="button" data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("users")}><span><Icon name="users" /></span><span>Users</span></button> : null}
+                  {canManageRoles ? <button type="button" data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("roles")}><span><Icon name="role" /></span><span>Roles</span></button> : null}
+                  {canManageRoles ? <button type="button" data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></button> : null}
                 </div> : null}
               </section>
             ) : null}
@@ -245,7 +238,7 @@ export function SettingsUnifiedConsole({
               </div>
             </header>
             <div className="settings-detail-tabs-v2 settings-detail-tabs-buttons" role="tablist" aria-label="Branch settings sections">
-              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <button key={key} type="button" role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""} onMouseEnter={() => prefetchView(key)} onFocus={() => prefetchView(key)} onClick={() => chooseView(key)}>{label}</button>)}
+              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <button key={key} type="button" role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""} onClick={() => chooseView(key)}>{label}</button>)}
             </div>
           </>
         ) : null}
