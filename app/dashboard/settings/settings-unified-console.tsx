@@ -169,19 +169,18 @@ export function SettingsUnifiedConsole({
                     {sortedBranches.map((branch) => {
                       const selected = branch.id === selectedBranch?.id;
                       return (
-                        <button
-                          type="button"
+                        <a 
                           key={branch.id}
                           data-branch-id={branch.id}
                           aria-current={selected ? "page" : undefined}
                           className={`settings-tree-branch settings-tree-branch-button ${selected ? "settings-tree-branch-active" : ""}`}
                          
                          
-                          onClick={() => chooseBranch(branch.id)}
-                        >
+                          
+                         role="button" href={getBranchUrl(branch.id, branchViews.has(view) ? view : "branch-general")}>
                           <span className={`settings-tree-dot ${selected ? "settings-tree-dot-active" : ""}`} />
                           <span><strong>{branch.name}</strong><small>{branch.address || "No address added"}</small><em className={`settings-branch-status settings-branch-status-${branch.status === "active" ? "active" : "inactive"}`}>{branch.status === "active" ? "Active" : "Inactive"}</em></span>
-                        </button>
+                        </a>
                       );
                     })}
                   </div>
@@ -192,11 +191,11 @@ export function SettingsUnifiedConsole({
 
             {canManageServices ? (
               <section className="settings-tree-group settings-tree-services-group">
-                <button type="button" data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("services")}>
+                <a  data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("services")}>
                   <span className="settings-tree-icon settings-tree-icon-services"><Icon name="service" /></span>
                   <strong>Services</strong>
                   <span className="settings-tree-caret">›</span>
-                </button>
+                </a>
               </section>
             ) : null}
 
@@ -206,16 +205,16 @@ export function SettingsUnifiedConsole({
                   <span className="settings-tree-icon settings-tree-icon-team"><Icon name="users" /></span><strong>Users &amp; Access</strong><span className="settings-tree-caret">{accessOpen ? "⌄" : "›"}</span>
                 </button>
                 {accessOpen ? <div className="settings-tree-branch-sections settings-tree-access-sections">
-                  {canManageTeam ? <button type="button" data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("users")}><span><Icon name="users" /></span><span>Users</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("roles")}><span><Icon name="role" /></span><span>Roles</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`} onClick={() => chooseView("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></button> : null}
+                  {canManageTeam ? <a  data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("users")}><span><Icon name="users" /></span><span>Users</span></a> : null}
+                  {canManageRoles ? <a  data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("roles")}><span><Icon name="role" /></span><span>Roles</span></a> : null}
+                  {canManageRoles ? <a  data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></a> : null}
                 </div> : null}
               </section>
             ) : null}
 
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></button></section> : null}
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></button></section> : null}
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Mobile Installers</strong><span className="settings-tree-caret">›</span></button></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></a></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></a></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Mobile Installers</strong><span className="settings-tree-caret">›</span></a></section> : null}
           </nav>
         </details>
       </aside>
@@ -238,7 +237,7 @@ export function SettingsUnifiedConsole({
               </div>
             </header>
             <div className="settings-detail-tabs-v2 settings-detail-tabs-buttons" role="tablist" aria-label="Branch settings sections">
-              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <button key={key} type="button" role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""} onClick={() => chooseView(key)}>{label}</button>)}
+              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <a  key={key} role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""}  href={getViewUrl(key)}>{label}</a>)}
             </div>
           </>
         ) : null}
