@@ -13,11 +13,15 @@ export async function loginAsOwner(page, credentials) {
   await loginInput.fill(credentials.email);
   await passwordInput.fill(credentials.password);
 
-  await signInButton.click();
-  await page.waitForURL((url) => {
-    if (/\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
-    return url.pathname === "/auth/login" && url.searchParams.has("error");
-  }, { timeout: 20_000 });
+  // Register the navigation observer before submitting: hosted auth redirects
+  // can complete before a post-click waitForURL starts observing.
+  await Promise.all([
+    page.waitForURL((url) => {
+      if (url.pathname === "/dashboard" || url.pathname.startsWith("/dashboard/")) return true;
+      return url.pathname === "/auth/login" && url.searchParams.has("error");
+    }, { timeout: 30_000, waitUntil: "domcontentloaded" }),
+    signInButton.click(),
+  ]);
 
   const loginResult = new URL(page.url());
   if (loginResult.pathname === "/auth/login" && loginResult.searchParams.has("error")) {
