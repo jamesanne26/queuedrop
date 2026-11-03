@@ -1,7 +1,7 @@
 name: Deploy QueueDrop to Cloudflare Workers
 on:
   push:
-    branches: [main]
+    branches: [main, fix/cloudflare-browser-e2e-runtime-20261103]
     paths:
       - '.github/workflows/cloudflare-deploy.yml'
       - 'app/**'
@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
