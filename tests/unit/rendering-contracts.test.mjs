@@ -96,15 +96,13 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
 
-test("settings navigation waits for server data before showing a new view", async () => {
+test("settings navigation uses SSR-safe links and reloads the selected panel", async () => {
   const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
-  assert.match(consoleSource, /const \[isViewSwitching, startViewTransition\] = useTransition\(\)/);
-  assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
-  assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
-  assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /href=\{getViewUrl\("permissions"\)\}/);
+  assert.match(consoleSource, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(consoleSource, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(consoleSource, /startViewTransition\(\(\) => router\.replace/);
   assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.match(consoleSource, /prefetchBranch/);
-  assert.match(consoleSource, /prefetchView/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
