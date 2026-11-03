@@ -271,3 +271,12 @@ test("Cloudflare Settings serializes only the selected RSC panel", async () => {
   assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
   assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
 });
+
+test("Settings navigation works before hydration and is safe during SSR", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
+  assert.match(source, /href=\{getViewUrl\(key\)\}/);
+  assert.match(source, /href=\{getViewUrl\("users"\)\}/);
+  assert.match(source, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(source, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(source, /new URL\(window\.location\.href\)/);
+});
