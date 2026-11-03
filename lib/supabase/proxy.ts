@@ -5,11 +5,16 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isProtectedRoute = pathname.startsWith("/dashboard");
   const isAuthRoute = pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
+  const isSessionRoute = isProtectedRoute
+    || pathname.startsWith("/client")
+    || pathname.startsWith("/system")
+    || pathname.startsWith("/onboarding")
+    || pathname.startsWith("/auth/reset-password");
 
-  // Cloudflare Workers Free has a tight CPU budget. Public pages, health,
-  // assets and API handlers should not initialize the SSR Supabase client or
-  // call Auth /user when they do not need the session for routing.
-  if (!isProtectedRoute && !isAuthRoute) return NextResponse.next({ request });
+  // Skip Supabase Auth on public pages, health, and API endpoints. Continue
+  // refreshing signed-in sessions on business/client/system routes so long
+  // sessions do not break when JWTs expire.
+  if (!isSessionRoute && !isAuthRoute) return NextResponse.next({ request });
 
   const hasAuthCookie = request.cookies.getAll().some(({ name }) =>
     name.startsWith("sb-") && (name.endsWith("-auth-token") || /-auth-token\.\d+$/.test(name))

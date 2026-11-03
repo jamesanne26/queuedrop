@@ -234,7 +234,10 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
 
 test("Cloudflare proxy bypasses public pages and avoids Auth calls without session cookies", async () => {
   const proxy = await readFile(new URL("../../lib/supabase/proxy.ts", import.meta.url), "utf8");
-  assert.match(proxy, /if \(!isProtectedRoute && !isAuthRoute\) return NextResponse\.next/);
+  assert.match(proxy, /if \(!isSessionRoute && !isAuthRoute\) return NextResponse\.next/);
+  assert.match(proxy, /pathname\.startsWith\("\/client"\)/);
+  assert.match(proxy, /pathname\.startsWith\("\/system"\)/);
+  assert.match(proxy, /pathname\.startsWith\("\/onboarding"\)/);
   assert.match(proxy, /if \(!hasAuthCookie\)/);
   assert.match(proxy, /auth\.getUser\(\)/);
   assert.match(proxy, /status: 503/);
