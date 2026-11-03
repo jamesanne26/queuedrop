@@ -23,7 +23,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-e2e:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Never check out and test stale main against a different branch deployment.
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: test

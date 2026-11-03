@@ -1,4 +1,4 @@
-name: Deploy QueueDrop Cloudflare TEST Fix Validation
+name: Deploy QueueDrop to Cloudflare Workers
 # Isolated TEST-only branch; production deployment remains untouched.
 on:
   push:
