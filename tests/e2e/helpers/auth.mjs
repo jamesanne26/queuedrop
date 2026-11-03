@@ -52,9 +52,14 @@ export async function loginAsOwner(page, credentials, { freshSession = false } =
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.
   // Use the authenticated dashboard shell itself as the viewport-independent
   // login-ready signal instead of requiring a currently visible Sign out button.
-  await expect(page.locator("aside.sidebar")).toBeAttached();
-  await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
-  await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
+  try {
+    await expect(page.locator("aside.sidebar")).toBeAttached({ timeout: 8_000 });
+    await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+    await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
+  } catch (error) {
+    const body = (await page.locator("body").innerText().catch(() => "")).replace(/\\s+/g, " ").slice(0, 350);
+    throw new Error(`Cloudflare TEST owner dashboard did not render. URL=${new URL(page.url()).pathname}; title=${await page.title().catch(() => "?")}; body=${body}; assertion=${String(error).slice(0, 180)}`);
+  }
 }
 
 export async function signOut(page) {
