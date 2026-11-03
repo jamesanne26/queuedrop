@@ -38,6 +38,10 @@ async function waitForTicketStatus(admin, ticketId, status) {
 }
 
 async function issueTestStub(page, admin, branch, service) {
+  const queueConsoleErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") queueConsoleErrors.push(message.text());
+  });
   await page.goto(`/dashboard/queues?branch=${branch.id}&service=${service.id}`, { waitUntil: "domcontentloaded" });
   await expectNoAppError(page);
 
@@ -52,6 +56,7 @@ async function issueTestStub(page, admin, branch, service) {
       buttons: Array.from(document.querySelectorAll('button')).map(b => b.innerText).slice(0, 30),
     }));
     console.error('Queue stub missing - rendered browser state:', JSON.stringify(diagnostic));
+    console.error('Queue page browser errors:', JSON.stringify(queueConsoleErrors.slice(-15)));
     throw error;
   }
   await getStubButton.click();
