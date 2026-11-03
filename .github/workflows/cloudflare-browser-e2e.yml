@@ -39,7 +39,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "E2E_OWNER_EMAIL=cloudflare-e2e-${GITHUB_RUN_ID}@example.com" >> "$GITHUB_ENV"
-          echo "E2E_OWNER_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"
       - name: Validate dedicated TEST business-owner fixture
         run: node -e 'import("./tests/e2e/global-setup.mjs").then(m=>m.default())'
       - name: Install Chromium
