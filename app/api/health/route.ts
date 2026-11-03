@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       ...readiness,
-      ...(process.env.NEXT_PUBLIC_APP_ENV === "test" && readiness.status !== "ok"
+      ...(request.nextUrl.hostname === "queuedrop-test.jamesrae-rosario18.workers.dev" && readiness.status !== "ok"
         ? { diagnostics: {
             supabaseUrlConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
             supabasePublishableKeyConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
