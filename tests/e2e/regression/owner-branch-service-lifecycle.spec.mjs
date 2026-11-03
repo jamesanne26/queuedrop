@@ -149,9 +149,12 @@ test.describe("owner branch and service lifecycle", () => {
       const deleteDetails = article.locator("details.settings-catalog-edit");
       await deleteDetails.locator("summary").click();
       await confirmCodeDelete(page, "Delete service");
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "services" && url.searchParams.get("message") === "Service deleted from the library.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Service deleted from the library.");
-      expect(await getServiceById(admin, service.id)).toBeNull();
+      // Verify the destructive server action actually committed; vinext can
+      // replace the success-message URL during an RSC refresh.
+      await expect.poll(() => getServiceById(admin, service.id), { timeout: 30_000 }).toBeNull();
+      await page.goto("/dashboard/settings?view=services", { waitUntil: "domcontentloaded" });
+      await expect(page.locator("article.settings-catalog-row", { hasText: editedName })).toHaveCount(0);
+      await expectNoAppError(page);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
