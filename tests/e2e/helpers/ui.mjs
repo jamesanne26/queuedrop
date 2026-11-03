@@ -31,6 +31,7 @@ export async function openDashboardDestination(page, label, path, loadedSelector
       url: page.url(),
       title: await page.title().catch(() => "unavailable"),
       bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 900),
+      errors: await page.locator("[role=alert]").allInnerTexts().catch(() => []),
     }));
     throw error;
   }
