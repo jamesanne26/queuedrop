@@ -12,7 +12,7 @@ export async function updateSession(request: NextRequest) {
   if (!isProtectedRoute && !isAuthRoute) return NextResponse.next({ request });
 
   const hasAuthCookie = request.cookies.getAll().some(({ name }) =>
-    /^sb-[a-z0-9]+-auth-token(?:\\.[0-9]+)?$/.test(name)
+    name.startsWith("sb-") && (name.endsWith("-auth-token") || /-auth-token\.\d+$/.test(name))
   );
   if (!hasAuthCookie) {
     if (isProtectedRoute) {
@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !publishableKey) {
-    return NextResponse.next({ request });
+    return new NextResponse("Auth configuration unavailable", { status: 503 });
   }
 
   let response = NextResponse.next({ request });
