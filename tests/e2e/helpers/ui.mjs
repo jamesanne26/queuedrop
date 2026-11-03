@@ -23,6 +23,16 @@ export async function openDashboardDestination(page, label, path, loadedSelector
   await expect(link).toBeVisible();
   await link.click();
   await page.waitForURL((url) => url.pathname === path, { timeout: 15_000 });
-  await expect(page.locator(loadedSelector).first()).toBeVisible();
+  try {
+    await expect(page.locator(loadedSelector).first()).toBeVisible({ timeout: 15_000 });
+  } catch (error) {
+    console.error("Dashboard navigation diagnostic:", JSON.stringify({
+      path,
+      url: page.url(),
+      title: await page.title().catch(() => "unavailable"),
+      bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 900),
+    }));
+    throw error;
+  }
   await expectNoAppError(page);
 }
