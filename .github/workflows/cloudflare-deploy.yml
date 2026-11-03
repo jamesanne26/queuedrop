@@ -139,7 +139,7 @@ jobs:
               if (entry.isDirectory()) walk(full, depth + 1);
               else if (entry.isFile() && /\\.(?:js|mjs)$/.test(entry.name)) {
                 jsFiles++;
-                const clientChunk = /(?:^|\\/)(?:client|assets|static|_next)(?:\\/|$)/.test(full);
+                const clientChunk = full.split(path.sep).some(part => ['client', 'assets', 'static', '_next'].includes(part));
                 if (clientChunk) {
                   browserFiles++;
                   if (fs.readFileSync(full, 'utf8').includes(expectedUrl)) browserUrlEmbedded = true;
