@@ -70,10 +70,12 @@ test.describe("TV display and public platform contact",()=>{
       await expect(page.locator(".tv-service-card")).toHaveCount(2);
       await page.getByRole("button",{name:"Back to dashboard"}).click();
       await expect(page).toHaveURL(/\/dashboard$/);
-      // Fresh navigation restores the native API; the sidebar click has real user activation.
+      // Browser fullscreen requires a user gesture on the TV document.
+      // An async sidebar route transition is not a reliable fullscreen gesture.
       await page.reload();
       await page.locator("aside.sidebar").getByRole("link",{name:"TV Display",exact:true}).click();
       await expect(page).toHaveURL(/\/dashboard\/tv/);
+      await page.getByRole("button",{name:"Fullscreen",exact:true}).click();
       await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
       await page.getByLabel("TV display branch").selectOption(f.branch.id);
       await expect(page.locator(".tv-service-card")).toHaveCount(2);
