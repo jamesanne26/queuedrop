@@ -263,3 +263,11 @@ test("Settings saves keep unrelated branch configuration server-owned", async ()
   assert.match(actions, /if \(returnView === "branch-queue"\) \{\s*const \{ error: refreshError \}/);
   assert.match(actions, /currentBranchResult\.data\.business_id/);
 });
+
+
+test("Cloudflare Settings serializes only the selected RSC panel", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const activePanel = availablePanels\[activeView as keyof typeof availablePanels\]/);
+  assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
+  assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
+});
