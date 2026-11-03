@@ -1,7 +1,17 @@
 import { expect } from "@playwright/test";
 
 export async function loginAsOwner(page, credentials) {
-  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  // Cloudflare may transiently return an edge-generated 503. Retry only that
+  // transport failure; do not retry application/login validation failures.
+  let loginPageResponse;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    loginPageResponse = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+    if (loginPageResponse?.status() !== 503) break;
+    if (attempt < 2) await page.waitForTimeout(1000 * (attempt + 1));
+  }
+  if (loginPageResponse?.status() === 503) {
+    throw new Error("Cloudflare TEST login page returned HTTP 503 after three attempts; check Worker/edge availability.");
+  }
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 
   const loginInput = page.locator('input[name="login_email"]');
