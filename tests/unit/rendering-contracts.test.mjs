@@ -120,6 +120,14 @@ test("Cloudflare E2E owner passwords are masked before writing job environment",
   const maskAt = workflow.indexOf('echo "::add-mask::$password"');
   const exportAt = workflow.indexOf('echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"');
   assert.ok(maskAt >= 0 && exportAt > maskAt);
+  assert.match(workflow, /health\.revision !== expected/);
+  assert.match(workflow, /github\.event\.workflow_run\.head_sha/);
+  assert.doesNotMatch(workflow, /branches: \[main\][\s\S]*?tests\/e2e\/\*\*/);
+});
+
+test("Cloudflare TEST deployment embeds its exact Git SHA for E2E readiness", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/cloudflare-deploy.yml", import.meta.url), "utf8");
+  assert.match(workflow, /"process\.env\.VERCEL_GIT_COMMIT_SHA": JSON\.stringify\(process\.env\.GITHUB_SHA\)/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
