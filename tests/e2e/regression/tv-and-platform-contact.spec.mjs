@@ -74,9 +74,13 @@ test.describe("TV display and public platform contact",()=>{
       await page.reload();
       await page.locator("aside.sidebar").getByRole("link",{name:"TV Display",exact:true}).click();
       await expect(page).toHaveURL(/\/dashboard\/tv/);
-      await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
+      // Selecting a TV Display navigation link is not a guaranteed browser
+      // fullscreen user activation. Select the test branch and use the actual
+      // Fullscreen control, which carries a trusted click gesture.
       await page.getByLabel("TV display branch").selectOption(f.branch.id);
+      await expect(page).toHaveURL(new RegExp(`branch=${f.branch.id}`));
       await expect(page.locator(".tv-service-card")).toHaveCount(2);
+      await page.getByRole("button",{name:"Fullscreen",exact:true}).click();
       await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
       await page.getByRole("button",{name:"Back to dashboard"}).click();
       await expect(page).toHaveURL(/\/dashboard$/);

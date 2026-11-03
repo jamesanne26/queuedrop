@@ -1,7 +1,8 @@
 name: Deploy QueueDrop to Cloudflare Workers
+# Isolated TEST-only branch; production deployment remains untouched.
 on:
   push:
-    branches: [main]
+    branches: [main, fix/cloudflare-browser-e2e-runtime-20261103]
     paths:
       - '.github/workflows/cloudflare-deploy.yml'
       - 'app/**'
@@ -12,6 +13,8 @@ on:
       - 'package-lock.json'
       - 'next.config.*'
       - 'proxy.ts'
+      - 'tests/e2e/**'
+      - 'playwright.config.mjs'
   workflow_dispatch:
     inputs:
       environment:
@@ -22,7 +25,9 @@ on:
           - test
 concurrency:
   group: queuedrop-cloudflare-test-deploy
-  cancel-in-progress: false
+  # Superseded fix-branch builds should not block the newest TEST revision.
+  # Keep main deployments non-interruptible.
+  cancel-in-progress: ${{ github.ref == 'refs/heads/fix/cloudflare-browser-e2e-runtime-20261103' }}
 permissions:
   contents: read
 jobs:
@@ -33,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -98,6 +103,7 @@ jobs:
               "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
               "process.env.NEXT_PUBLIC_SITE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL),
               "process.env.NEXT_PUBLIC_APP_ENV": JSON.stringify(process.env.NEXT_PUBLIC_APP_ENV),
+              "process.env.VERCEL_GIT_COMMIT_SHA": JSON.stringify(process.env.GITHUB_SHA),
             },`);
           fs.writeFileSync(configPath, source);
           NODE

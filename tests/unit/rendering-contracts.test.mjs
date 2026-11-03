@@ -96,15 +96,38 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
 
-test("settings navigation waits for server data before showing a new view", async () => {
+test("settings navigation reloads server data instead of showing a stale view", async () => {
   const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
-  assert.match(consoleSource, /const \[isViewSwitching, startViewTransition\] = useTransition\(\)/);
-  assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
-  assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
-  assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /const view = normalizeView\(initialView\)/);
+  assert.match(consoleSource, /window\.location\.assign\(getViewUrl\(next\)\)/);
+  assert.match(consoleSource, /window\.location\.assign\(getBranchUrl\(branchId, nextView\)\)/);
+  assert.doesNotMatch(consoleSource, /router\.replace\(/);
+  assert.doesNotMatch(consoleSource, /setView\(next\)/);
   assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.match(consoleSource, /prefetchBranch/);
-  assert.match(consoleSource, /prefetchView/);
+});
+
+test("Cloudflare SSR safely provides only public Supabase config to the browser", async () => {
+  const client = await readFile(new URL("../../lib/supabase/client.ts", import.meta.url), "utf8");
+  assert.match(layout, /<meta name="queuedrop-supabase-url"/);
+  assert.match(layout, /<meta name="queuedrop-supabase-publishable-key"/);
+  assert.doesNotMatch(layout, /process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(client, /publicMeta\("queuedrop-supabase-url"\)/);
+  assert.match(client, /publicMeta\("queuedrop-supabase-publishable-key"\)/);
+});
+
+test("Cloudflare E2E owner passwords are masked before writing job environment", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/cloudflare-browser-e2e.yml", import.meta.url), "utf8");
+  const maskAt = workflow.indexOf('echo "::add-mask::$password"');
+  const exportAt = workflow.indexOf('echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"');
+  assert.ok(maskAt >= 0 && exportAt > maskAt);
+  assert.match(workflow, /health\.revision !== expected/);
+  assert.match(workflow, /github\.event\.workflow_run\.head_sha/);
+  assert.doesNotMatch(workflow, /branches: \[main\][\s\S]*?tests\/e2e\/\*\*/);
+});
+
+test("Cloudflare TEST deployment embeds its exact Git SHA for E2E readiness", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/cloudflare-deploy.yml", import.meta.url), "utf8");
+  assert.match(workflow, /"process\.env\.VERCEL_GIT_COMMIT_SHA": JSON\.stringify\(process\.env\.GITHUB_SHA\)/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
@@ -208,3 +231,52 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
   assert.match(auth, /url\.searchParams\.has\("error"\)/);
 });
 
+
+test("Cloudflare proxy bypasses public pages and avoids Auth calls without session cookies", async () => {
+  const proxy = await readFile(new URL("../../lib/supabase/proxy.ts", import.meta.url), "utf8");
+  assert.match(proxy, /if \(!isSessionRoute && !isAuthRoute\) return NextResponse\.next/);
+  assert.match(proxy, /pathname\.startsWith\("\/client"\)/);
+  assert.match(proxy, /pathname\.startsWith\("\/system"\)/);
+  assert.match(proxy, /pathname\.startsWith\("\/onboarding"\)/);
+  assert.match(proxy, /if \(!hasAuthCookie\)/);
+  assert.match(proxy, /auth\.getUser\(\)/);
+  assert.match(proxy, /status: 503/);
+});
+
+test("CI owner browser session is reused without revoking it on sign-out", async () => {
+  const auth = await readFile(new URL("../e2e/helpers/auth.mjs", import.meta.url), "utf8");
+  const setup = await readFile(new URL("../e2e/global-setup.mjs", import.meta.url), "utf8");
+  const navigation = await readFile(new URL("../e2e/regression/owner-navigation.spec.mjs", import.meta.url), "utf8");
+  assert.match(setup, /context\.storageState\(\{ path: ownerAuthStatePath \}\)/);
+  assert.match(auth, /page\.context\(\)\.addCookies\(saved\.cookies\)/);
+  assert.match(navigation, /freshSession: testInfo\.title === "owner can sign out"/);
+});
+
+
+test("Settings saves keep unrelated branch configuration server-owned", async () => {
+  const settings = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(settings, /const needsQueueConfig = \["branch-queue", "branch-notifications", "branch-operating"\]/);
+  assert.match(actions, /returnView === "branch-queue"\s*\?\s*checked\(formData, "show_branch_contact"\)/);
+  assert.match(actions, /target_hours: returnView === "branch-operating" \? hours : preservedHours/);
+  assert.match(actions, /target_position_rules: returnView === "branch-notifications" \? rules : preservedRules/);
+  assert.match(actions, /if \(returnView === "branch-queue"\) \{\s*const \{ error: refreshError \}/);
+  assert.match(actions, /currentBranchResult\.data\.business_id/);
+});
+
+
+test("Cloudflare Settings serializes only the selected RSC panel", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const activePanel = availablePanels\[activeView as keyof typeof availablePanels\]/);
+  assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
+  assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
+});
+
+test("Settings navigation works before hydration and is safe during SSR", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
+  assert.match(source, /href=\{getViewUrl\(key\)\}/);
+  assert.match(source, /href=\{getViewUrl\("users"\)\}/);
+  assert.match(source, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(source, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(source, /new URL\(window\.location\.href\)/);
+});

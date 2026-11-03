@@ -20,8 +20,19 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // These are Supabase's *public* project URL and publishable/anon key only.
+  // vinext can omit Vite/Next public env replacements in browser chunks even
+  // when Workers has the values at runtime. React escapes the meta attributes.
+  // Never expose the service-role key or other server-only secrets here.
+  const browserSupabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const browserSupabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <head>
+        <meta name="queuedrop-supabase-url" content={browserSupabaseUrl} />
+        <meta name="queuedrop-supabase-publishable-key" content={browserSupabaseKey} />
+      </head>
       <body>{children}<Suspense fallback={null}><GlobalSubmitLoading /></Suspense></body>
     </html>
   );

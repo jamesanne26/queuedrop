@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardResultModal } from "@/app/dashboard/_components/dashboard-result-modal";
 import { PreserveDashboardScroll } from "@/app/dashboard/_components/preserve-dashboard-scroll";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 
 type Props = { searchParams: Promise<{ message?: string }> };
 
@@ -11,8 +11,7 @@ type Role = "owner" | "admin" | "manager" | "staff";
 export default async function DashboardPage({ searchParams }: Props) {
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
+  const user = await getAuthenticatedUser();
   if (!user) redirect("/auth/login");
 
   const [{ data: profile }, { data: memberships }] = await Promise.all([

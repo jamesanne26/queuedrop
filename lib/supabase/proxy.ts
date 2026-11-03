@@ -2,11 +2,40 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const pathname = request.nextUrl.pathname;
+  const isProtectedRoute = pathname.startsWith("/dashboard");
+  const isAuthRoute = pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
+  const isSessionRoute = isProtectedRoute
+    || pathname.startsWith("/client")
+    || pathname.startsWith("/system")
+    || pathname.startsWith("/onboarding")
+    || pathname.startsWith("/auth/reset-password");
+
+  // Skip Supabase Auth on public pages, health, and API endpoints. Continue
+  // refreshing signed-in sessions on business/client/system routes so long
+  // sessions do not break when JWTs expire.
+  if (!isSessionRoute && !isAuthRoute) return NextResponse.next({ request });
+
+  const hasAuthCookie = request.cookies.getAll().some(({ name }) =>
+    name.startsWith("sb-") && (name.endsWith("-auth-token") || /-auth-token\.\d+$/.test(name))
+  );
+  if (!hasAuthCookie) {
+    if (isProtectedRoute) {
+      const toLogin = request.nextUrl.clone();
+      toLogin.pathname = "/auth/login";
+      toLogin.searchParams.set("next", pathname);
+      return NextResponse.redirect(toLogin);
+    }
+    return NextResponse.next({ request });
+  }
+
+  // Cloudflare runtime secrets use unprefixed bindings; Next public variables
+  // are embedded at build time and may be absent in the Worker runtime.
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !publishableKey) {
-    return NextResponse.next({ request });
+    return new NextResponse("Auth configuration unavailable", { status: 503 });
   }
 
   let response = NextResponse.next({ request });
@@ -34,11 +63,6 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthenticated = Boolean(user);
-  const pathname = request.nextUrl.pathname;
-  const isProtectedRoute = pathname.startsWith("/dashboard");
-  const isAuthRoute =
-    pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
-
   if (isProtectedRoute && !isAuthenticated) {
     const urlToLogin = request.nextUrl.clone();
     urlToLogin.pathname = "/auth/login";

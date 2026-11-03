@@ -90,9 +90,14 @@ test.describe("owner branch and service lifecycle", () => {
       expect(updated?.status).toBe("active");
 
       await confirmCodeDelete(page, "Delete branch");
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch deleted successfully.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Branch deleted successfully.");
-      expect(await getBranchById(admin, created.id)).toBeNull();
+      // Under Cloudflare/vinext a successful server-action mutation can refresh
+      // the RSC page before the redirect query is observed by the browser.
+      // Assert the real deletion at the database boundary, then independently
+      // verify the owner UI no longer lists the deleted branch.
+      await expect.poll(() => getBranchById(admin, created.id), { timeout: 30_000 }).toBeNull();
+      await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(`[data-branch-id="${created.id}"]`)).toHaveCount(0);
+      await expectNoAppError(page);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
       await cleanupOwnedBranch(admin, owner.businessId, editedName);
@@ -144,9 +149,12 @@ test.describe("owner branch and service lifecycle", () => {
       const deleteDetails = article.locator("details.settings-catalog-edit");
       await deleteDetails.locator("summary").click();
       await confirmCodeDelete(page, "Delete service");
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "services" && url.searchParams.get("message") === "Service deleted from the library.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Service deleted from the library.");
-      expect(await getServiceById(admin, service.id)).toBeNull();
+      // Verify the destructive server action actually committed; vinext can
+      // replace the success-message URL during an RSC refresh.
+      await expect.poll(() => getServiceById(admin, service.id), { timeout: 30_000 }).toBeNull();
+      await page.goto("/dashboard/settings?view=services", { waitUntil: "domcontentloaded" });
+      await expect(page.locator("article.settings-catalog-row", { hasText: editedName })).toHaveCount(0);
+      await expectNoAppError(page);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }

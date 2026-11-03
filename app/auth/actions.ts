@@ -37,7 +37,7 @@ export async function signIn(formData: FormData) {
     loginEmail = `phone-${digest}@auth.queuedrop.invalid`;
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: signedIn, error } = await supabase.auth.signInWithPassword({
     email: loginEmail,
     password,
   });
@@ -46,7 +46,8 @@ export async function signIn(formData: FormData) {
     redirect(`/auth/login?error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
   }
 
-  const { data: signedIn } = await supabase.auth.getUser();
+  // signInWithPassword already returns an authenticated user from Supabase Auth.
+  // Avoid a second /auth/v1/user round trip inside the same Worker invocation.
   if (signedIn.user) {
     redirect(await resolveAuthenticatedLanding(supabase, signedIn.user, next));
   }

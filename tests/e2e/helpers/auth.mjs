@@ -1,7 +1,26 @@
 import { expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { reuseOwnerAuthState, ownerAuthStatePath } from "./auth-state.mjs";
 
-export async function loginAsOwner(page, credentials) {
-  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+export async function loginAsOwner(page, credentials, { freshSession = false } = {}) {
+  if (reuseOwnerAuthState && !freshSession) {
+    const saved = JSON.parse(await readFile(ownerAuthStatePath, "utf8"));
+    await page.context().addCookies(saved.cookies);
+    const response = await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    if (!response || response.status() >= 400) {
+      const diagnostic = (await response?.text().catch(() => "") ?? "").replace(/\\s+/g, " ").slice(0, 320);
+      throw new Error(`Cloudflare TEST owner session failed: HTTP ${response?.status() ?? "no response"}; response=${diagnostic}`);
+    }
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+    await expect(page.locator("aside.sidebar")).toBeAttached();
+    await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+    return;
+  }
+
+  const loginResponse = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  if (!loginResponse || loginResponse.status() >= 400) {
+    throw new Error(`Cloudflare TEST sign-in page failed: HTTP ${loginResponse?.status() ?? "no response"}`);
+  }
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 
   const loginInput = page.locator('input[name="login_email"]');
@@ -34,9 +53,14 @@ export async function loginAsOwner(page, credentials) {
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.
   // Use the authenticated dashboard shell itself as the viewport-independent
   // login-ready signal instead of requiring a currently visible Sign out button.
-  await expect(page.locator("aside.sidebar")).toBeAttached();
-  await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
-  await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
+  try {
+    await expect(page.locator("aside.sidebar")).toBeAttached({ timeout: 8_000 });
+    await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+    await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
+  } catch (error) {
+    const body = (await page.locator("body").innerText().catch(() => "")).replace(/\\s+/g, " ").slice(0, 350);
+    throw new Error(`Cloudflare TEST owner dashboard did not render. URL=${new URL(page.url()).pathname}; title=${await page.title().catch(() => "?")}; body=${body}; assertion=${String(error).slice(0, 180)}`);
+  }
 }
 
 export async function signOut(page) {

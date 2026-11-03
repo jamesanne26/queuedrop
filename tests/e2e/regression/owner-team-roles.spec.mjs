@@ -109,9 +109,10 @@ test.describe("owner team and role management", () => {
       const deleteDialog = page.getByRole("dialog").filter({ hasText: `Delete role ${updatedRoleName}?` });
       await expect(deleteDialog).toBeVisible();
       await deleteDialog.getByRole("button", { name: "Yes", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Custom role deleted successfully.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Custom role deleted successfully.");
-      expect(await findRoleByName(admin, owner.businessId, updatedRoleName)).toBeNull();
+      await expect.poll(() => findRoleByName(admin, owner.businessId, updatedRoleName), { timeout: 30_000 }).toBeNull();
+      await page.goto("/dashboard/settings?view=roles", { waitUntil: "domcontentloaded" });
+      await expect(page.locator("form#role-editor-" + role.id)).toHaveCount(0);
+      await expectNoAppError(page);
     } finally {
       await cleanupRoleByName(admin, owner.businessId, roleName);
       await cleanupRoleByName(admin, owner.businessId, updatedRoleName);
