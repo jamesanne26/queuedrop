@@ -22,6 +22,9 @@ export async function openDashboardDestination(page, label, path, loadedSelector
   const link = page.getByRole("link", { name: label, exact: true });
   await expect(link).toBeVisible();
   const navigationErrors = [];
+  const badResponses = [];
+  const captureResponse = (response) => { if (response.status() >= 400) badResponses.push({ status: response.status(), url: response.url().slice(0, 250) }); };
+  page.on("response", captureResponse);
   const captureError = (error) => navigationErrors.push(String(error).slice(0, 500));
   page.on("pageerror", captureError);
   await link.click();
@@ -36,9 +39,12 @@ export async function openDashboardDestination(page, label, path, loadedSelector
       bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 900),
       errors: await page.locator("[role=alert]").allInnerTexts().catch(() => []),
       pageErrors: navigationErrors,
+      badResponses: badResponses.slice(-15),
       tvResponse: path === "/dashboard/tv" ? await page.request.get(page.url()).then(async (r) => ({ status: r.status(), body: (await r.text()).slice(-3000) })).catch((e) => String(e)) : null,
     }));
     page.off("pageerror", captureError);
+  page.off("response", captureResponse);
+    page.off("response", captureResponse);
     throw error;
   }
   page.off("pageerror", captureError);
