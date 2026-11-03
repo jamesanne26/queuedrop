@@ -5,7 +5,7 @@ on:
     types: [completed]
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/cloudflare-release-e2e-20261103]
     paths:
       - 'tests/e2e/**'
       - 'playwright.config.mjs'
@@ -13,7 +13,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: queuedrop-cloudflare-browser-e2e
+  group: queuedrop-cloudflare-browser-e2e-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: true
 jobs:
   browser-e2e:
@@ -38,8 +38,27 @@ jobs:
       - name: Check Cloudflare TEST readiness
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
-          node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok") process.exit(1)'
+          if [[ "$GITHUB_REF" == "refs/heads/fix/cloudflare-release-e2e-20261103" ]]; then
+            # Never run a new branch's tests on the old TEST Worker.
+            matched=0
+            for attempt in {1..60}; do
+              curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json || true
+              if node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok" || d.revision !== process.env.GITHUB_SHA.slice(0,12)) process.exit(1)' ; then
+                echo "Correct Cloudflare TEST revision ready: ${GITHUB_SHA:0:12}"
+                matched=1
+                break
+              fi
+              echo "Waiting for Cloudflare TEST commit ${GITHUB_SHA:0:12} (attempt $attempt)"
+              sleep 10
+            done
+            if [[ "$matched" != "1" ]]; then
+              echo "::error::Expected Cloudflare TEST revision was not deployed"
+              exit 1
+            fi
+          else
+            curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
+            node -e 'const d=require("/tmp/queuedrop-health.json"); if(d.status!=="ok") process.exit(1)'
+          fi
       - name: Create isolated CI-only business-owner credentials
         run: |
           set -euo pipefail
