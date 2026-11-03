@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/cloudflare-browser-e2e.yml'
       - 'tests/e2e/**'
+      - '.github/workflows/cloudflare-deploy.yml'
 permissions:
   contents: read
 concurrency:
