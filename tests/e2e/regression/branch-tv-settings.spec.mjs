@@ -96,7 +96,17 @@ test("branch TV settings save service selection and render the selected layout",
       console.error("Cloudflare TV render diagnostic:", JSON.stringify({ ...(await tvDiagnostic()), pageErrors: tvPageErrors }));
       throw error;
     }
-    await expect(grid).toHaveAttribute("data-service-count", "2");
+    try {
+      await expect(grid).toHaveAttribute("data-service-count", "2");
+    } catch (error) {
+      console.error("Cloudflare TV post-render diagnostic:", JSON.stringify({
+        ...(await tvDiagnostic()),
+        pageErrors: tvPageErrors,
+        responseStatus: tvResponse?.status(),
+        serverHtmlTail: (await tvResponse?.text().catch(() => ""))?.slice(-2500),
+      }));
+      throw error;
+    }
     await expect(grid.locator(".tv-service-card")).toHaveCount(2);
     await expect(grid).toContainText(serviceNames[0]);
     await expect(grid).toContainText(serviceNames[1]);
