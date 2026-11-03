@@ -17,7 +17,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: queuedrop-cloudflare-browser-e2e
+  # Keep the TEST fix-branch run separate from legacy main workflow_run
+  # executions so obsolete runs cannot cancel the current verification.
+  group: queuedrop-cloudflare-browser-e2e-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: true
 jobs:
   browser-e2e:

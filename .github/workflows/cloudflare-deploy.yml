@@ -1,4 +1,5 @@
 name: Deploy QueueDrop Cloudflare TEST Fix Validation
+# Isolated TEST-only branch; production deployment remains untouched.
 on:
   push:
     branches: [main, fix/cloudflare-browser-e2e-runtime-20261103]
