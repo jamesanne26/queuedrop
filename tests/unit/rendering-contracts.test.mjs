@@ -231,3 +231,20 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
   assert.match(auth, /url\.searchParams\.has\("error"\)/);
 });
 
+
+test("Cloudflare proxy bypasses public pages and avoids Auth calls without session cookies", async () => {
+  const proxy = await readFile(new URL("../../lib/supabase/proxy.ts", import.meta.url), "utf8");
+  assert.match(proxy, /if \(!isProtectedRoute && !isAuthRoute\) return NextResponse\.next/);
+  assert.match(proxy, /if \(!hasAuthCookie\)/);
+  assert.match(proxy, /auth\.getUser\(\)/);
+  assert.match(proxy, /status: 503/);
+});
+
+test("CI owner browser session is reused without revoking it on sign-out", async () => {
+  const auth = await readFile(new URL("../e2e/helpers/auth.mjs", import.meta.url), "utf8");
+  const setup = await readFile(new URL("../e2e/global-setup.mjs", import.meta.url), "utf8");
+  const navigation = await readFile(new URL("../e2e/regression/owner-navigation.spec.mjs", import.meta.url), "utf8");
+  assert.match(setup, /context\.storageState\(\{ path: ownerAuthStatePath \}\)/);
+  assert.match(auth, /page\.context\(\)\.addCookies\(saved\.cookies\)/);
+  assert.match(navigation, /freshSession: testInfo\.title === "owner can sign out"/);
+});

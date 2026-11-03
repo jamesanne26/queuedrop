@@ -1,4 +1,7 @@
 import { createAdminClient, ensureE2ETerminalCapacity, getOwnerBusiness } from "./helpers/admin-db.mjs";
+import { chromium } from "@playwright/test";
+import { loginAsOwner } from "./helpers/auth.mjs";
+import { reuseOwnerAuthState, ownerAuthStatePath } from "./helpers/auth-state.mjs";
 
 import { assertDedicatedTestProject, ensureE2ESubscriptionAccess } from "./helpers/subscription-fixture.mjs";
 
@@ -103,4 +106,17 @@ export default async function globalSetup() {
     );
   }
   await admin.auth.signOut({ scope: "local" });
+
+  if (reuseOwnerAuthState) {
+    const browser = await chromium.launch();
+    try {
+      const context = await browser.newContext({ baseURL: process.env.QUEUEDROP_TEST_BASE_URL });
+      const page = await context.newPage();
+      await loginAsOwner(page, { email, password }, { freshSession: true });
+      await context.storageState({ path: ownerAuthStatePath });
+      await context.close();
+    } finally {
+      await browser.close();
+    }
+  }
 }

@@ -8,8 +8,9 @@ const credentials = ownerCredentials();
 test.describe("owner dashboard navigation", () => {
   test.skip(!credentials, "E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD are required.");
 
-  test.beforeEach(async ({ page }) => {
-    await loginAsOwner(page, credentials);
+  test.beforeEach(async ({ page }, testInfo) => {
+    // Sign-out must revoke its own independent session, not the reusable CI session.
+    await loginAsOwner(page, credentials, { freshSession: testInfo.title === "owner can sign out" });
   });
 
   const destinations = [

@@ -4,6 +4,16 @@ on:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
   workflow_dispatch:
+  push:
+    branches: [fix/cloudflare-browser-e2e-runtime-20261103]
+    paths:
+      - '.github/workflows/cloudflare-browser-e2e.yml'
+      - '.github/workflows/cloudflare-deploy.yml'
+      - 'tests/e2e/**'
+      - 'app/**'
+      - 'lib/**'
+      - 'proxy.ts'
+      - 'playwright.config.mjs'
 permissions:
   contents: read
 concurrency:
@@ -28,25 +38,27 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Check Cloudflare TEST readiness
+      - name: Check exact Cloudflare TEST revision before creating fixtures
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 25 "$QUEUEDROP_TEST_BASE_URL/api/health" > /tmp/queuedrop-health.json
-          EXPECTED_REVISION="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}" node - <<'NODE'
+          expected="${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}"
+          for attempt in $(seq 1 40); do
+            code=$(curl --silent --show-error --max-time 20 --output /tmp/queuedrop-health.json --write-out '%{http_code}' "$QUEUEDROP_TEST_BASE_URL/api/health") || code="000"
+            if [[ "$code" == "200" ]] && EXPECTED_REVISION="$expected" node - <<'NODE'
           const fs = require("node:fs");
           const health = JSON.parse(fs.readFileSync("/tmp/queuedrop-health.json", "utf8"));
           const expected = process.env.EXPECTED_REVISION.slice(0, 12);
-          if (health.status !== "ok" || health.database !== "ok" || health.revision !== expected) {
-            console.error("Cloudflare TEST is not the exact commit under test:", {
-              status: health.status,
-              database: health.database,
-              expectedRevision: expected,
-              deployedRevision: health.revision,
-            });
-            process.exit(1);
-          }
-          console.log("Cloudflare TEST exact deployed revision verified:", expected);
+          if (health.status !== "ok" || health.database !== "ok" || health.revision !== expected) process.exit(1);
+          console.log("Verified Cloudflare TEST deployment revision:", expected);
           NODE
+            then
+              exit 0
+            fi
+            echo "Cloudflare TEST revision not ready, attempt $attempt (HTTP $code)"
+            sleep 15
+          done
+          echo "::error::Cloudflare TEST never reached exact expected commit: ${expected:0:12}"
+          exit 1
       - name: Create isolated CI-only business-owner credentials
         run: |
           set -euo pipefail
@@ -59,6 +71,8 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run Cloudflare browser regression
+        env:
+          E2E_REUSE_AUTH_STATE: "1"
         run: npm run test:e2e
       - name: Upload Playwright artifacts
         if: always()

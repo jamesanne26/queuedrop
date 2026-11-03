@@ -1,7 +1,25 @@
 import { expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { reuseOwnerAuthState, ownerAuthStatePath } from "./auth-state.mjs";
 
-export async function loginAsOwner(page, credentials) {
-  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+export async function loginAsOwner(page, credentials, { freshSession = false } = {}) {
+  if (reuseOwnerAuthState && !freshSession) {
+    const saved = JSON.parse(await readFile(ownerAuthStatePath, "utf8"));
+    await page.context().addCookies(saved.cookies);
+    const response = await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    if (!response || response.status() >= 400) {
+      throw new Error(`Cloudflare TEST owner session failed: HTTP ${response?.status() ?? "no response"}`);
+    }
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+    await expect(page.locator("aside.sidebar")).toBeAttached();
+    await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+    return;
+  }
+
+  const loginResponse = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  if (!loginResponse || loginResponse.status() >= 400) {
+    throw new Error(`Cloudflare TEST sign-in page failed: HTTP ${loginResponse?.status() ?? "no response"}`);
+  }
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 
   const loginInput = page.locator('input[name="login_email"]');

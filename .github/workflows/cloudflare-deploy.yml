@@ -1,4 +1,4 @@
-name: Deploy QueueDrop to Cloudflare Workers
+name: Deploy QueueDrop Cloudflare TEST Fix Validation
 on:
   push:
     branches: [main, fix/cloudflare-browser-e2e-runtime-20261103]
