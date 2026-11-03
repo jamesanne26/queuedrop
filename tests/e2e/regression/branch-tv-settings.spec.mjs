@@ -68,7 +68,15 @@ test("branch TV settings save service selection and render the selected layout",
     expect(saved?.service_count).toBe(2);
     expect(saved?.service_ids).toEqual([services[0].id, services[1].id]);
 
-    await page.goto(`/dashboard/tv?branch=${branch.id}`, { waitUntil: "domcontentloaded" });
+    const tvPageErrors = [];
+    page.on("pageerror", (error) => tvPageErrors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") tvPageErrors.push(message.text());
+    });
+    const tvResponse = await page.goto(`/dashboard/tv?branch=${branch.id}`, { waitUntil: "domcontentloaded" });
+    if (!tvResponse?.ok()) {
+      throw new Error(`Cloudflare TV HTTP ${tvResponse?.status() ?? "no response"}: ${(await tvResponse?.text().catch(() => ""))?.slice(0, 500)}`);
+    }
     await expectNoAppError(page);
     const grid = page.locator(".tv-services-grid");
     // Surface the actual route and rendered page if the hosted TV view redirects
@@ -85,7 +93,7 @@ test("branch TV settings save service selection and render the selected layout",
         gridCount: 1,
       });
     } catch (error) {
-      console.error("Cloudflare TV render diagnostic:", JSON.stringify(await tvDiagnostic()));
+      console.error("Cloudflare TV render diagnostic:", JSON.stringify({ ...(await tvDiagnostic()), pageErrors: tvPageErrors }));
       throw error;
     }
     await expect(grid).toHaveAttribute("data-service-count", "2");
