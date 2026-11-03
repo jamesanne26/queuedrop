@@ -1,11 +1,9 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 declare global {
-  interface ImportMeta {
-    readonly env: {
-      readonly VITE_SUPABASE_URL?: string;
-      readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
-    };
+  interface ImportMetaEnv {
+    readonly VITE_SUPABASE_URL?: string;
+    readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   }
 }
 
