@@ -25,7 +25,9 @@ on:
           - test
 concurrency:
   group: queuedrop-cloudflare-test-deploy
-  cancel-in-progress: false
+  # Superseded fix-branch builds should not block the newest TEST revision.
+  # Keep main deployments non-interruptible.
+  cancel-in-progress: ${{ github.ref == 'refs/heads/fix/cloudflare-browser-e2e-runtime-20261103' }}
 permissions:
   contents: read
 jobs:
