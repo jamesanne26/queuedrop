@@ -90,9 +90,14 @@ test.describe("owner branch and service lifecycle", () => {
       expect(updated?.status).toBe("active");
 
       await confirmCodeDelete(page, "Delete branch");
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch deleted successfully.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Branch deleted successfully.");
-      expect(await getBranchById(admin, created.id)).toBeNull();
+      // Under Cloudflare/vinext a successful server-action mutation can refresh
+      // the RSC page before the redirect query is observed by the browser.
+      // Assert the real deletion at the database boundary, then independently
+      // verify the owner UI no longer lists the deleted branch.
+      await expect.poll(() => getBranchById(admin, created.id), { timeout: 30_000 }).toBeNull();
+      await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      await expect(page.locator(`[data-branch-id="${created.id}"]`)).toHaveCount(0);
+      await expectNoAppError(page);
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
       await cleanupOwnedBranch(admin, owner.businessId, editedName);
