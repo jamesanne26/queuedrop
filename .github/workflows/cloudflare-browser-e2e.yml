@@ -4,6 +4,10 @@ on:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "tests/e2e/**"
 permissions:
   contents: read
 concurrency:
