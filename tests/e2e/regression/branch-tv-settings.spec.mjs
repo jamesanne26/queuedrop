@@ -73,15 +73,21 @@ test("branch TV settings save service selection and render the selected layout",
     const grid = page.locator(".tv-services-grid");
     // Surface the actual route and rendered page if the hosted TV view redirects
     // or fails before rendering; generic locator timeouts hide the root cause.
-    await expect.poll(async () => ({
+    const tvDiagnostic = async () => ({
       url: new URL(page.url()).pathname,
       gridCount: await grid.count(),
       pageTitle: await page.title(),
       bodyPreview: (await page.locator("body").innerText().catch(() => "")).slice(0, 700),
-    }), { message: "Cloudflare TV route must render its service grid", timeout: 10_000 }).toMatchObject({
-      url: "/dashboard/tv",
-      gridCount: 1,
     });
+    try {
+      await expect.poll(tvDiagnostic, { message: "Cloudflare TV route must render its service grid", timeout: 10_000 }).toMatchObject({
+      url: "/dashboard/tv",
+        gridCount: 1,
+      });
+    } catch (error) {
+      console.error("Cloudflare TV render diagnostic:", JSON.stringify(await tvDiagnostic()));
+      throw error;
+    }
     await expect(grid).toHaveAttribute("data-service-count", "2");
     await expect(grid.locator(".tv-service-card")).toHaveCount(2);
     await expect(grid).toContainText(serviceNames[0]);
