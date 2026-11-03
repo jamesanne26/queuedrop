@@ -208,3 +208,19 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
   assert.match(auth, /url\.searchParams\.has\("error"\)/);
 });
 
+
+test("Cloudflare Settings keeps navigation usable before hydration", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
+  assert.match(source, /href=\{getViewUrl\(key\)\}/);
+  assert.match(source, /href=\{getViewUrl\("permissions"\)\}/);
+  assert.match(source, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(source, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(source, /new URL\(window\.location\.href\)/);
+});
+
+test("Cloudflare Settings serializes only its active RSC panel", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const activePanel = availablePanels\[activeView as keyof typeof availablePanels\]/);
+  assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
+  assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
+});
