@@ -4,12 +4,6 @@ on:
     workflows: ['Deploy QueueDrop to Cloudflare Workers']
     types: [completed]
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'tests/e2e/**'
-      - 'playwright.config.mjs'
-      - '.github/workflows/cloudflare-browser-e2e.yml'
 permissions:
   contents: read
 concurrency:
