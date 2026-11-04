@@ -78,7 +78,16 @@ export default async function globalSetup() {
   const email = process.env.E2E_OWNER_EMAIL.trim();
   const password = process.env.E2E_OWNER_PASSWORD;
 
-  // CI retries may reuse an existing fixture email with a newly generated password.\n  // Rotate only isolated CI-owned TEST accounts; never alter regular user credentials.\n  if (/^cloudflare-e2e-\\d+@example\\.com$/i.test(email)) {\n    const existing = await findAuthUserByEmail(admin, email);\n    if (existing) {\n      const { error: resetError } = await admin.auth.admin.updateUserById(existing.id, { password });\n      if (resetError) throw new Error(`QueueDrop E2E fixture password reset failed: ${resetError.message}`);\n    }\n  }\n\n  const owner = await ensureOwnerBusiness(admin, email, password);
+  // CI retries may reuse an existing fixture email with a newly generated password.
+  // Rotate only isolated CI-owned TEST accounts; never alter regular user credentials.
+  if (/^cloudflare-e2e-\d+@example\.com$/i.test(email)) {
+    const existing = await findAuthUserByEmail(admin, email);
+    if (existing) {
+      const { error: resetError } = await admin.auth.admin.updateUserById(existing.id, { password });
+      if (resetError) throw new Error(`QueueDrop E2E fixture password reset failed: ${resetError.message}`);
+    }
+  }\n
+  const owner = await ensureOwnerBusiness(admin, email, password);
   await ensureE2ESubscriptionAccess(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL);
   await ensureE2ETerminalCapacity(admin, owner.businessId);
 
