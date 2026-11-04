@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createAdminClient, ensureE2ETerminalCapacity, findAuthUserByEmail, getOwnerBusiness } from "./helpers/admin-db.mjs";
 
 import { assertDedicatedTestProject, ensureE2ESubscriptionAccess } from "./helpers/subscription-fixture.mjs";
@@ -13,6 +14,13 @@ const REQUIRED_CI_ENV = [
 function configured(name) {
   const value = process.env[name]?.trim();
   return Boolean(value && !value.includes("YOUR_"));
+}
+
+function createOwnerClient() {
+  const url = process.env.QUEUEDROP_TEST_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!anonKey) throw new Error("Missing TEST publishable/anon key for E2E owner authentication.");
+  return createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 async function ensureOwnerBusiness(admin, email, password) {
@@ -36,7 +44,8 @@ async function ensureOwnerBusiness(admin, email, password) {
       }
     }
 
-    const { error: loginError } = await admin.auth.signInWithPassword({ email, password });
+    const ownerClient = createOwnerClient();
+    const { error: loginError } = await ownerClient.auth.signInWithPassword({ email, password });
     if (loginError) {
       throw new Error(
         "QueueDrop E2E preflight failed: E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD do not authenticate in QUEUEDROP_TEST_SUPABASE_URL.",
@@ -46,14 +55,14 @@ async function ensureOwnerBusiness(admin, email, password) {
     const suffix = Date.now();
     let workspaceResult;
     try {
-      workspaceResult = await admin.rpc("create_initial_business_workspace", {
+      workspaceResult = await ownerClient.rpc("create_initial_business_workspace", {
         business_name: `QueueDrop E2E ${suffix}`,
         branch_name: `E2E Branch ${suffix}`,
         branch_address: "Automated Test Environment",
         branch_phone: null,
       });
     } finally {
-      await admin.auth.signOut({ scope: "local" });
+      await ownerClient.auth.signOut({ scope: "local" });
     }
 
     if (workspaceResult.error) {
@@ -92,11 +101,12 @@ export default async function globalSetup() {
   await ensureE2ESubscriptionAccess(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL);
   await ensureE2ETerminalCapacity(admin, owner.businessId);
 
-  const { error: loginError } = await admin.auth.signInWithPassword({ email, password });
+  const ownerClient = createOwnerClient();
+  const { error: loginError } = await ownerClient.auth.signInWithPassword({ email, password });
   if (loginError) {
     throw new Error(
       "QueueDrop E2E preflight failed: E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD do not authenticate in QUEUEDROP_TEST_SUPABASE_URL.",
     );
   }
-  await admin.auth.signOut({ scope: "local" });
+  await ownerClient.auth.signOut({ scope: "local" });
 }
