@@ -1,8 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
+import { assertTestSupabaseTarget } from "./assert-test-supabase-target.mjs";
 
 const url = process.env.QUEUEDROP_TEST_SUPABASE_URL;
 const key = process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) throw new Error("Dedicated TEST Supabase secrets are required.");
+assertTestSupabaseTarget(url);
+if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  assertTestSupabaseTarget(process.env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
+}
 const admin = createClient(url, key, { auth: { persistSession: false } });
 let ready = false;
 const schemaDeadline = Date.now() + (process.env.CI ? 180_000 : 0);
