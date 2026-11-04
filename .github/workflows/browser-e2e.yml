@@ -106,6 +106,17 @@ jobs:
             echo "::error::No Playwright JSON results produced; browser E2E did not complete"
             exit 1
           fi
+      - name: Show runner-local server diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/queuedrop-server.log" ]; then
+            echo "::group::Last 150 lines of local server log"
+            tail -n 150 "$RUNNER_TEMP/queuedrop-server.log" | sed -E 's/(sk_(live|test)_[A-Za-z0-9_-]+)/[REDACTED]/g'
+            echo "::endgroup::"
+          else
+            echo "Runner-local server log not found (failure occurred before server startup)."
+          fi
       - name: Stop runner-local app
         if: always()
         run: |
