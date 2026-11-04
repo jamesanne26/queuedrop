@@ -18,6 +18,15 @@ if (site && !site.startsWith("https://")) problems.push("NEXT_PUBLIC_SITE_URL mu
 if (site && /localhost|127\.0\.0\.1|queuedrop-test|(?:^|\.)test\./i.test(site)) problems.push("NEXT_PUBLIC_SITE_URL appears to be a local/test URL.");
 const supabase = String(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
 if (supabase && !/^https:\/\/.+\.supabase\.co\/?$/i.test(supabase)) problems.push("NEXT_PUBLIC_SUPABASE_URL does not look like a hosted Supabase project URL.");
+// Fail closed if a production Worker is accidentally wired to the TEST database.
+const expectedProdSupabaseOrigin = "https://sylvegfbkxgjfctbjfec.supabase.co";
+if (supabase && (() => { try { return new URL(supabase).origin !== expectedProdSupabaseOrigin; } catch { return true; } })()) {
+  problems.push("NEXT_PUBLIC_SUPABASE_URL must reference the dedicated QueueDrop PROD Supabase project.");
+}
+const serverSupabase = String(process.env.SUPABASE_URL ?? "");
+if (serverSupabase && (() => { try { return new URL(serverSupabase).origin !== expectedProdSupabaseOrigin; } catch { return true; } })()) {
+  problems.push("SUPABASE_URL must reference the dedicated QueueDrop PROD Supabase project.");
+}
 const paymongo = String(process.env.PAYMONGO_SECRET_KEY ?? "");
 if (paymongo && /^sk_test_/i.test(paymongo)) problems.push("PAYMONGO_SECRET_KEY is still a TEST key.");
 if (paymongo && !/^sk_live_/i.test(paymongo)) problems.push("PAYMONGO_SECRET_KEY is not a PayMongo LIVE secret key.");
