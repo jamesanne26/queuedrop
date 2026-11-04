@@ -66,9 +66,10 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
+        id: browser_regression
         run: npm run test:e2e
       - name: Report every skipped browser test
-        if: always()
+        if: ${{ always() && steps.browser_regression.outcome != 'skipped' }}
         env:
           QUEUEDROP_FAIL_ON_E2E_SKIP: "1"
         run: |
