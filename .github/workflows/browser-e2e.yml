@@ -47,6 +47,8 @@ jobs:
           node --check tests/e2e/global-setup.mjs
           node --check tests/e2e/helpers/admin-db.mjs
           node --check scripts/verify-test-deployment.mjs
+      - name: Run lint, typecheck, unit, DB, SMS, and secret checks
+        run: npm run quality
       - name: Verify dedicated TEST schema
         run: node scripts/verify-test-deployment.mjs --schema-only
       - name: Build production server on cloud runner
