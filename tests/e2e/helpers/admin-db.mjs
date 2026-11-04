@@ -285,18 +285,6 @@ export async function cleanupRoleByName(admin, businessId, name) {
   if (error) throw error;
 }
 
-export async function findAuthUserByEmail(admin, email) {
-  let page = 1;
-  while (page <= 10) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) throw error;
-    const user = data.users.find((item) => item.email?.toLowerCase() === email.toLowerCase());
-    if (user) return user;
-    if (data.users.length < 100) return null;
-    page += 1;
-  }
-  return null;
-}
 
 export async function cleanupAuthUserByEmail(admin, email) {
   const user = await findAuthUserByEmail(admin, email);
