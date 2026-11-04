@@ -72,7 +72,8 @@ jobs:
           if [ -f test-results/results.json ]; then
             node scripts/report-e2e-skips.mjs test-results/results.json
           else
-            echo "No Playwright JSON results produced"
+            echo "::error::No Playwright JSON results produced; browser E2E did not complete"
+            exit 1
           fi
       - name: Stop runner-local app
         if: always()
