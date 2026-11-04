@@ -129,6 +129,21 @@ jobs:
           fs.writeFileSync('.env.production', ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']
             .map(key => key + '=' + JSON.stringify(process.env[key])).join('\n') + '\n', { mode: 0o600 });
           NODE
+          # Replace only public placeholder strings; Vite then bundles literal values.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const p = 'lib/supabase/public-build-config.ts';
+          let source = fs.readFileSync(p, 'utf8');
+          const replacements = {
+            '__QUEUEDROP_PUBLIC_SUPABASE_URL__': process.env.NEXT_PUBLIC_SUPABASE_URL,
+            '__QUEUEDROP_PUBLIC_SUPABASE_KEY__': process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+          };
+          for (const [placeholder, value] of Object.entries(replacements)) {
+            if (!value || !source.includes(placeholder)) throw new Error('Missing public build value or placeholder');
+            source = source.replace(placeholder, value.replaceAll('\\', '\\\\').replaceAll('"', '\\"'));
+          }
+          fs.writeFileSync(p, source, { mode: 0o600 });
+          NODE
           npx vite build
           # Prevent a misleading green deployment when browser auth configuration
           # was not actually inlined into generated client chunks.
