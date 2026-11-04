@@ -11,6 +11,9 @@ if (new URL(url).hostname !== "tcgiwtfhqssulxwawimh.supabase.co" ||
   throw new Error("Refusing to grant platform-owner permission outside the designated TEST environment");
 }
 if (!key || !email) throw new Error("Missing TEST service-role credentials or E2E owner email");
+if (process.env.CI && !/^cloudflare-e2e-\\d+@example\\.com$/.test(email)) {
+  throw new Error("Refusing CI platform-owner grant for an account outside the isolated E2E namespace");
+}
 
 const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 let matched = null;
