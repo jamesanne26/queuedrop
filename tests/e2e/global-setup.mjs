@@ -86,7 +86,8 @@ export default async function globalSetup() {
       const { error: resetError } = await admin.auth.admin.updateUserById(existing.id, { password });
       if (resetError) throw new Error(`QueueDrop E2E fixture password reset failed: ${resetError.message}`);
     }
-  }\n
+  }
+
   const owner = await ensureOwnerBusiness(admin, email, password);
   await ensureE2ESubscriptionAccess(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL);
   await ensureE2ETerminalCapacity(admin, owner.businessId);
