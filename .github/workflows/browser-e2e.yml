@@ -51,6 +51,8 @@ jobs:
         run: npm run quality
       - name: Run required integration tests
         run: npm run test:integration:required
+      - name: Run required API smoke tests
+        run: npm run test:smoke:required
       - name: Verify dedicated TEST schema
         run: node scripts/verify-test-deployment.mjs --schema-only
       - name: Build production server on cloud runner
