@@ -41,6 +41,29 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Validate dedicated TEST CI configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            QUEUEDROP_TEST_SUPABASE_URL
+            QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+            E2E_OWNER_EMAIL
+            E2E_OWNER_PASSWORD
+          )
+          missing=0
+          for key in "${required[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error title=Missing CI configuration::${key} is not configured"
+              missing=1
+            fi
+          done
+          if [[ "${QUEUEDROP_TEST_SUPABASE_URL:-}" != "https://tcgiwtfhqssulxwawimh.supabase.co" ]]; then
+            echo "::error title=Unsafe CI target::TEST Supabase URL must point to the dedicated TEST project"
+            missing=1
+          fi
+          exit "$missing"
       - run: npm ci
       - name: Validate E2E fixture JavaScript syntax
         run: |
