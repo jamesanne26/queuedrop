@@ -39,6 +39,15 @@ jobs:
           test -n "$DB_URL" || { echo "::error::Missing environment Supabase URL"; exit 1; }
           test -n "$DB_KEY" || { echo "::error::Missing environment Supabase publishable key"; exit 1; }
           test -n "$DB_SERVICE_ROLE" || { echo "::error::Missing environment service role secret"; exit 1; }
+          # Fail closed before building or touching the production Worker.
+          case "$DB_URL" in
+            https://sylvegfbkxgjfctbjfec.supabase.co|https://sylvegfbkxgjfctbjfec.supabase.co/) ;;
+            *) echo "::error::PROD Supabase URL does not match the approved production project"; exit 1 ;;
+          esac
+          if [[ "$DB_KEY" == "$DB_SERVICE_ROLE" ]]; then
+            echo "::error::Public Supabase key and service-role secret must be different"
+            exit 1
+          fi
       - name: Install and validate
         run: |
           npm ci
