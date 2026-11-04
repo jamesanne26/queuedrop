@@ -9,6 +9,19 @@ export function createAdminClient() {
   );
 }
 
+export async function findAuthUserByEmail(admin, email) {
+  let page = 1;
+  while (page <= 10) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+    if (error) throw error;
+    const user = data.users.find((candidate) => candidate.email?.toLowerCase() === email.toLowerCase());
+    if (user) return user;
+    if (data.users.length < 100) return null;
+    page += 1;
+  }
+  throw new Error("E2E fixture user lookup exceeded pagination limit.");
+}
+
 export async function getOwnerBusiness(admin, ownerEmail) {
   let page = 1;
   let user = null;
