@@ -1,0 +1,70 @@
+name: Cloudflare TEST Browser E2E (revision-gated)
+
+on:
+  push:
+    branches: [test]
+    paths:
+      - '.github/workflows/cloudflare-browser-e2e.yml'
+      - 'tests/e2e/**'
+      - 'scripts/verify-cloudflare-test-revision.mjs'
+      - 'scripts/report-e2e-skips.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: queuedrop-cloudflare-test-browser-e2e
+  cancel-in-progress: true
+
+jobs:
+  browser-e2e:
+    if: github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: test
+    env:
+      QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
+      QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      SMS_DRY_RUN: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Confirm checkout is the exact TEST commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify Cloudflare runtime is the exact TEST revision before creating any fixtures
+        run: node scripts/verify-cloudflare-test-revision.mjs
+      - name: Verify workflow safety gates
+        run: node --test tests/unit/cloudflare-e2e-workflow-safety.test.mjs
+      - name: Create isolated TEST-only owner with masked credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -hex 24)"
+          printf '::add-mask::%s\n' "$password"
+          printf 'E2E_OWNER_PASSWORD=%s\n' "$password" >> "$GITHUB_ENV"
+          printf 'E2E_OWNER_EMAIL=cloudflare-e2e-%s-%s@example.com\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          unset password
+      - name: Validate dedicated TEST owner fixture
+        run: node -e 'import("./tests/e2e/global-setup.mjs").then(m=>m.default())'
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Cloudflare browser regression
+        run: npm run test:e2e
+      - name: Reject skipped or missing Browser E2E evidence
+        if: always()
+        env:
+          QUEUEDROP_FAIL_ON_E2E_SKIP: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s test-results/results.json || { echo "::error::No Playwright JSON evidence produced"; exit 1; }
+          node scripts/report-e2e-skips.mjs test-results/results.json

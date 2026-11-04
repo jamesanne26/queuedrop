@@ -1,0 +1,30 @@
+name: Cloudflare TEST Revision Preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-test-revision:
+    if: github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: test
+    env:
+      QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
+      QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Confirm checkout is the exact TEST revision
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Verify deployed Worker database and commit identity (read-only)
+        run: node scripts/verify-cloudflare-test-revision.mjs
+      - name: Unit-test fail-closed preflight
+        run: node --test tests/unit/cloudflare-test-revision-preflight.test.mjs
