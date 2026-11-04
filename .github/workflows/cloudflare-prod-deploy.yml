@@ -1,0 +1,218 @@
+name: Deploy QueueDrop PROD to Cloudflare Workers
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Manual production deployment"
+        required: true
+        type: choice
+        options:
+          - prod
+concurrency:
+  group: queuedrop-cloudflare-prod-deploy
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.ref == 'refs/heads/main' && inputs.environment == 'prod'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify required Cloudflare and Supabase configuration
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DB_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+          DB_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+          DB_SERVICE_ROLE: ${{ secrets.QUEUEDROP_PROD_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          test -n "$CF_TOKEN" || { echo "::error::Missing Cloudflare API token"; exit 1; }
+          test -n "$CF_ACCOUNT" || { echo "::error::Missing Cloudflare account ID"; exit 1; }
+          test -n "$DB_URL" || { echo "::error::Missing environment Supabase URL"; exit 1; }
+          test -n "$DB_KEY" || { echo "::error::Missing environment Supabase publishable key"; exit 1; }
+          test -n "$DB_SERVICE_ROLE" || { echo "::error::Missing environment service role secret"; exit 1; }
+      - name: Install and validate
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+          npm run lint
+          npm run typecheck
+          npm run test:unit
+          npx --yes vinext init
+      - name: Isolate Cloudflare PROD Worker
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'cloudflare.config.ts';
+          if (!fs.existsSync(path)) throw new Error('Cloudflare configuration missing after vinext init');
+          let config = fs.readFileSync(path, 'utf8');
+          const pattern = /(\bname\s*:\s*['\"])(queuedrop)(['\"])/g;
+          const matches = [...config.matchAll(pattern)];
+          if (matches.length !== 1) throw new Error('Expected exactly one Worker name in Cloudflare config');
+          config = config.replace(pattern, '$1queuedrop$3');
+          fs.writeFileSync(path, config);
+          console.log('Isolated PROD Worker name configured');
+          NODE
+      - name: Embed public Supabase configuration in browser bundles
+        env:
+          NEXT_PUBLIC_APP_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://queuedrop.jamesrae-rosario18.workers.dev
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const configPath = 'vite.config.ts';
+          if (!fs.existsSync(configPath)) throw new Error('vinext Vite configuration was not generated');
+          let source = fs.readFileSync(configPath, 'utf8');
+          for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']) {
+            if (!process.env[key]) throw new Error(`Missing public build variable: ${key}`);
+          }
+          const marker = /defineConfig\(\s*\{/;
+          if (!marker.test(source)) throw new Error('Unexpected vinext Vite configuration format');
+          // Vite does not automatically replace Next.js NEXT_PUBLIC_* references.
+          // Only publishable values are embedded; service-role credentials stay server-side.
+          source = source.replace(marker, `defineConfig({
+            define: {
+              "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL),
+              "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+              // vinext/Vite browser chunks may retain import.meta.env access.
+              // Explicitly inline these two public-only values as well.
+              "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL),
+              "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY),
+              "process.env.NEXT_PUBLIC_SITE_URL": JSON.stringify(process.env.NEXT_PUBLIC_SITE_URL),
+              "process.env.NEXT_PUBLIC_APP_ENV": JSON.stringify(process.env.NEXT_PUBLIC_APP_ENV),
+              "process.env.VERCEL_GIT_COMMIT_SHA": JSON.stringify(process.env.GITHUB_SHA),
+            },`);
+          fs.writeFileSync(configPath, source);
+          NODE
+      - name: Build Cloudflare runtime
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://queuedrop.jamesrae-rosario18.workers.dev
+        run: |
+          set -euo pipefail
+          # Vite reads VITE_* from .env.production during its client build.
+          # Create this ephemeral file with PUBLIC values only; never write service-role keys.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const key of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']) {
+            if (!process.env[key]) throw new Error('Missing public Vite build variable: ' + key);
+          }
+          fs.writeFileSync('.env.production', ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']
+            .map(key => key + '=' + JSON.stringify(process.env[key])).join('\n') + '\n', { mode: 0o600 });
+          NODE
+          # Replace only public placeholder strings; Vite then bundles literal values.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const p = 'lib/supabase/public-build-config.ts';
+          let source = fs.readFileSync(p, 'utf8');
+          const replacements = {
+            '__QUEUEDROP_PUBLIC_SUPABASE_URL__': process.env.NEXT_PUBLIC_SUPABASE_URL,
+            '__QUEUEDROP_PUBLIC_SUPABASE_KEY__': process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+          };
+          for (const [placeholder, value] of Object.entries(replacements)) {
+            if (!value || !source.includes(placeholder)) throw new Error('Missing public build value or placeholder');
+            source = source.replace(placeholder, value.replaceAll('\\', '\\\\').replaceAll('"', '\\"'));
+          }
+          fs.writeFileSync(p, source, { mode: 0o600 });
+          NODE
+          npx vite build
+          # Prevent a misleading green deployment when browser auth configuration
+          # was not actually inlined into generated client chunks.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          // vinext emits browser chunks under its own output directories.
+          // Discover JS outputs rather than assuming Next/Vercel folder names.
+          const expectedUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          let jsFiles = 0;
+          let browserFiles = 0;
+          let browserUrlEmbedded = false;
+          const scanRoots = ['.cloudflare/output', '.vinext', 'dist', '.output', '.vercel', '.wrangler', 'build'];
+          function walk(dir, depth = 0) {
+            if (!fs.existsSync(dir) || depth > 14) return;
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(full, depth + 1);
+              else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.mjs'))) {
+                jsFiles++;
+                const clientChunk = full.split(path.sep).some(part => ['client', 'assets', 'static', '_next'].includes(part));
+                if (clientChunk) {
+                  browserFiles++;
+                  if (fs.readFileSync(full, 'utf8').includes(expectedUrl)) browserUrlEmbedded = true;
+                }
+              }
+            }
+          }
+          for (const root of scanRoots) walk(root);
+          console.log('Browser bundle verification:', { jsFiles, browserFiles, browserUrlEmbedded });
+          if (browserFiles === 0 || !browserUrlEmbedded) {
+            throw new Error('Cloudflare browser JS chunks must embed the public PROD Supabase URL');
+          }
+          NODE
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx @vinext/cloudflare deploy
+
+      - name: Configure PROD runtime Supabase secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROD_SUPABASE_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+          PROD_SUPABASE_ANON_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+          PROD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PROD_SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --name queuedrop
+          printf '%s' "$PROD_SUPABASE_ANON_KEY" | npx wrangler secret put SUPABASE_ANON_KEY --name queuedrop
+          printf '%s' "$PROD_SUPABASE_URL" | npx wrangler secret put NEXT_PUBLIC_SUPABASE_URL --name queuedrop
+          printf '%s' "$PROD_SUPABASE_ANON_KEY" | npx wrangler secret put NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY --name queuedrop
+          printf '%s' "$PROD_SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name queuedrop
+
+      - name: Verify Cloudflare PROD database readiness
+        run: |
+          set -euo pipefail
+          url="https://queuedrop.jamesrae-rosario18.workers.dev/api/health"
+          for attempt in 1 2 3 4 5; do
+            code=$(curl --silent --show-error --max-time 25 --output /tmp/cloudflare-health.json --write-out '%{http_code}' "$url") || code=000
+            if [[ "$code" == "200" ]] && node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("/tmp/cloudflare-health.json","utf8")); if(d.status!=="ok" || d.revision !== process.env.GITHUB_SHA.slice(0,12)) process.exit(1)' ; then
+              echo "Cloudflare PROD database readiness passed"
+              exit 0
+            fi
+            echo "Database readiness attempt $attempt: HTTP $code"
+            node -e 'try { const d=JSON.parse(require("fs").readFileSync("/tmp/cloudflare-health.json","utf8")); console.log("Readiness diagnostic:",JSON.stringify({status:d.status,database:d.database,environment:d.environment,diagnostics:d.diagnostics})); } catch { console.log("Readiness response was not JSON"); }'
+            sleep 5
+          done
+          echo "::error::Cloudflare PROD database readiness failed"
+          exit 1
+
+      - name: Smoke test Cloudflare PROD deployment
+        run: |
+          set -euo pipefail
+          url="https://queuedrop.jamesrae-rosario18.workers.dev/"
+          for attempt in 1 2 3 4 5; do
+            code=$(curl --silent --show-error --location --max-time 25 --output /tmp/cloudflare-smoke.html --write-out '%{http_code}' "$url") || code=000
+            if [[ "$code" == "200" ]] && [[ -s /tmp/cloudflare-smoke.html ]]; then
+              echo "PROD homepage returned HTTP 200 with non-empty response"
+              exit 0
+            fi
+            echo "Attempt $attempt: HTTP $code"
+            sleep 5
+          done
+          echo "::error::PROD Worker did not return a healthy HTTP response"
+          exit 1
