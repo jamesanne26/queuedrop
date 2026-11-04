@@ -46,7 +46,7 @@ jobs:
       - name: Create isolated CI-only business-owner credentials
         run: |
           set -euo pipefail
-          echo "E2E_OWNER_EMAIL=cloudflare-e2e-${GITHUB_RUN_ID}@example.com" >> "$GITHUB_ENV"
+          echo "E2E_OWNER_EMAIL=cloudflare-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.com" >> "$GITHUB_ENV"
           password="$(openssl rand -hex 24)"
           echo "::add-mask::$password"
           echo "E2E_OWNER_PASSWORD=$password" >> "$GITHUB_ENV"
