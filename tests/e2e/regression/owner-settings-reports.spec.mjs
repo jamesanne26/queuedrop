@@ -114,6 +114,18 @@ test.describe("owner settings and reports", () => {
       branchName = data.branchName;
       await page.goto(`/dashboard/queues?branch=${data.branch.id}&service=${data.service.id}`, { waitUntil: "domcontentloaded" });
       const getStubButton = page.getByRole("button", { name: /Get test stub/i });
+      try {
+        await expect(getStubButton).toBeVisible({ timeout: 12_000 });
+      } catch (error) {
+        const diagnostic = await page.evaluate(() => ({
+          url: location.href,
+          title: document.title,
+          body: document.body?.innerText?.slice(0, 2200),
+          buttons: Array.from(document.querySelectorAll('button')).map(b => b.innerText).slice(0, 30),
+        }));
+        console.error('Reports queue stub missing - rendered browser state:', JSON.stringify(diagnostic));
+        throw error;
+      }
       await getStubButton.click();
       await expect(page.getByText(/Test stub .* issued|Test stub issued/i).first()).toBeVisible({ timeout: 20_000 });
       await expect.poll(async () => Boolean(await latestTicketForService(admin, data.branch.id, data.service.id)), { timeout: 30_000 }).toBe(true);

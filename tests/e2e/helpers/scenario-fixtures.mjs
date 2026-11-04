@@ -26,18 +26,27 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
   // while the server-side Supabase request has lost its auth context. Retry the
   // operation once after a fresh login, but only for this exact authorization
   // failure; all other branch-create errors still fail immediately.
-  await page.waitForURL((url) => {
-    if (url.pathname !== "/dashboard/settings") return false;
-    return (
-      url.searchParams.get("message") === "Branch created successfully." ||
-      url.searchParams.get("error") === "Only the business owner/admin can manage branches."
-    );
-  }, { timeout: 20_000 });
-
-  const resultUrl = new URL(page.url());
-  const outcome = resultUrl.searchParams.get("message") === "Branch created successfully."
-    ? "success"
-    : "auth-retry";
+  // A Cloudflare/vinext server-action can commit the branch before its
+  // success query parameter is observable in the browser. Wait for the actual
+  // database mutation, while still recognizing the explicit auth failure.
+  const { createAdminClient, getOwnerBusiness, findBranchByName } = await import("./admin-db.mjs");
+  const admin = createAdminClient();
+  const ownerEmail = process.env.E2E_OWNER_EMAIL;
+  if (!ownerEmail) throw new Error("E2E owner email is required for branch verification.");
+  const owner = await getOwnerBusiness(admin, ownerEmail);
+  let outcome = "pending";
+  await expect.poll(async () => {
+    if (await findBranchByName(admin, owner.businessId, branchName)) {
+      outcome = "success";
+      return "success";
+    }
+    const url = new URL(page.url());
+    if (url.searchParams.get("error") === "Only the business owner/admin can manage branches.") {
+      outcome = "auth-retry";
+      return "auth-retry";
+    }
+    return "pending";
+  }, { timeout: 30_000, intervals: [500, 1000, 2000] }).not.toBe("pending");
 
   if (outcome === "auth-retry" && !_retried) {
     await page.context().clearCookies();
@@ -54,7 +63,12 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
   }
 
   if (outcome !== "success") throw new Error("Branch creation authorization failed after a fresh owner login.");
-  await dismissDashboardResultModal(page, "Branch created successfully.");
+  // The persisted branch is the invariant. A success modal is optional when
+  // Cloudflare's RSC refresh replaces the redirect URL.
+  const resultModal = page.locator(".qd-result-modal-backdrop").getByRole("dialog");
+  if (await resultModal.isVisible().catch(() => false)) {
+    await dismissDashboardResultModal(page, "Branch created successfully.");
+  }
 }
 
 async function refreshOwnerSession(page) {

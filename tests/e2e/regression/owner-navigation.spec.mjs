@@ -2,14 +2,17 @@ import { test, expect } from "@playwright/test";
 import { loginAsOwner, signOut } from "../helpers/auth.mjs";
 import { ownerCredentials } from "../helpers/env.mjs";
 import { expectNoAppError, openDashboardDestination } from "../helpers/ui.mjs";
+import { createAdminClient, getOwnerBusiness, cleanupOwnedBranch } from "../helpers/admin-db.mjs";
+import { createBranchFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
 
 const credentials = ownerCredentials();
 
 test.describe("owner dashboard navigation", () => {
   test.skip(!credentials, "E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD are required.");
 
-  test.beforeEach(async ({ page }) => {
-    await loginAsOwner(page, credentials);
+  test.beforeEach(async ({ page }, testInfo) => {
+    // Sign-out must revoke its own independent session, not the reusable CI session.
+    await loginAsOwner(page, credentials, { freshSession: testInfo.title === "owner can sign out" });
   });
 
   const destinations = [
@@ -49,49 +52,83 @@ test.describe("owner dashboard navigation", () => {
       await expectNoAppError(page);
       let button = page.locator(`[data-settings-target="${view}"]`).first();
       if (!(await button.isVisible().catch(() => false))) {
-        if (view.startsWith("branch-")) await page.locator('[data-settings-group="branches"]').click();
-        if (["users", "roles", "permissions"].includes(view)) await page.locator('[data-settings-group="access"]').click();
-        button = page.locator(`[data-settings-target="${view}"]`).first();
+        const groupName = view.startsWith("branch-") ? "branches" :
+          ["users", "roles", "permissions"].includes(view) ? "access" : null;
+        if (groupName) {
+          const group = page.locator(`[data-settings-group="${groupName}"]`);
+          // Cloudflare streams the initial Settings HTML before the client
+          // component hydrates. Clicking the accordion too early can be
+          // ignored, leaving the target link absent. Wait for hydration and
+          // retry the group interaction until its real expanded state changes.
+          await expect(group).toBeVisible({ timeout: 20_000 });
+          await expect(async () => {
+            if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+            await expect(group).toHaveAttribute("aria-expanded", "true", { timeout: 3_000 });
+            await expect(button).toBeVisible({ timeout: 3_000 });
+          }).toPass({ timeout: 20_000, intervals: [500, 1000, 2000] });
+        }
       }
-      await expect(button).toBeVisible();
+      await expect(button).toBeVisible({ timeout: 20_000 });
+      const wasTab = (await button.getAttribute("role")) === "tab";
       await button.click();
-      await expect(page).toHaveURL(new RegExp(`/dashboard/settings(?:\\?.*)?$`));
-      await expect(page.locator("main.settings-unified-main")).toHaveAttribute("data-settings-view", view);
-      if ((await button.getAttribute("role")) === "tab") await expect(button).toHaveAttribute("aria-selected", "true");
-      else await expect(button).toHaveAttribute("aria-current", "page");
+      // The old URL assertion also matched the *previous* Settings page,
+      // which caused false stale-panel failures while a full navigation was
+      // still in progress. Assert the exact destination query first.
+      if (view !== "branch-general") {
+        await expect(page).toHaveURL((url) =>
+          url.pathname === "/dashboard/settings" && url.searchParams.get("view") === view,
+          { timeout: 25_000 });
+      }
+      await expect(page.locator("main.settings-unified-main")).toHaveAttribute("data-settings-view", view, { timeout: 20_000 });
+      const selectedButton = page.locator(`[data-settings-target="${view}"]`).first();
+      if (wasTab) await expect(selectedButton).toHaveAttribute("aria-selected", "true");
+      else await expect(selectedButton).toHaveAttribute("aria-current", "page");
       await expectNoAppError(page);
     });
   }
 
   test("switching Settings branches refreshes branch-specific General data", async ({ page }) => {
-    await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
-    await expectNoAppError(page);
+    // Create the second branch explicitly when the dedicated TEST workspace
+    // starts with one branch. The regression must run, not silently skip.
+    test.setTimeout(90_000);
+    const admin = createAdminClient();
+    const owner = await getOwnerBusiness(admin, credentials.email);
+    const temporaryBranchName = `E2E Nav Branch ${scenarioId('switch')}`;
+    let created = false;
+    try {
+      await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
+      const branchButtons = page.locator('[data-branch-id]');
+      if ((await branchButtons.count()) < 2) {
+        await createBranchFromUi(page, temporaryBranchName);
+        created = true;
+        await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      }
 
-    const branchGroup = page.locator('[data-settings-group="branches"]');
-    if ((await branchGroup.getAttribute("aria-expanded")) !== "true") await branchGroup.click();
+      const branchGroup = page.locator('[data-settings-group="branches"]');
+      if ((await branchGroup.getAttribute("aria-expanded")) !== "true") await branchGroup.click();
+      await expect.poll(() => branchButtons.count(), { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
 
-    const branchButtons = page.locator('[data-branch-id]');
-    const count = await branchButtons.count();
-    test.skip(count < 2, "At least two branches are required for the branch-switching regression check.");
+      const current = page.locator('[data-branch-id][aria-current="page"]');
+      await expect(current).toHaveCount(1);
+      const target = page.locator('[data-branch-id]:not([aria-current="page"])').first();
+      const targetId = await target.getAttribute("data-branch-id");
+      const targetName = (await target.locator("strong").textContent())?.trim();
+      expect(targetId).toBeTruthy();
+      expect(targetName).toBeTruthy();
+      expect(targetId).not.toBe(await current.getAttribute("data-branch-id"));
 
-    const current = page.locator('[data-branch-id][aria-current="page"]');
-    await expect(current).toHaveCount(1);
-
-    // Always exercise a real branch change. The active branch is not
-    // guaranteed to be first because the sidebar is sorted by display name.
-    const target = page.locator('[data-branch-id]:not([aria-current="page"])').first();
-    const targetId = await target.getAttribute("data-branch-id");
-    const targetName = (await target.locator("strong").textContent())?.trim();
-    expect(targetId).toBeTruthy();
-    expect(targetName).toBeTruthy();
-    expect(targetId).not.toBe(await current.getAttribute("data-branch-id"));
-
-    await target.click();
-    await expect(page).toHaveURL(new RegExp(`branch=${targetId}`));
-    await expect(page.locator(".settings-branch-hero h2")).toHaveText(targetName);
-    await expect(page.locator('form.settings-general-form-v3 input[name="branch_id"]')).toHaveValue(targetId);
-    await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(targetName);
-    await expectNoAppError(page);
+      await target.click();
+      await expect(page).toHaveURL((url) =>
+        url.pathname === "/dashboard/settings" && url.searchParams.get("branch") === targetId,
+        { timeout: 25_000 });
+      await expect(page.locator(".settings-branch-hero h2")).toHaveText(targetName);
+      await expect(page.locator('form.settings-general-form-v3 input[name="branch_id"]')).toHaveValue(targetId);
+      await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(targetName);
+      await expectNoAppError(page);
+    } finally {
+      if (created) await cleanupOwnedBranch(admin, owner.businessId, temporaryBranchName);
+    }
   });
 
   test("owner can sign out", async ({ page }) => {

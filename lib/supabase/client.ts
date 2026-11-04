@@ -1,19 +1,18 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { browserSupabaseUrl, browserSupabaseKey } from "./public-build-config";
 
-declare global {
-  interface ImportMetaEnv {
-    readonly VITE_SUPABASE_URL?: string;
-    readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
-  }
-}
-
+// The Cloudflare build injects public-only literals into the imported module.
+// Next.js builds continue using their NEXT_PUBLIC_* values.
 export function createClient() {
-  const url = (import.meta.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const publishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  const url = browserSupabaseUrl.startsWith("https://")
+    ? browserSupabaseUrl
+    : process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = browserSupabaseKey.startsWith("__QUEUEDROP_")
+    ? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    : browserSupabaseKey;
 
   if (!url || !publishableKey) {
     throw new Error("Missing Supabase browser environment variables.");
   }
-
   return createBrowserClient(url, publishableKey);
 }

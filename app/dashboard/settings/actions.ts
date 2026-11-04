@@ -137,39 +137,66 @@ export async function updateQueueSettings(formData: FormData) {
   // Queue prefixes are managed at the service level. Settings no longer
   // exposes the branch fallback prefix, so preserve the current database
   // value instead of overwriting it during an unrelated settings save.
-  const { data: currentConfig, error: currentConfigError } = await supabase
-    .from("queue_configurations")
-    .select("ticket_prefix")
-    .eq("branch_id", branchId)
-    .maybeSingle();
+  const [currentConfigResult, currentHoursResult, currentRulesResult, currentBranchResult] = await Promise.all([
+    supabase.from("queue_configurations")
+      .select("ticket_prefix,starting_number,no_show_minutes,is_active,show_branch_contact,customer_refresh_seconds")
+      .eq("branch_id", branchId).maybeSingle(),
+    returnView === "branch-operating" ? Promise.resolve({ data: [], error: null }) :
+      supabase.from("operating_hours").select("day_of_week,is_open,open_time,close_time")
+        .eq("branch_id", branchId).order("day_of_week"),
+    returnView === "branch-notifications" ? Promise.resolve({ data: [], error: null }) :
+      supabase.from("position_notification_rules").select("position,send_sms_once,browser_notification")
+        .eq("branch_id", branchId).order("position"),
+    supabase.from("branches").select("id,timezone,business_id")
+      .eq("id", branchId).maybeSingle(),
+  ]);
+  const readError = currentConfigResult.error || currentHoursResult.error ||
+    currentRulesResult.error || currentBranchResult.error;
+  if (readError) fail(branchId, readError.message, returnView);
+  if (!currentBranchResult.data) fail(branchId, "The selected branch no longer exists.", returnView);
+  const { data: branchMembership } = await supabase.from("business_users")
+    .select("business_id").eq("user_id", userData.user.id).eq("business_id", currentBranchResult.data.business_id)
+    .eq("is_active", true).limit(1).maybeSingle();
+  if (!branchMembership) fail(branchId, "The selected branch is not assigned to your business.", returnView);
 
-  if (currentConfigError) {
-    fail(branchId, currentConfigError.message, returnView);
-  }
-
+  const currentConfig = currentConfigResult.data;
   const ticketPrefix = currentConfig?.ticket_prefix || "Q";
+  const preservedHours = (currentHoursResult.data ?? []).map((day) => ({
+    day_of_week: day.day_of_week,
+    is_open: day.is_open,
+    open_time: (day.open_time ?? "00:00").slice(0, 5),
+    close_time: (day.close_time ?? "23:59").slice(0, 5),
+  }));
+  const preservedRules = (currentRulesResult.data ?? []).map((rule) => ({
+    position: rule.position,
+    send_sms_once: rule.send_sms_once,
+    browser_notification: rule.browser_notification,
+  }));
 
   const { error } = await supabase.rpc("save_stub_queue_settings", {
     target_branch_id: branchId,
     target_ticket_prefix: ticketPrefix,
-    target_starting_number: startingNumber,
-    target_no_show_minutes: noShowMinutes,
-    target_timezone: timezone,
-    target_is_active: checked(formData, "is_active"),
-    target_show_branch_contact: checked(formData, "show_branch_contact"),
-    target_hours: hours,
-    target_position_rules: rules,
+    target_starting_number: currentConfig?.starting_number ?? startingNumber,
+    target_no_show_minutes: currentConfig?.no_show_minutes ?? noShowMinutes,
+    target_timezone: currentBranchResult.data.timezone ?? timezone,
+    target_is_active: currentConfig?.is_active ?? checked(formData, "is_active"),
+    target_show_branch_contact: returnView === "branch-queue"
+      ? checked(formData, "show_branch_contact")
+      : (currentConfig?.show_branch_contact ?? false),
+    target_hours: returnView === "branch-operating" ? hours : preservedHours,
+    target_position_rules: returnView === "branch-notifications" ? rules : preservedRules,
   });
 
-  if (error) {
-    fail(branchId, error.message, returnView);
+  if (error) fail(branchId, error.message, returnView);
+
+  // Only the Queue Settings view is permitted to modify refresh cadence.
+  if (returnView === "branch-queue") {
+    const { error: refreshError } = await supabase.rpc("set_customer_refresh_seconds", {
+      target_branch_id: branchId,
+      target_seconds: customerRefreshSeconds,
+    });
+    if (refreshError) fail(branchId, refreshError.message, returnView);
   }
-
-  const { error: refreshError } = await supabase.rpc("set_customer_refresh_seconds", {
-    target_branch_id: branchId,
-    target_seconds: customerRefreshSeconds,
-  });
-  if (refreshError) fail(branchId, refreshError.message, returnView);
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/branches");

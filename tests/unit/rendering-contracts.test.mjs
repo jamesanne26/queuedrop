@@ -96,15 +96,13 @@ test("settings routes reject views outside the signed-in user's permissions", as
   assert.match(page, /if \(!viewAllowed\) redirect\("\/dashboard"\)/);
 });
 
-test("settings navigation waits for server data before showing a new view", async () => {
+test("settings navigation uses SSR-safe links and reloads the selected panel", async () => {
   const consoleSource = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
-  assert.match(consoleSource, /const \[isViewSwitching, startViewTransition\] = useTransition\(\)/);
-  assert.doesNotMatch(consoleSource, /const chooseView[\s\S]*?setView\(next\)/);
-  assert.match(consoleSource, /startViewTransition\(\(\) => router\.replace\(nextUrl/);
-  assert.match(consoleSource, /startBranchTransition\(\(\) => router\.replace\(nextUrl/);
+  assert.match(consoleSource, /href=\{getViewUrl\("permissions"\)\}/);
+  assert.match(consoleSource, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(consoleSource, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(consoleSource, /startViewTransition\(\(\) => router\.replace/);
   assert.match(consoleSource, /aria-current=\{selected \? "page" : undefined\}/);
-  assert.match(consoleSource, /prefetchBranch/);
-  assert.match(consoleSource, /prefetchView/);
 });
 
 test("queue test-stub creation blocks call-next until the stub action settles", async () => {
@@ -208,3 +206,30 @@ test("browser E2E validates shared CI credentials and fails fast", async () => {
   assert.match(auth, /url\.searchParams\.has\("error"\)/);
 });
 
+
+test("Cloudflare Settings keeps navigation usable before hydration", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/settings-unified-console.tsx", import.meta.url), "utf8");
+  assert.match(source, /href=\{getViewUrl\(key\)\}/);
+  assert.match(source, /href=\{getViewUrl\("permissions"\)\}/);
+  assert.match(source, /href=\{getBranchUrl\(branch\.id,/);
+  assert.match(source, /new URLSearchParams\(\{ view: targetView \}\)/);
+  assert.doesNotMatch(source, /new URL\(window\.location\.href\)/);
+});
+
+test("Cloudflare Settings serializes only its active RSC panel", async () => {
+  const source = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /const activePanel = availablePanels\[activeView as keyof typeof availablePanels\]/);
+  assert.match(source, /panels=\{\{ \[activeView\]: activePanel \}\}/);
+  assert.doesNotMatch(source, /panels=\{\{\s*"branch-general": branchGeneralPanel/);
+});
+
+test("Settings saves cannot overwrite unrelated queue fields from stale hidden forms", async () => {
+  const page = await readFile(new URL("../../app/dashboard/settings/page.tsx", import.meta.url), "utf8");
+  const actions = await readFile(new URL("../../app/dashboard/settings/actions.ts", import.meta.url), "utf8");
+  assert.match(page, /const needsQueueConfig = \["branch-queue", "branch-notifications", "branch-operating"\]/);
+  assert.match(actions, /currentBranchResult\.data\.business_id/);
+  assert.match(actions, /target_hours: returnView === "branch-operating" \? hours : preservedHours/);
+  assert.match(actions, /target_position_rules: returnView === "branch-notifications" \? rules : preservedRules/);
+  assert.match(actions, /target_show_branch_contact: returnView === "branch-queue"/);
+  assert.match(actions, /if \(returnView === "branch-queue"\) \{\s*const \{ error: refreshError \}/);
+});

@@ -38,10 +38,27 @@ async function waitForTicketStatus(admin, ticketId, status) {
 }
 
 async function issueTestStub(page, admin, branch, service) {
+  const queueConsoleErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") queueConsoleErrors.push(message.text());
+  });
   await page.goto(`/dashboard/queues?branch=${branch.id}&service=${service.id}`, { waitUntil: "domcontentloaded" });
   await expectNoAppError(page);
 
   const getStubButton = page.getByRole("button", { name: /Get test stub/i });
+  try {
+    await expect(getStubButton).toBeVisible({ timeout: 12_000 });
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      body: document.body?.innerText?.slice(0, 2200),
+      buttons: Array.from(document.querySelectorAll('button')).map(b => b.innerText).slice(0, 30),
+    }));
+    console.error('Queue stub missing - rendered browser state:', JSON.stringify(diagnostic));
+    console.error('Queue page browser errors:', JSON.stringify(queueConsoleErrors.slice(-15)));
+    throw error;
+  }
   await getStubButton.click();
 
   // Get test stub is intentionally inline/realtime-first now: the queue updates

@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
 type BranchNav = { id: string; name: string; address?: string | null; status?: string | null };
 type ViewKey =
@@ -98,49 +97,43 @@ export function SettingsUnifiedConsole({
   addBranchPanel,
   panels,
 }: Props) {
-  const router = useRouter();
-  const [view, setView] = useState<ViewKey>(normalizeView(initialView));
+  const view = normalizeView(initialView);
   const [branchesOpen, setBranchesOpen] = useState(() => branchViews.has(normalizeView(initialView)) && Boolean(initialBranchId ?? branches[0]?.id));
   const [accessOpen, setAccessOpen] = useState(() => ["users", "roles", "permissions"].includes(normalizeView(initialView)));
-  const [activeBranchId, setActiveBranchId] = useState(initialBranchId ?? branches[0]?.id);
-  const [isBranchSwitching, startBranchTransition] = useTransition();
-  const [isViewSwitching, startViewTransition] = useTransition();
+  const activeBranchId = initialBranchId ?? branches[0]?.id;
+  const [isBranchSwitching, setIsBranchSwitching] = useState(false);
+  const [isViewSwitching, setIsViewSwitching] = useState(false);
   const selectedBranch = useMemo(() => branches.find((branch) => branch.id === activeBranchId) ?? branches[0], [branches, activeBranchId]);
   const sortedBranches = useMemo(() => [...branches].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })), [branches]);
 
 
+  // Must also run during SSR: these URLs are rendered as native anchor hrefs.
+  // Never access window/document while rendering a Server Component payload.
   const getBranchUrl = (branchId: string, targetView: ViewKey = (branchViews.has(view) ? view : "branch-general")) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("branch", branchId);
-    url.searchParams.set("view", targetView);
-    return `${url.pathname}?${url.searchParams.toString()}`;
+    const params = new URLSearchParams({ branch: branchId, view: targetView });
+    return `/dashboard/settings?${params.toString()}`;
   };
 
   const getViewUrl = (targetView: ViewKey) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", targetView);
-    return `${url.pathname}?${url.searchParams.toString()}`;
+    const params = new URLSearchParams({ view: targetView });
+    if (activeBranchId) params.set("branch", activeBranchId);
+    return `/dashboard/settings?${params.toString()}`;
   };
-
-  const prefetchView = (targetView: ViewKey) => router.prefetch(getViewUrl(targetView));
-  const prefetchBranch = (branchId: string) => router.prefetch(getBranchUrl(branchId));
 
   const chooseView = (next: ViewKey) => {
     if (next === view || isViewSwitching || isBranchSwitching) return;
-    const nextUrl = getViewUrl(next);
-    // Keep the current server-rendered panel visible until the next route payload
-    // arrives. Switching optimistically used to expose empty placeholder arrays
-    // for Users/Roles before their view-specific data had loaded.
-    startViewTransition(() => router.replace(nextUrl, { scroll: false }));
+    setIsViewSwitching(true);
+    // vinext's client RSC router can change the URL without refreshing the
+    // server-rendered settings panel. A document navigation guarantees that
+    // permissions, selected branch and view-specific data stay in sync.
+    window.location.assign(getViewUrl(next));
   };
 
   const chooseBranch = (branchId: string) => {
+    if (!branchId || branchId === activeBranchId || isBranchSwitching || isViewSwitching) return;
+    setIsBranchSwitching(true);
     const nextView: ViewKey = branchViews.has(view) ? view : "branch-general";
-    setActiveBranchId(branchId);
-    setView(nextView);
-    setBranchesOpen(true);
-    const nextUrl = getBranchUrl(branchId, nextView);
-    startBranchTransition(() => router.replace(nextUrl, { scroll: false }));
+    window.location.assign(getBranchUrl(branchId, nextView));
   };
 
   const hiddenBranchItem = (key: ViewKey) =>
@@ -176,19 +169,18 @@ export function SettingsUnifiedConsole({
                     {sortedBranches.map((branch) => {
                       const selected = branch.id === selectedBranch?.id;
                       return (
-                        <button
-                          type="button"
+                        <a 
                           key={branch.id}
                           data-branch-id={branch.id}
                           aria-current={selected ? "page" : undefined}
                           className={`settings-tree-branch settings-tree-branch-button ${selected ? "settings-tree-branch-active" : ""}`}
-                          onMouseEnter={() => prefetchBranch(branch.id)}
-                          onFocus={() => prefetchBranch(branch.id)}
-                          onClick={() => chooseBranch(branch.id)}
-                        >
+                         
+                         
+                          
+                         role="button" href={getBranchUrl(branch.id, branchViews.has(view) ? view : "branch-general")}>
                           <span className={`settings-tree-dot ${selected ? "settings-tree-dot-active" : ""}`} />
                           <span><strong>{branch.name}</strong><small>{branch.address || "No address added"}</small><em className={`settings-branch-status settings-branch-status-${branch.status === "active" ? "active" : "inactive"}`}>{branch.status === "active" ? "Active" : "Inactive"}</em></span>
-                        </button>
+                        </a>
                       );
                     })}
                   </div>
@@ -199,11 +191,11 @@ export function SettingsUnifiedConsole({
 
             {canManageServices ? (
               <section className="settings-tree-group settings-tree-services-group">
-                <button type="button" data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`} onMouseEnter={() => prefetchView("services")} onFocus={() => prefetchView("services")} onClick={() => chooseView("services")}>
+                <a  data-settings-target="services" aria-current={view === "services" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "services" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("services")}>
                   <span className="settings-tree-icon settings-tree-icon-services"><Icon name="service" /></span>
                   <strong>Services</strong>
                   <span className="settings-tree-caret">›</span>
-                </button>
+                </a>
               </section>
             ) : null}
 
@@ -213,16 +205,16 @@ export function SettingsUnifiedConsole({
                   <span className="settings-tree-icon settings-tree-icon-team"><Icon name="users" /></span><strong>Users &amp; Access</strong><span className="settings-tree-caret">{accessOpen ? "⌄" : "›"}</span>
                 </button>
                 {accessOpen ? <div className="settings-tree-branch-sections settings-tree-access-sections">
-                  {canManageTeam ? <button type="button" data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("users")} onFocus={() => prefetchView("users")} onClick={() => chooseView("users")}><span><Icon name="users" /></span><span>Users</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("roles")} onFocus={() => prefetchView("roles")} onClick={() => chooseView("roles")}><span><Icon name="role" /></span><span>Roles</span></button> : null}
-                  {canManageRoles ? <button type="button" data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`} onMouseEnter={() => prefetchView("permissions")} onFocus={() => prefetchView("permissions")} onClick={() => chooseView("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></button> : null}
+                  {canManageTeam ? <a  data-settings-target="users" aria-current={view === "users" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "users" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("users")}><span><Icon name="users" /></span><span>Users</span></a> : null}
+                  {canManageRoles ? <a  data-settings-target="roles" aria-current={view === "roles" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "roles" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("roles")}><span><Icon name="role" /></span><span>Roles</span></a> : null}
+                  {canManageRoles ? <a  data-settings-target="permissions" aria-current={view === "permissions" ? "page" : undefined} className={`settings-tree-subitem settings-tree-subitem-button ${view === "permissions" ? "settings-tree-subitem-active" : ""}`}  role="button" href={getViewUrl("permissions")}><span><Icon name="shield" /></span><span>Permissions</span></a> : null}
                 </div> : null}
               </section>
             ) : null}
 
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></button></section> : null}
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></button></section> : null}
-            {businessWide ? <section className="settings-tree-group"><button type="button" data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`} onClick={() => chooseView("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Mobile Installers</strong><span className="settings-tree-caret">›</span></button></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="business" aria-current={view === "business" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "business" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("business")}><span className="settings-tree-icon"><Icon name="business" /></span><strong>Business</strong><span className="settings-tree-caret">›</span></a></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="billing" aria-current={view === "billing" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "billing" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("billing")}><span className="settings-tree-icon settings-tree-icon-billing"><Icon name="billing" /></span><strong>Billing &amp; Subscription</strong><span className="settings-tree-caret">›</span></a></section> : null}
+            {businessWide ? <section className="settings-tree-group"><a  data-settings-target="android-app" aria-current={view === "android-app" ? "page" : undefined} className={`settings-tree-top-row settings-tree-expand-button settings-tree-direct-section ${view === "android-app" ? "settings-tree-direct-section-active" : ""}`}  role="button" href={getViewUrl("android-app")}><span className="settings-tree-icon"><Icon name="download" /></span><strong>Mobile Installers</strong><span className="settings-tree-caret">›</span></a></section> : null}
           </nav>
         </details>
       </aside>
@@ -245,7 +237,7 @@ export function SettingsUnifiedConsole({
               </div>
             </header>
             <div className="settings-detail-tabs-v2 settings-detail-tabs-buttons" role="tablist" aria-label="Branch settings sections">
-              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <button key={key} type="button" role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""} onMouseEnter={() => prefetchView(key)} onFocus={() => prefetchView(key)} onClick={() => chooseView(key)}>{label}</button>)}
+              {branchItems.map(({ key, label }) => hiddenBranchItem(key) ? null : <a  key={key} role="tab" data-settings-target={key} aria-selected={view === key} className={view === key ? "settings-detail-tab-current" : ""}  href={getViewUrl(key)}>{label}</a>)}
             </div>
           </>
         ) : null}
