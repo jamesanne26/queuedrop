@@ -51,8 +51,6 @@ jobs:
         run: npm run quality
       - name: Run required integration tests
         run: npm run test:integration:required
-      - name: Run required API smoke tests
-        run: npm run test:smoke:required
       - name: Verify dedicated TEST schema
         run: node scripts/verify-test-deployment.mjs --schema-only
       - name: Build production server on cloud runner
@@ -65,6 +63,8 @@ jobs:
           npm run start -- --hostname 127.0.0.1 --port 3000 > "$RUNNER_TEMP/queuedrop-server.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/queuedrop-server.pid"
           node scripts/verify-runner-e2e.mjs
+      - name: Run required API smoke tests
+        run: npm run test:smoke:required
       - name: Ensure TEST E2E platform-owner permission
         run: node scripts/ensure-test-e2e-system-owner.mjs
       - name: Install Chromium
