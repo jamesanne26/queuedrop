@@ -42,6 +42,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Validate E2E fixture JavaScript syntax
+        run: |
+          node --check tests/e2e/global-setup.mjs
+          node --check tests/e2e/helpers/admin-db.mjs
       - name: Verify dedicated TEST schema
         run: node scripts/verify-test-deployment.mjs --schema-only
       - name: Build production server on cloud runner
