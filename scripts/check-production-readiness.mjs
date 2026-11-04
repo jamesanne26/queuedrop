@@ -1,5 +1,6 @@
 const required = [
   "NEXT_PUBLIC_SUPABASE_URL",
+  "SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "NEXT_PUBLIC_SITE_URL",
@@ -11,7 +12,10 @@ const required = [
   "SEMAPHORE_API_KEY",
 ];
 
-const missing = required.filter((key) => !String(process.env[key] ?? "").trim());
+const missing = required.filter((key) => {
+  const value = String(process.env[key] ?? "").trim();
+  return !value || /^(?:YOUR_|CHANGE_ME|PLACEHOLDER|TODO)/i.test(value);
+});
 const problems = [];
 const site = String(process.env.NEXT_PUBLIC_SITE_URL ?? "");
 if (site && !site.startsWith("https://")) problems.push("NEXT_PUBLIC_SITE_URL must use https:// in production.");
@@ -30,8 +34,8 @@ if (serverSupabase && (() => { try { return new URL(serverSupabase).origin !== e
 const paymongo = String(process.env.PAYMONGO_SECRET_KEY ?? "");
 if (paymongo && /^sk_test_/i.test(paymongo)) problems.push("PAYMONGO_SECRET_KEY is still a TEST key.");
 if (paymongo && !/^sk_live_/i.test(paymongo)) problems.push("PAYMONGO_SECRET_KEY is not a PayMongo LIVE secret key.");
-if (String(process.env.SMS_DRY_RUN ?? "").toLowerCase() === "true") problems.push("SMS_DRY_RUN is true; real SMS delivery is disabled.");
-if (String(process.env.SMS_PROVIDER ?? "semaphore").toLowerCase() !== "semaphore") problems.push("SMS_PROVIDER must be semaphore for production.");
+if (String(process.env.SMS_DRY_RUN ?? "").toLowerCase() !== "false") problems.push("SMS_DRY_RUN must explicitly be false for production.");
+if (String(process.env.SMS_PROVIDER ?? "").toLowerCase() !== "semaphore") problems.push("SMS_PROVIDER must be semaphore for production.");
 const supportEmail = String(process.env.QUEUEDROP_SUPPORT_EMAIL ?? "");
 if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail)) problems.push("QUEUEDROP_SUPPORT_EMAIL is not a valid email address.");
 
