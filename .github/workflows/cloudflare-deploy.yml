@@ -119,6 +119,16 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
         run: |
           set -euo pipefail
+          # Vite reads VITE_* from .env.production during its client build.
+          # Create this ephemeral file with PUBLIC values only; never write service-role keys.
+          node - <<'NODE'
+          const fs = require('node:fs');
+          for (const key of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']) {
+            if (!process.env[key]) throw new Error('Missing public Vite build variable: ' + key);
+          }
+          fs.writeFileSync('.env.production', ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']
+            .map(key => key + '=' + JSON.stringify(process.env[key])).join('\n') + '\n', { mode: 0o600 });
+          NODE
           npx vite build
           # Prevent a misleading green deployment when browser auth configuration
           # was not actually inlined into generated client chunks.
