@@ -74,6 +74,7 @@ test.describe("TV display and public platform contact",()=>{
       await page.reload();
       await page.locator("aside.sidebar").getByRole("link",{name:"TV Display",exact:true}).click();
       await expect(page).toHaveURL(/\/dashboard\/tv/);
+      await page.getByRole("button",{name:"Fullscreen",exact:true}).click();
       await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
       await page.getByLabel("TV display branch").selectOption(f.branch.id);
       await expect(page.locator(".tv-service-card")).toHaveCount(2);

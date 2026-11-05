@@ -22,7 +22,7 @@ do {
 if (!ready) throw new Error("TEST reliability migration is missing or invalid. Apply pending QueueDrop migrations to TEST, then rerun this workflow.");
 if (process.argv.includes("--schema-only")) { console.log("TEST reliability schema is ready."); process.exit(0); }
 const base = process.env.QUEUEDROP_TEST_BASE_URL;
-if (!base || new URL(base).hostname !== "queuedrop-test.vercel.app") throw new Error("Refusing to test an unrecognized deployment. Expected queuedrop-test.vercel.app.");
+if (!base || !["queuedrop-test.vercel.app", "queuedrop-test.jamesrae-rosario18.workers.dev"].includes(new URL(base).hostname)) throw new Error("Refusing to test an unrecognized deployment. Expected approved Vercel TEST or Cloudflare TEST deployment.");
 const expected = process.env.GITHUB_SHA?.slice(0,12);
 if (!expected) throw new Error("GITHUB_SHA is required to verify this exact deployment.");
 const deadline = Date.now() + 10 * 60_000;

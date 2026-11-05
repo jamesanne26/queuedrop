@@ -57,3 +57,37 @@ export async function ensureE2ESubscriptionAccess(admin, owner, testUrl, now = D
   if (stateError) throw stateError;
   if (!["active", "trialing"].includes(state)) throw new Error("E2E subscription fixture is still not writable.");
 }
+
+
+// Temporarily grant service capacity only to the dedicated TEST owner while
+// running UI scenarios that deliberately create multiple services per branch.
+// Call the returned restore function from the scenario's finally block.
+export async function grantTemporaryE2EServiceCapacity(admin, owner, testUrl, minimum = 6) {
+  assertDedicatedTestProject(testUrl);
+  if (owner?.role !== "owner" || !owner.businessId) {
+    throw new Error("TEST service capacity requires an explicit business owner membership.");
+  }
+  const { data: subscription, error } = await admin.from("business_subscriptions")
+    .select("id,custom_max_services_per_branch,custom_max_active_queues_per_branch,override_expires_at,override_reason")
+    .eq("business_id", owner.businessId).maybeSingle();
+  if (error) throw error;
+  if (!subscription) throw new Error("Dedicated TEST owner needs a subscription fixture for multi-service scenarios.");
+  const original = {
+    custom_max_services_per_branch: subscription.custom_max_services_per_branch,
+    custom_max_active_queues_per_branch: subscription.custom_max_active_queues_per_branch,
+    override_expires_at: subscription.override_expires_at,
+    override_reason: subscription.override_reason,
+  };
+  const { error: updateError } = await admin.from("business_subscriptions").update({
+    custom_max_services_per_branch: Math.max(minimum, original.custom_max_services_per_branch ?? 0),
+    custom_max_active_queues_per_branch: Math.max(minimum, original.custom_max_active_queues_per_branch ?? 0),
+    override_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    override_reason: "Temporary dedicated TEST E2E multi-service fixture",
+  }).eq("id", subscription.id).eq("business_id", owner.businessId);
+  if (updateError) throw updateError;
+  return async () => {
+    const { error: restoreError } = await admin.from("business_subscriptions")
+      .update(original).eq("id", subscription.id).eq("business_id", owner.businessId);
+    if (restoreError) throw restoreError;
+  };
+}

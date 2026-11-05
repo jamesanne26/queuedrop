@@ -1,3 +1,4 @@
+import { grantTemporaryE2EServiceCapacity } from "../helpers/subscription-fixture.mjs";
 import { test, expect } from "@playwright/test";
 import { loginAsOwner } from "../helpers/auth.mjs";
 import { hasAdminTestEnvironment, ownerCredentials } from "../helpers/env.mjs";
@@ -25,7 +26,9 @@ test("branch TV settings save service selection and render the selected layout",
   const id = scenarioId("tv-settings");
   const branchName = `E2E TV Branch ${id}`;
 
+  let restoreCapacity;
   try {
+    restoreCapacity = await grantTemporaryE2EServiceCapacity(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL, 6);
     await cleanupOwnedBranch(admin, owner.businessId, branchName);
     await loginAsOwner(page, credentials);
     await createBranchFromUi(page, branchName);
@@ -77,6 +80,6 @@ test("branch TV settings save service selection and render the selected layout",
     await expect(grid).toContainText(serviceNames[1]);
     await expect(grid).not.toContainText(serviceNames[2]);
   } finally {
-    await cleanupOwnedBranch(admin, owner.businessId, branchName);
+    try { await cleanupOwnedBranch(admin, owner.businessId, branchName); } finally { if (restoreCapacity) await restoreCapacity(); }
   }
 });

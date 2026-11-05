@@ -1,3 +1,4 @@
+import { grantTemporaryE2EServiceCapacity } from "../helpers/subscription-fixture.mjs";
 import { test, expect } from "@playwright/test";
 import { loginAsOwner } from "../helpers/auth.mjs";
 import { hasAdminTestEnvironment, ownerCredentials } from "../helpers/env.mjs";
@@ -96,8 +97,10 @@ test.describe("owner terminals and queue operations", () => {
     const admin = createAdminClient();
     const owner = await getOwnerBusiness(admin, credentials.email);
     await cleanupOwnedBranch(admin, owner.businessId, branchName);
+    let restoreCapacity;
 
     try {
+      restoreCapacity = await grantTemporaryE2EServiceCapacity(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL, 6);
       await loginAsOwner(page, credentials);
       await createBranchFromUi(page, branchName);
       const branch = await findBranchByName(admin, owner.businessId, branchName);
@@ -211,7 +214,8 @@ test.describe("owner terminals and queue operations", () => {
       await expectNoAppError(page);
       await expect(page.locator("article.terminal-card", { hasText: terminalEditedName })).toHaveCount(0);
     } finally {
-      await cleanupOwnedBranch(admin, owner.businessId, branchName);
+      try { await cleanupOwnedBranch(admin, owner.businessId, branchName); }
+      finally { if (restoreCapacity) await restoreCapacity(); }
     }
   });
 
