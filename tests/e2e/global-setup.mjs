@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createAdminClient, ensureE2ETerminalCapacity, getOwnerBusiness } from "./helpers/admin-db.mjs";
 
 import { assertDedicatedTestProject, ensureE2ESubscriptionAccess } from "./helpers/subscription-fixture.mjs";
@@ -15,7 +16,7 @@ function configured(name) {
   return Boolean(value && !value.includes("YOUR_"));
 }
 
-async function ensureOwnerBusiness(admin, email, password) {
+async function ensureOwnerBusiness(admin, authClient, email, password) {
   try {
     return await getOwnerBusiness(admin, email);
   } catch (error) {
@@ -36,7 +37,7 @@ async function ensureOwnerBusiness(admin, email, password) {
       }
     }
 
-    const { error: loginError } = await admin.auth.signInWithPassword({ email, password });
+    const { error: loginError } = await authClient.auth.signInWithPassword({ email, password });
     if (loginError) {
       throw new Error(
         "QueueDrop E2E preflight failed: E2E_OWNER_EMAIL/E2E_OWNER_PASSWORD do not authenticate in QUEUEDROP_TEST_SUPABASE_URL.",
@@ -46,14 +47,14 @@ async function ensureOwnerBusiness(admin, email, password) {
     const suffix = Date.now();
     let workspaceResult;
     try {
-      workspaceResult = await admin.rpc("create_initial_business_workspace", {
+      workspaceResult = await authClient.rpc("create_initial_business_workspace", {
         business_name: `QueueDrop E2E ${suffix}`,
         branch_name: `E2E Branch ${suffix}`,
         branch_address: "Automated Test Environment",
         branch_phone: null,
       });
     } finally {
-      await admin.auth.signOut({ scope: "local" });
+      await authClient.auth.signOut({ scope: "local" });
     }
 
     if (workspaceResult.error) {
@@ -75,10 +76,16 @@ export default async function globalSetup() {
 
   assertDedicatedTestProject(process.env.QUEUEDROP_TEST_SUPABASE_URL);
   const admin = createAdminClient();
+  // Keep service-role operations isolated from the signed-in E2E owner session.
+  const authClient = createClient(
+    process.env.QUEUEDROP_TEST_SUPABASE_URL,
+    process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
   const email = process.env.E2E_OWNER_EMAIL.trim();
   const password = process.env.E2E_OWNER_PASSWORD;
 
-  const owner = await ensureOwnerBusiness(admin, email, password);
+  const owner = await ensureOwnerBusiness(admin, authClient, email, password);
   await ensureE2ESubscriptionAccess(admin, owner, process.env.QUEUEDROP_TEST_SUPABASE_URL);
   await ensureE2ETerminalCapacity(admin, owner.businessId);
 
