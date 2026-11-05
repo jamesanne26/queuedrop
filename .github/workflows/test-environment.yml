@@ -22,11 +22,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Apply reliability migration to dedicated TEST database
-        run: node scripts/apply-test-reliability-migration.mjs
-        env:
-          QUEUEDROP_TEST_DATABASE_URL: ${{ secrets.QUEUEDROP_TEST_DATABASE_URL }}
-          QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
       - name: Check TEST schema
         run: node scripts/verify-test-deployment.mjs --schema-only
         env:
