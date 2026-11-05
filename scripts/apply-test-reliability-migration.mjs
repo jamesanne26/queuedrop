@@ -28,7 +28,21 @@ const result = spawnSync("psql", ["-X", "-v", "ON_ERROR_STOP=1", "--single-trans
   input: sql, encoding: "utf8", timeout: 90_000,
 });
 if (result.status !== 0) {
-  console.error("TEST migration failed; transaction rolled back. Check database access and migration compatibility.");
+  // Never print raw psql output: PostgreSQL errors can echo SQL, connection details or secrets.
+  const diagnostic = [result.error?.message, result.stderr, result.stdout].filter(Boolean).join("\n");
+  const category =
+    result.error?.code === "ETIMEDOUT" ? "psql process timed out" :
+    result.error?.code === "ENOENT" ? "psql executable missing" :
+    /password authentication failed|no password supplied/i.test(diagnostic) ? "database authentication rejected" :
+    /could not translate host name|name or service not known|temporary failure in name resolution/i.test(diagnostic) ? "database hostname/DNS resolution failed" :
+    /connection timed out|timeout expired|network is unreachable|no route to host/i.test(diagnostic) ? "database network connection timed out or unreachable" :
+    /too many connections|remaining connection slots/i.test(diagnostic) ? "database connection limit reached" :
+    /permission denied|must be owner|insufficient privilege/i.test(diagnostic) ? "database permissions insufficient for migration" :
+    /already exists|duplicate object|duplicate key/i.test(diagnostic) ? "migration conflicts with existing database objects" :
+    /does not exist|undefined (table|column|function)|relation .* does not exist/i.test(diagnostic) ? "migration references missing database objects" :
+    /syntax error|invalid input syntax/i.test(diagnostic) ? "SQL syntax or input error" :
+    "unclassified database or migration failure";
+  console.error(`TEST migration failed; transaction rolled back. Category: ${category}; psql exit: ${result.status ?? "not started"}; signal: ${result.signal ?? "none"}.`);
   process.exit(1);
 }
 console.log("TEST reliability, tenant security, and clean-rebuild role catalog migrations committed successfully.");
