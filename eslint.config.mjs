@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
   // linted as application source.
   globalIgnores([
     ".next/**",
+    ".cloudflare/**",
     "out/**",
     "build/**",
     "coverage/**",
