@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       ...readiness,
       service: "queuedrop-web",
       environment: process.env.VERCEL_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? "development",
-      revision: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null,
+      revision: (process.env.QUEUEDROP_DEPLOYMENT_SHA ?? process.env.CF_PAGES_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA)?.slice(0, 12) ?? null,
       timestamp: new Date().toISOString(),
     },
     { status: readiness.status === "ok" ? 200 : 503, headers: { "Cache-Control": "no-store, max-age=0" } },
