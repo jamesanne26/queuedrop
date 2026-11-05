@@ -1,0 +1,61 @@
+name: Live to TEST reset preflight
+on:
+  push:
+    branches: [ops/live-to-test-reset-20261105]
+    paths: [.github/workflows/live-to-test-reset.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: queuedrop-live-to-test-reset
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify existing database credentials without exposing values
+        env:
+          PROD_PASSWORD: ${{ secrets.QUEUEDROP_PROD_DB_PASSWORD }}
+          TEST_DATABASE_URL: ${{ secrets.QUEUEDROP_TEST_DATABASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          assert.ok(process.env.PROD_PASSWORD, 'Missing QUEUEDROP_PROD_DB_PASSWORD');
+          assert.ok(process.env.TEST_DATABASE_URL, 'Missing QUEUEDROP_TEST_DATABASE_URL');
+          const u = new URL(process.env.TEST_DATABASE_URL);
+          assert.ok(['postgres:', 'postgresql:'].includes(u.protocol));
+          assert.ok(u.hostname === 'db.tcgiwtfhqssulxwawimh.supabase.co' || (u.hostname.endsWith('.pooler.supabase.com') && decodeURIComponent(u.username) === 'postgres.tcgiwtfhqssulxwawimh'), 'Refusing a target outside QueueDrop TEST');
+          console.log('PASS: Production export and dedicated TEST connection credentials exist');
+          NODE
+      - name: Verify read-only TEST connectivity
+        env:
+          TEST_DATABASE_URL: ${{ secrets.QUEUEDROP_TEST_DATABASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {spawnSync} from 'node:child_process';
+          import assert from 'node:assert/strict';
+          const u = new URL(process.env.TEST_DATABASE_URL);
+          const env = {...process.env, PGHOST:u.hostname, PGPORT:u.port || '5432', PGUSER:decodeURIComponent(u.username), PGPASSWORD:decodeURIComponent(u.password), PGDATABASE:u.pathname.slice(1), PGSSLMODE:'require', PGCONNECT_TIMEOUT:'15', PGOPTIONS:'-c default_transaction_read_only=on'};
+          const r = spawnSync('docker', ['run','--rm',...['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT','PGOPTIONS'].flatMap(k=>['-e',k]),'postgres:17','psql','-X','-Atq','-v','ON_ERROR_STOP=1','-c','SHOW transaction_read_only'],{env,encoding:'utf8',timeout:120000});
+          assert.equal(r.status,0,'Dedicated TEST connection failed; credentials were not printed');
+          assert.equal(r.stdout.trim(),'on');
+          console.log('PASS: Dedicated TEST database reached in read-only mode');
+          NODE
+      - name: Export encrypted Production backup and verify isolated restore
+        run: node scripts/production-backup-rehearsal.mjs
+        env:
+          QUEUEDROP_PROD_DB_PASSWORD: ${{ secrets.QUEUEDROP_PROD_DB_PASSWORD }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: live-reset-production-encrypted-backup
+          path: encrypted-production-backup/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Remove runner files
+        if: always()
+        run: rm -rf encrypted-production-backup
