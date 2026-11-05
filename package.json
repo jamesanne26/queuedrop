@@ -32,27 +32,41 @@
     "test:settings": "playwright test tests/e2e/regression/owner-navigation.spec.mjs tests/e2e/regression/owner-management.spec.mjs tests/e2e/regression/owner-branch-service-lifecycle.spec.mjs tests/e2e/regression/owner-settings-reports.spec.mjs tests/e2e/regression/owner-team-roles.spec.mjs tests/e2e/regression/owner-ui-consistency.spec.mjs",
     "test:ui:consistency": "playwright test tests/e2e/regression/owner-ui-consistency.spec.mjs tests/e2e/regression/responsive-layout.spec.mjs",
     "test:fast": "npm run lint && npm run typecheck && npm run test:unit && npm run test:db && npm run test:sms && npm run security:secrets",
-    "test:db": "node scripts/run-tests.mjs db"
+    "test:db": "node scripts/run-tests.mjs db",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "vite preview",
+    "deploy:vinext": "vinext-cloudflare deploy"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
     "next": "^16.3.8",
     "qrcode": "^1.5.4",
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-server-dom-webpack": "^19.3.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-beta.v.11",
     "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
+    "@tailwindcss/vite": "^4.3.4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vinext/cloudflare": "^1.3.3",
+    "@vitejs/plugin-rsc": "^0.5.39",
+    "cf": "^0.15.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "vinext": "^1.4.3",
+    "vite": "^8.3.6",
+    "vite-css-modules": "^1.16.1"
+  },
+  "type": "module"
 }
