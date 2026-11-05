@@ -60,7 +60,7 @@ jobs:
             process.exit(1);
           }
           const env = {...process.env, PGHOST:u.hostname, PGPORT:u.port || '5432', PGUSER:decodeURIComponent(u.username), PGPASSWORD:decodeURIComponent(u.password), PGDATABASE:u.pathname.slice(1), PGSSLMODE:'require', PGCONNECT_TIMEOUT:'15', PGOPTIONS:'-c default_transaction_read_only=on'};
-          const r = spawnSync('docker', ['run','--rm',...['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT','PGOPTIONS'].flatMap(k=>['-e',k]),'postgres:17','psql','-X','-Atq','-v','ON_ERROR_STOP=1','-c','SHOW transaction_read_only'],{env,encoding:'utf8',timeout:120000});
+          const r = spawnSync('docker', ['run','--rm',...['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT','PGOPTIONS'].flatMap(k=>['-e',k]),'postgres:17','psql','-X','-Atq','-v','ON_ERROR_STOP=1','-c','BEGIN READ ONLY; SHOW transaction_read_only; ROLLBACK;'],{env,encoding:'utf8',timeout:120000});
           if(r.status!==0){
             const error=String(r.stderr || '')+' '+String(r.error?.code || '');
             const category=/password authentication failed/i.test(error)?'PASSWORD_AUTH_FAILED':/Tenant or user not found/i.test(error)?'POOLER_USER_NOT_FOUND':/Network is unreachable|Cannot assign requested address/i.test(error)?'IPV6_UNREACHABLE_USE_SESSION_POOLER':/could not translate host name|Name or service not known/i.test(error)?'DNS_LOOKUP_FAILED':/timeout|timed out|ETIMEDOUT/i.test(error)?'CONNECTION_TIMEOUT':/connection refused/i.test(error)?'CONNECTION_REFUSED':'CONNECTION_FAILED';
