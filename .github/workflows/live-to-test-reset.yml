@@ -28,7 +28,16 @@ jobs:
           import assert from 'node:assert/strict';
           assert.ok(process.env.PROD_PASSWORD, 'Missing QUEUEDROP_PROD_DB_PASSWORD');
           assert.ok(process.env.TEST_DATABASE_URL, 'Missing QUEUEDROP_TEST_DATABASE_URL');
-          const u = new URL(process.env.TEST_DATABASE_URL);
+          let connection = process.env.TEST_DATABASE_URL.trim();
+          if (connection.startsWith('psql ')) connection = connection.slice(5).trim();
+          connection = connection.replace(/^(?:export\s+)?(?:QUEUEDROP_TEST_DATABASE_URL|DATABASE_URL)\s*=\s*/, '');
+          if ((connection.startsWith('"') && connection.endsWith('"')) || (connection.startsWith("'") && connection.endsWith("'")) || (connection.startsWith('`') && connection.endsWith('`'))) connection=connection.slice(1,-1).trim();
+          let u;
+          try { u = new URL(connection); }
+          catch {
+            console.error('Invalid database URL format. Safe diagnostics: '+JSON.stringify({postgresScheme:/^postgres(?:ql)?:\/\//.test(connection),multipleLines:/[\r\n]/.test(connection),passwordPlaceholder:/\[YOUR[-_]PASSWORD\]/i.test(connection),containsTestRef:connection.includes('tcgiwtfhqssulxwawimh')}));
+            process.exit(1);
+          }
           assert.ok(['postgres:', 'postgresql:'].includes(u.protocol));
           assert.ok(u.hostname === 'db.tcgiwtfhqssulxwawimh.supabase.co' || (u.hostname.endsWith('.pooler.supabase.com') && decodeURIComponent(u.username) === 'postgres.tcgiwtfhqssulxwawimh'), 'Refusing a target outside QueueDrop TEST');
           console.log('PASS: Production export and dedicated TEST connection credentials exist');
@@ -40,7 +49,16 @@ jobs:
           node --input-type=module <<'NODE'
           import {spawnSync} from 'node:child_process';
           import assert from 'node:assert/strict';
-          const u = new URL(process.env.TEST_DATABASE_URL);
+          let connection = process.env.TEST_DATABASE_URL.trim();
+          if (connection.startsWith('psql ')) connection = connection.slice(5).trim();
+          connection = connection.replace(/^(?:export\s+)?(?:QUEUEDROP_TEST_DATABASE_URL|DATABASE_URL)\s*=\s*/, '');
+          if ((connection.startsWith('"') && connection.endsWith('"')) || (connection.startsWith("'") && connection.endsWith("'")) || (connection.startsWith('`') && connection.endsWith('`'))) connection=connection.slice(1,-1).trim();
+          let u;
+          try { u = new URL(connection); }
+          catch {
+            console.error('Invalid database URL format. Safe diagnostics: '+JSON.stringify({postgresScheme:/^postgres(?:ql)?:\/\//.test(connection),multipleLines:/[\r\n]/.test(connection),passwordPlaceholder:/\[YOUR[-_]PASSWORD\]/i.test(connection),containsTestRef:connection.includes('tcgiwtfhqssulxwawimh')}));
+            process.exit(1);
+          }
           const env = {...process.env, PGHOST:u.hostname, PGPORT:u.port || '5432', PGUSER:decodeURIComponent(u.username), PGPASSWORD:decodeURIComponent(u.password), PGDATABASE:u.pathname.slice(1), PGSSLMODE:'require', PGCONNECT_TIMEOUT:'15', PGOPTIONS:'-c default_transaction_read_only=on'};
           const r = spawnSync('docker', ['run','--rm',...['PGHOST','PGPORT','PGUSER','PGPASSWORD','PGDATABASE','PGSSLMODE','PGCONNECT_TIMEOUT','PGOPTIONS'].flatMap(k=>['-e',k]),'postgres:17','psql','-X','-Atq','-v','ON_ERROR_STOP=1','-c','SHOW transaction_read_only'],{env,encoding:'utf8',timeout:120000});
           assert.equal(r.status,0,'Dedicated TEST connection failed; credentials were not printed');
