@@ -38,7 +38,7 @@ export function CustomerQueueQrView({ queueNumber }: { queueNumber: string }) {
         <p className="eyebrow">Queue {queueNumber}</p>
         <h2 id="customer-qr-title">Your queue QR code</h2>
         <p>Scan this code to reopen your private live queue status.</p>
-        {image ? <img className="customer-qr-image" src={image} alt={`QR code for queue ${queueNumber}`} /> : null}
+        {image ? <img /* eslint-disable-line @next/next/no-img-element */ className="customer-qr-image" src={image} alt={`QR code for queue ${queueNumber}`} /> : null}
         {failed ? <p className="customer-qr-error" role="alert">Could not create the QR code. Please try again.</p> : null}
         {!image && !failed ? <p aria-live="polite">Creating QR code…</p> : null}
         <button className="button button-primary" type="button" onClick={() => setOpen(false)}>Close</button>

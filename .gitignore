@@ -58,3 +58,6 @@ supabase/.branches/
 
 # local agent archive
 AGENTS.zip
+/dist/
+.vinext/
+.cloudflare/
