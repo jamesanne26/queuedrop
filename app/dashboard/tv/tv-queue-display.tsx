@@ -48,12 +48,13 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets, ser
           return visibleTvTicket(next as TvTicket, selectedBranchId, currentSessions, serviceIds) ? [...without, next as TvTicket] : without;
         });
       }).subscribe(status => { const live = status === "SUBSCRIBED"; connectedRef.current = live; setConnected(live); });
-    // Reconcile even a connected stream so closed sessions, midnight and changed
-    // TV settings are picked up; missed events recover every 5 seconds offline.
-    let ticks = 0;
+    // Reconcile every five seconds even while Realtime reports connected. A
+    // subscribed channel can miss individual ticket changes (for example when
+    // the update was performed through the service-role API). Waiting 30 seconds
+    // in that state leaves cancelled tickets visible on the TV unnecessarily.
+    // router.refresh() updates server snapshots without remounting this display.
     const poll = window.setInterval(() => {
-      ticks++;
-      if (navigator.onLine && (!connectedRef.current || ticks % 6 === 0)) router.refresh();
+      if (navigator.onLine && !document.hidden) router.refresh();
     }, 5000);
     const focus = () => { if (navigator.onLine) router.refresh(); };
     window.addEventListener("online", focus);

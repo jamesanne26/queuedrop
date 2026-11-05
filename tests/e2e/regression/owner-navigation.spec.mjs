@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { loginAsOwner, signOut } from "../helpers/auth.mjs";
 import { ownerCredentials } from "../helpers/env.mjs";
+import { createAdminClient, getOwnerBusiness, cleanupOwnedBranch } from "../helpers/admin-db.mjs";
+import { createBranchFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
 import { expectNoAppError, openDashboardDestination } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
@@ -70,10 +72,18 @@ test.describe("owner dashboard navigation", () => {
     const branchGroup = page.locator('[data-settings-group="branches"]');
     if ((await branchGroup.getAttribute("aria-expanded")) !== "true") await branchGroup.click();
 
-    const branchButtons = page.locator('[data-branch-id]');
-    const count = await branchButtons.count();
-    test.skip(count < 2, "At least two branches are required for the branch-switching regression check.");
-
+    // Provision a second disposable TEST branch instead of silently skipping
+    // when the owner's workspace only contains one branch.
+    const admin = createAdminClient();
+    const owner = await getOwnerBusiness(admin, credentials.email);
+    const fixtureName = `E2E Switch Branch ${scenarioId("switch")}`;
+    try {
+      await createBranchFromUi(page, fixtureName);
+      await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+      await expectNoAppError(page);
+      const branchGroupAfterCreate = page.locator('[data-settings-group="branches"]');
+      if ((await branchGroupAfterCreate.getAttribute("aria-expanded")) !== "true") await branchGroupAfterCreate.click();
+      await expect.poll(() => page.locator('[data-branch-id]').count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
     const current = page.locator('[data-branch-id][aria-current="page"]');
     await expect(current).toHaveCount(1);
 
@@ -92,6 +102,9 @@ test.describe("owner dashboard navigation", () => {
     await expect(page.locator('form.settings-general-form-v3 input[name="branch_id"]')).toHaveValue(targetId);
     await expect(page.locator('form.settings-general-form-v3 input[name="name"]')).toHaveValue(targetName);
     await expectNoAppError(page);
+    } finally {
+      await cleanupOwnedBranch(admin, owner.businessId, fixtureName);
+    }
   });
 
   test("owner can sign out", async ({ page }) => {

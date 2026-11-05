@@ -70,18 +70,24 @@ test.describe("TV display and public platform contact",()=>{
       await expect(page.locator(".tv-service-card")).toHaveCount(2);
       await page.getByRole("button",{name:"Back to dashboard"}).click();
       await expect(page).toHaveURL(/\/dashboard$/);
-      // Fresh navigation restores the native API; the sidebar click has real user activation.
-      await page.reload();
-      await page.locator("aside.sidebar").getByRole("link",{name:"TV Display",exact:true}).click();
-      await expect(page).toHaveURL(/\/dashboard\/tv/);
-      await page.getByRole("button",{name:"Fullscreen",exact:true}).click();
-      await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
-      await page.getByLabel("TV display branch").selectOption(f.branch.id);
-      await expect(page.locator(".tv-service-card")).toHaveCount(2);
-      await expect.poll(()=>page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(true);
-      await page.getByRole("button",{name:"Back to dashboard"}).click();
-      await expect(page).toHaveURL(/\/dashboard$/);
-      expect(await page.evaluate(()=>Boolean(document.fullscreenElement))).toBe(false);
+      // The denial test monkey-patches requestFullscreen on this page. A separate
+      // page guarantees a native browser API and a clean fullscreen state; using
+      // the fixture branch explicitly also avoids the default-branch mismatch.
+      const fullscreenPage = await page.context().newPage();
+      try {
+        await fullscreenPage.goto("/dashboard/tv?branch=" + f.branch.id);
+        await expect(fullscreenPage.locator(".tv-service-card")).toHaveCount(2);
+        await expect(fullscreenPage.getByRole("button", { name: "Fullscreen", exact: true })).toBeVisible();
+        await fullscreenPage.getByRole("button", { name: "Fullscreen", exact: true }).click();
+        await expect.poll(() => fullscreenPage.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+        await expect(fullscreenPage.getByLabel("TV display branch")).toHaveValue(f.branch.id);
+        await expect(fullscreenPage.locator(".tv-service-card")).toHaveCount(2);
+        await fullscreenPage.getByRole("button", { name: "Back to dashboard" }).click();
+        await expect(fullscreenPage).toHaveURL(/\/dashboard$/);
+        await expect.poll(() => fullscreenPage.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
+      } finally {
+        await fullscreenPage.close();
+      }
       checked(await f.admin.from("branch_tv_settings").update({service_count:6,service_ids:[]}).eq("branch_id",f.branch.id));
       await page.goto("/dashboard/tv?branch="+f.branch.id);
       await page.setViewportSize({width:1920,height:1080});

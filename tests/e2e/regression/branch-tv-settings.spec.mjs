@@ -15,10 +15,9 @@ import { dismissDashboardResultModal, expectNoAppError } from "../helpers/ui.mjs
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
 
-test("branch TV settings save service selection and render the selected layout", async ({ page }, testInfo) => {
+test("branch TV settings save service selection and render the selected layout", async ({ page }) => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
-  const baseUrl = testInfo.project.use.baseURL;
-  test.skip(!baseUrl || !new URL(baseUrl).hostname.includes("queuedrop-test"), "TV settings test only runs against the QueueDrop TEST deployment.");
+  // The global E2E preflight enforces the dedicated TEST Supabase project, including local builds.
   test.setTimeout(120_000);
 
   const admin = createAdminClient();

@@ -1,6 +1,7 @@
 import { expect } from "@playwright/test";
 
-export async function loginAsOwner(page, credentials) {
+export async function loginAsOwner(page, credentials, { expectedDestination = "dashboard" } = {}) {
+  if (!["dashboard", "system"].includes(expectedDestination)) throw new Error("Unsupported E2E login destination");
   await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 
@@ -15,7 +16,8 @@ export async function loginAsOwner(page, credentials) {
 
   await signInButton.click();
   await page.waitForURL((url) => {
-    if (/\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
+    if (expectedDestination === "system" && url.pathname === "/system") return true;
+    if (expectedDestination === "dashboard" && /\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
   }, { timeout: 20_000 });
 
@@ -30,8 +32,10 @@ export async function loginAsOwner(page, credentials) {
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.
   // Use the authenticated dashboard shell itself as the viewport-independent
   // login-ready signal instead of requiring a currently visible Sign out button.
-  await expect(page.locator("aside.sidebar")).toBeAttached();
-  await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+  if (expectedDestination === "dashboard") {
+    await expect(page.locator("aside.sidebar")).toBeAttached();
+    await expect(page.locator("aside.sidebar .sidebar-account-menu")).toBeAttached();
+  }
   await expect(page.locator("body")).not.toContainText(/Invalid login credentials|Internal Server Error|Application error/i);
 }
 

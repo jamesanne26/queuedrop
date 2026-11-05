@@ -1,12 +1,18 @@
 import { defineConfig } from "@playwright/test";
-import { loadPlaywrightEnvironment, usableTestBaseUrl } from "./tests/e2e/helpers/load-test-env.mjs";
+import { loadPlaywrightEnvironment, usableTestBaseUrl, configureLocalE2EAppEnvironment } from "./tests/e2e/helpers/load-test-env.mjs";
 
 const loadedEnvFiles = loadPlaywrightEnvironment();
 if (loadedEnvFiles.length && !process.env.CI) {
   console.log(`[QueueDrop E2E] Loaded environment: ${loadedEnvFiles.join(", ")}`);
 }
 
-const externalBaseUrl = usableTestBaseUrl(process.env.QUEUEDROP_TEST_BASE_URL);
+configureLocalE2EAppEnvironment();
+
+// Pre-push validation runs locally by default, even when a TEST deployment URL
+// happens to be present in .env.test.local.
+const externalBaseUrl = process.env.QUEUEDROP_E2E_USE_REMOTE === "true"
+  ? usableTestBaseUrl(process.env.QUEUEDROP_TEST_BASE_URL)
+  : null;
 const baseURL = externalBaseUrl || "http://127.0.0.1:3000";
 
 // Local E2E defaults to a production-like Next.js server. This avoids dev/HMR

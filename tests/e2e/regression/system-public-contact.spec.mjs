@@ -11,16 +11,16 @@ import {
   latestTicketForService,
 } from "../helpers/admin-db.mjs";
 import { createBranchFromUi, createServiceFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
+import { assertDedicatedTestProject } from "../helpers/subscription-fixture.mjs";
 import { expectNoAppError } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
 const testOnlyContact = "+15555550123";
 
-test("system owner contact setting reaches homepage and customer queue page", async ({ page }, testInfo) => {
+test("system owner contact setting reaches homepage and customer queue page", async ({ page }) => {
   test.skip(!credentials || !adminReady, "Owner credentials and TEST Supabase admin variables are required.");
-  const baseUrl = testInfo.project.use.baseURL;
-  test.skip(!baseUrl || !new URL(baseUrl).hostname.includes("queuedrop-test"), "This contact-setting test only runs against the QueueDrop TEST deployment.");
+  assertDedicatedTestProject(process.env.QUEUEDROP_TEST_SUPABASE_URL);
   test.setTimeout(150_000);
 
   const admin = createAdminClient();
@@ -29,12 +29,24 @@ test("system owner contact setting reaches homepage and customer queue page", as
   const branchName = `E2E Contact Branch ${id}`;
   let contactSnapshotLoaded = false;
   let previousContact = null;
+  let previousSystemOwner = null;
+  let systemOwnerSnapshotLoaded = false;
 
-  await loginAsOwner(page, credentials);
-  await page.goto("/system/settings", { waitUntil: "domcontentloaded" });
-  if (new URL(page.url()).pathname !== "/system/settings") {
-    test.skip(true, "Configured E2E owner does not have platform-owner access in TEST.");
-  }
+  // The same dedicated TEST owner is temporarily granted platform-owner access.
+  // Snapshot and restore it even on test failure. Never touch a PROD project.
+  const { data: existingSystemOwner, error: systemOwnerReadError } = await admin
+    .from("system_owners").select("is_active").eq("user_id", owner.userId).maybeSingle();
+  if (systemOwnerReadError) throw systemOwnerReadError;
+  previousSystemOwner = existingSystemOwner;
+  systemOwnerSnapshotLoaded = true;
+  const { error: grantError } = await admin.from("system_owners")
+    .upsert({ user_id: owner.userId, is_active: true }, { onConflict: "user_id" });
+  if (grantError) throw grantError;
+
+  try {
+    await loginAsOwner(page, credentials, { expectedDestination: "system" });
+    await page.goto("/system/settings", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/system\/settings$/, { timeout: 15_000 });
 
   const { data: existingContact, error: contactReadError } = await admin
     .from("platform_public_contact")
@@ -99,6 +111,18 @@ test("system owner contact setting reaches homepage and customer queue page", as
       }
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
+    }
+  }
+  } finally {
+    if (systemOwnerSnapshotLoaded) {
+      if (previousSystemOwner) {
+        const { error } = await admin.from("system_owners")
+          .update({ is_active: previousSystemOwner.is_active }).eq("user_id", owner.userId);
+        if (error) throw error;
+      } else {
+        const { error } = await admin.from("system_owners").delete().eq("user_id", owner.userId);
+        if (error) throw error;
+      }
     }
   }
 });

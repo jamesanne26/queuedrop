@@ -71,6 +71,39 @@ if (required) {
   if (suite === "e2e/smoke") process.env.QUEUEDROP_REQUIRE_SMOKE = "1";
 }
 
+// Fail early on TEST-only configuration errors before remote integration tests run.
+// Never print secret values in diagnostics.
+if (suite === "integration" && required) {
+  const errors = [];
+  const expectedTestProject = "tcgiwtfhqssulxwawimh";
+  const url = process.env.QUEUEDROP_TEST_SUPABASE_URL?.trim() ?? "";
+  const anon = process.env.QUEUEDROP_TEST_SUPABASE_ANON_KEY?.trim() ?? "";
+  const service = process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
+  const placeholder = (value) => !value || /YOUR_|PLACEHOLDER|EXAMPLE|CHANGE_ME|REPLACE_ME|ACTUAL_TEST_/i.test(value);
+
+  if (!url || placeholder(url)) {
+    errors.push("QUEUEDROP_TEST_SUPABASE_URL is missing or a template value");
+  } else {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" || parsed.hostname !== `${expectedTestProject}.supabase.co`) {
+        errors.push("QUEUEDROP_TEST_SUPABASE_URL must point to the approved Supabase TEST project (not PROD)");
+      }
+    } catch {
+      errors.push("QUEUEDROP_TEST_SUPABASE_URL is not a valid URL");
+    }
+  }
+  if (placeholder(anon)) errors.push("QUEUEDROP_TEST_SUPABASE_ANON_KEY is missing or a template value");
+  if (placeholder(service)) errors.push("QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY is missing or a template value");
+  if (anon && service && anon === service) errors.push("TEST anon and service_role keys must be different");
+  if (errors.length) {
+    console.error("[QueueDrop TEST preflight] Configuration blocked before remote tests:");
+    for (const error of errors) console.error(` - ${error}`);
+    console.error("Update .env.test.local using keys from the approved Supabase TEST project. Never share secret values.");
+    process.exit(1);
+  }
+}
+
 async function collect(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const nested = await Promise.all(entries.map(async (entry) => {

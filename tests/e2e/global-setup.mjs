@@ -4,16 +4,16 @@ import { createAdminClient, ensureE2ETerminalCapacity, getOwnerBusiness } from "
 import { assertDedicatedTestProject, ensureE2ESubscriptionAccess } from "./helpers/subscription-fixture.mjs";
 
 const REQUIRED_CI_ENV = [
-  "QUEUEDROP_TEST_BASE_URL",
   "E2E_OWNER_EMAIL",
   "E2E_OWNER_PASSWORD",
   "QUEUEDROP_TEST_SUPABASE_URL",
   "QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY",
+  "QUEUEDROP_TEST_SUPABASE_ANON_KEY",
 ];
 
 function configured(name) {
   const value = process.env[name]?.trim();
-  return Boolean(value && !value.includes("YOUR_"));
+  return Boolean(value && !/YOUR_|PLACEHOLDER|example\.com|your_test/i.test(value));
 }
 
 async function ensureOwnerBusiness(admin, authClient, email, password) {
@@ -68,13 +68,17 @@ async function ensureOwnerBusiness(admin, authClient, email, password) {
 export default async function globalSetup() {
   const missing = REQUIRED_CI_ENV.filter((name) => !configured(name));
   if (missing.length) {
-    if (process.env.CI) {
-      throw new Error(`QueueDrop E2E preflight failed: missing GitHub Actions secrets: ${missing.join(", ")}`);
-    }
-    return;
+    throw new Error(`QueueDrop E2E preflight failed: missing or placeholder TEST configuration: ${missing.join(", ")}`);
   }
 
   assertDedicatedTestProject(process.env.QUEUEDROP_TEST_SUPABASE_URL);
+  if (process.env.QUEUEDROP_TEST_SUPABASE_ANON_KEY === process.env.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("E2E preflight: anon and service-role keys must be different.");
+  }
+  // The application is built against TEST-only credentials, never PROD.
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL !== process.env.QUEUEDROP_TEST_SUPABASE_URL) {
+    throw new Error("E2E preflight: application Supabase URL does not match TEST Supabase URL.");
+  }
   const admin = createAdminClient();
   // Keep service-role operations isolated from the signed-in E2E owner session.
   const authClient = createClient(
