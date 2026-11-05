@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Unit tests (including payment and subscription)
+        run: npm run test:unit
+
       - name: Lint
         run: npm run lint
 
