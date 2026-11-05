@@ -1,0 +1,135 @@
+name: Deploy latest QueueDrop to Cloudflare TEST
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: queuedrop-cloudflare-test-deploy
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: test
+    timeout-minutes: 25
+    env:
+      LIVE_SHA: ${{ github.sha }}
+      NEXT_PUBLIC_APP_ENV: test
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SITE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
+      VERCEL_GIT_COMMIT_SHA: ${{ github.sha }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify isolated TEST deployment configuration
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          for(const k of ['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']) assert.ok(process.env[k], 'Missing '+k);
+          assert.equal(new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname,'tcgiwtfhqssulxwawimh.supabase.co');
+          assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID,'e9f06896cd70c8bff8cddfeee669005b');
+          console.log('PASS: Source uses only dedicated TEST resources');
+          NODE
+      - name: Install current TEST dependencies and generate hosting adapter
+        run: |
+          npm ci
+          npx --yes vinext init
+      - name: Configure TEST hosting and public browser variables
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          let cf=fs.readFileSync('cloudflare.config.ts','utf8');
+          const pattern=/(\bname\s*:\s*['"])(queuedrop)(['"])/g;
+          if([...cf.matchAll(pattern)].length!==1) throw Error('Expected exactly one Worker name');
+          cf=cf.replace(pattern,'$1queuedrop-test$3');
+          fs.writeFileSync('cloudflare.config.ts',cf);
+          let vite=fs.readFileSync('vite.config.ts','utf8');
+          const definitions={};
+          for(const key of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY','NEXT_PUBLIC_SITE_URL','NEXT_PUBLIC_APP_ENV','VERCEL_GIT_COMMIT_SHA']) definitions['process.env.'+key]=JSON.stringify(process.env[key]);
+          if(!/defineConfig\(\s*\{/.test(vite)) throw Error('Unexpected Vite config');
+          vite=vite.replace(/defineConfig\(\s*\{/,'defineConfig({ define: '+JSON.stringify(definitions)+',');
+          fs.writeFileSync('vite.config.ts',vite);
+          NODE
+          git diff --exit-code -- app components lib public
+      - name: Build current TEST application
+        run: npx vite build
+      - name: Set TEST runtime configuration
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          assert.ok(process.env.SUPABASE_SERVICE_ROLE_KEY,'Missing TEST service role');
+          const values={
+            SUPABASE_URL:process.env.NEXT_PUBLIC_SUPABASE_URL,
+            SUPABASE_ANON_KEY:process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+            NEXT_PUBLIC_SUPABASE_URL:process.env.NEXT_PUBLIC_SUPABASE_URL,
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+            SUPABASE_SERVICE_ROLE_KEY:process.env.SUPABASE_SERVICE_ROLE_KEY,
+            NEXT_PUBLIC_APP_ENV:'test',
+            NEXT_PUBLIC_SITE_URL:process.env.NEXT_PUBLIC_SITE_URL,
+            NEXT_PUBLIC_APP_URL:process.env.NEXT_PUBLIC_SITE_URL,
+            VERCEL_GIT_COMMIT_SHA:process.env.LIVE_SHA,
+            SMS_DELIVERY_PAUSED:'true',
+            SMS_DRY_RUN:'true'
+          };
+          for(const [name,text] of Object.entries(values)){
+            const r=await fetch('https://api.cloudflare.com/client/v4/accounts/'+process.env.CLOUDFLARE_ACCOUNT_ID+'/workers/scripts/queuedrop-test/secrets',{method:'PUT',headers:{Authorization:'Bearer '+process.env.CLOUDFLARE_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({name,text,type:'secret_text'})});
+            const j=await r.json();
+            if(!r.ok||!j.success) throw Error('TEST configuration failed for '+name);
+          }
+          console.log('PASS: TEST-only runtime configuration applied');
+          NODE
+      - name: Deploy Cloudflare TEST only
+        run: npx @vinext/cloudflare deploy
+      - name: Verify deployed TEST revision and capture visual checks
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base=process.env.NEXT_PUBLIC_SITE_URL;
+          let ok=false;
+          for(let attempt=0;attempt<8;attempt++){
+            try{
+              const r=await fetch(base+'/api/health',{signal:AbortSignal.timeout(25000)});
+              const data=await r.json();
+              if(r.ok&&data.status==='ok'&&data.revision===process.env.LIVE_SHA.slice(0,12)){ok=true;break;}
+            }catch{}
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          assert.ok(ok,'TEST must serve the exact GitHub code revision with healthy database');
+          for(const path of ['/','/auth/login']){
+            const r=await fetch(base+path);
+            assert.equal(r.status,200,'TEST page failed: '+path);
+            assert.ok((await r.text()).length>500);
+          }
+          console.log('PASS: TEST homepage, login and database health use latest revision');
+          NODE
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'NODE'
+          import {chromium} from '@playwright/test';
+          import fs from 'node:fs';
+          fs.mkdirSync('ui-verification',{recursive:true});
+          const browser=await chromium.launch();
+          const page=await browser.newPage({viewport:{width:1440,height:1000}});
+          for(const [name,base] of [['prod','https://getqueuedrop.com'],['test',process.env.NEXT_PUBLIC_SITE_URL]]){
+            await page.goto(base,{waitUntil:'networkidle'});
+            await page.screenshot({path:'ui-verification/'+name+'-home.png',fullPage:true});
+            await page.goto(base+'/auth/login',{waitUntil:'networkidle'});
+            await page.screenshot({path:'ui-verification/'+name+'-login.png',fullPage:true});
+          }
+          await browser.close();
+          NODE
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: live-and-test-ui-verification
+          path: ui-verification/
+          if-no-files-found: ignore
+          retention-days: 7
