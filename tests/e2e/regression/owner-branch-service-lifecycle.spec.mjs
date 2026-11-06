@@ -90,8 +90,15 @@ test.describe("owner branch and service lifecycle", () => {
       expect(updated?.status).toBe("active");
 
       await confirmCodeDelete(page, "Delete branch");
-      await dismissDashboardResultModal(page, "Branch deleted successfully.");
-      expect(await getBranchById(admin, created.id)).toBeNull();
+      // A server-action refresh may replace the result modal before Playwright
+      // observes it. Assert the actual deletion, not a transient presentation.
+      await expect.poll(() => getBranchById(admin, created.id), { timeout: 25_000 }).toBeNull();
+      const deletionError = new URL(page.url()).searchParams.get("error");
+      expect(deletionError, "Branch deletion must not return an application error").toBeNull();
+      const deletionDialog = page.locator(".qd-result-modal-backdrop").getByRole("dialog");
+      if (await deletionDialog.isVisible().catch(() => false)) {
+        await dismissDashboardResultModal(page, "Branch deleted successfully.");
+      }
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
       await cleanupOwnedBranch(admin, owner.businessId, editedName);
