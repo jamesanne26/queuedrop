@@ -1,0 +1,54 @@
+name: Cloudflare PROD preflight (no deployment)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROD_SUPABASE_URL: ${{ secrets.QUEUEDROP_PROD_SUPABASE_URL }}
+      PROD_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_ANON_KEY }}
+      PROD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_PROD_SUPABASE_SERVICE_ROLE_KEY }}
+      PROD_PAYMONGO_SECRET_KEY: ${{ secrets.QUEUEDROP_PROD_PAYMONGO_SECRET_KEY }}
+      PROD_PAYMONGO_WEBHOOK_SECRET: ${{ secrets.QUEUEDROP_PROD_PAYMONGO_WEBHOOK_SECRET }}
+    steps:
+      - name: Validate required PROD credentials without revealing values
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID PROD_SUPABASE_URL PROD_SUPABASE_PUBLISHABLE_KEY PROD_SUPABASE_SERVICE_ROLE_KEY PROD_PAYMONGO_SECRET_KEY PROD_PAYMONGO_WEBHOOK_SECRET; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required GitHub secret mapped to $key"
+              missing=1
+            fi
+          done
+          if [ -n "${PROD_SUPABASE_URL:-}" ] && [ "$PROD_SUPABASE_URL" != "https://sylvegfbkxgjfctbjfec.supabase.co" ]; then
+            echo "::error::PROD Supabase URL does not match the known production project"
+            missing=1
+          fi
+          if [ -n "${PROD_PAYMONGO_SECRET_KEY:-}" ] && [[ "$PROD_PAYMONGO_SECRET_KEY" != sk_live_* ]]; then
+            echo "::error::PROD PayMongo secret is not a live key"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          echo "PASS: required PROD secret mappings are present and basic checks passed."
+      - name: Confirm production Supabase endpoint is reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 "$PROD_SUPABASE_URL/auth/v1/health")
+          if [ "$code" != 200 ]; then
+            echo "::error::Production Supabase auth health returned HTTP $code"
+            exit 1
+          fi
+          echo "PASS: production Supabase auth health endpoint responded."
+      - name: Preflight only - never deploy
+        run: echo "PASS: This workflow does not modify PROD or deploy any Worker."
