@@ -50,6 +50,39 @@ jobs:
             exit 1
           fi
           echo "PASS: production Supabase auth health endpoint responded."
+      - name: Verify Cloudflare PROD Worker secret bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/queuedrop/secrets")
+          echo "$response" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          if not data.get("success"):
+              print("::error::Cloudflare PROD secrets API returned an error")
+              sys.exit(1)
+          present = {item["name"] for item in data.get("result", [])}
+          required = {
+              "NEXT_PUBLIC_APP_ENV",
+              "NEXT_PUBLIC_APP_URL",
+              "NEXT_PUBLIC_SITE_URL",
+              "NEXT_PUBLIC_SUPABASE_URL",
+              "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+              "SUPABASE_URL",
+              "SUPABASE_ANON_KEY",
+              "SUPABASE_SERVICE_ROLE_KEY",
+              "PAYMONGO_SECRET_KEY",
+              "PAYMONGO_WEBHOOK_SECRET",
+          }
+          missing = sorted(required - present)
+          if missing:
+              for name in missing:
+                  print(f"::error::Cloudflare PROD binding missing: {name}")
+              sys.exit(1)
+          print("PASS: required Cloudflare PROD binding names are present (values not exposed).")
+          '
       - name: Preflight only - never deploy
         run: |
           echo "PASS: This workflow does not modify PROD or deploy any Worker."
