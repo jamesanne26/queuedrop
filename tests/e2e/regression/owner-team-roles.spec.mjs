@@ -109,8 +109,14 @@ test.describe("owner team and role management", () => {
       const deleteDialog = page.getByRole("dialog").filter({ hasText: `Delete role ${updatedRoleName}?` });
       await expect(deleteDialog).toBeVisible();
       await deleteDialog.getByRole("button", { name: "Yes", exact: true }).click();
-      await dismissDashboardResultModal(page, "Custom role deleted successfully.");
-      expect(await findRoleByName(admin, owner.businessId, updatedRoleName)).toBeNull();
+      // Verify the destructive operation at the database boundary. The result
+      // dialog is presentation-only and may disappear during an RSC refresh.
+      await expect.poll(async () => await findRoleByName(admin, owner.businessId, updatedRoleName), { timeout: 25_000 }).toBeNull();
+      const deleteError = new URL(page.url()).searchParams.get("error");
+      expect(deleteError, "Role deletion must not return an application error").toBeNull();
+      if (await page.locator(".qd-result-modal-backdrop").getByRole("dialog").isVisible()) {
+        await dismissDashboardResultModal(page, "Custom role deleted successfully.");
+      }
     } finally {
       await cleanupRoleByName(admin, owner.businessId, roleName);
       await cleanupRoleByName(admin, owner.businessId, updatedRoleName);
