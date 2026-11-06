@@ -150,8 +150,15 @@ test.describe("owner branch and service lifecycle", () => {
       const deleteDetails = article.locator("details.settings-catalog-edit");
       await deleteDetails.locator("summary").click();
       await confirmCodeDelete(page, "Delete service");
-      await dismissDashboardResultModal(page, "Service deleted from the library.");
-      expect(await getServiceById(admin, service.id)).toBeNull();
+      // Server-action refreshes can replace the transient result modal before
+      // Playwright observes it. Verify the persisted deletion instead.
+      await expect.poll(() => getServiceById(admin, service.id), { timeout: 25_000 }).toBeNull();
+      const deletionError = new URL(page.url()).searchParams.get("error");
+      expect(deletionError, "Service deletion must not return an application error").toBeNull();
+      const deletionDialog = page.locator(".qd-result-modal-backdrop").getByRole("dialog");
+      if (await deletionDialog.isVisible().catch(() => false)) {
+        await dismissDashboardResultModal(page, "Service deleted from the library.");
+      }
     } finally {
       await cleanupOwnedBranch(admin, owner.businessId, branchName);
     }
