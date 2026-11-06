@@ -53,10 +53,32 @@ export function TvQueueDisplay({ branches, selectedBranchId, initialTickets, ser
     // the update was performed through the service-role API). Waiting 30 seconds
     // in that state leaves cancelled tickets visible on the TV unnecessarily.
     // router.refresh() updates server snapshots without remounting this display.
-    const poll = window.setInterval(() => {
-      if (navigator.onLine && !document.hidden) router.refresh();
-    }, 5000);
-    const focus = () => { if (navigator.onLine) router.refresh(); };
+    let polling = false;
+    const reconcile = async () => {
+      if (polling || !navigator.onLine || document.hidden) return;
+      polling = true;
+      try {
+        if (!currentSessions.length || !serviceIds.length) {
+          setTickets([]);
+          return;
+        }
+        // Query the current queue directly: a cached server render or a missed
+        // Realtime UPDATE must never leave a cancelled ticket on the TV.
+        const { data, error } = await supabase.from("tickets")
+          .select("id,branch_id,service_id,queue_session_id,display_number,status,joined_at,called_at,serving_at")
+          .eq("branch_id", selectedBranchId)
+          .in("queue_session_id", currentSessions)
+          .in("service_id", serviceIds)
+          .in("status", ["waiting", "called", "serving"])
+          .order("joined_at", { ascending: true })
+          .limit(1000);
+        if (!error && data) setTickets(data as TvTicket[]);
+      } finally {
+        polling = false;
+      }
+    };
+    const poll = window.setInterval(() => { void reconcile(); }, 5000);
+    const focus = () => { void reconcile(); };
     window.addEventListener("online", focus);
     return () => { window.clearInterval(poll); window.removeEventListener("online", focus); void supabase.removeChannel(channel); };
   }, [router, selectedBranchId, serviceKey, sessionKey]);
