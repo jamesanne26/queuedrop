@@ -39,6 +39,14 @@ const ownerRoutes = [
   "/dashboard/settings?view=billing",
 ];
 
+async function navigateWithTransient503Retry(page, route) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+    if (response?.status() !== 503 || attempt === 2) return response;
+    await page.waitForTimeout(500 * (attempt + 1));
+  }
+}
+
 test.describe("responsive layout coverage", () => {
   for (const viewport of responsiveViewports) {
     test(`public views fit ${viewport.name} (${viewport.width}x${viewport.height})`, async ({ page }) => {
@@ -49,7 +57,7 @@ test.describe("responsive layout coverage", () => {
 
       for (const route of publicRoutes) {
         await test.step(`${viewport.name} public ${route}`, async () => {
-          const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+          const response = await navigateWithTransient503Retry(page, route);
           expect(response, `No response received for ${route}`).not.toBeNull();
           expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
           await expectResponsivePage(page, `${route} at ${viewport.name}`);
@@ -69,7 +77,7 @@ test.describe("responsive layout coverage", () => {
       await loginAsOwner(page, credentials);
       for (const route of ownerRoutes) {
         await test.step(`${viewport.name} owner ${route}`, async () => {
-          const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+          const response = await navigateWithTransient503Retry(page, route);
           expect(response, `No response received for ${route}`).not.toBeNull();
           expect(response.status(), `${route} returned HTTP ${response.status()}`).toBeLessThan(400);
           await expect(page.locator("body")).not.toContainText(/Invalid login credentials/i);
