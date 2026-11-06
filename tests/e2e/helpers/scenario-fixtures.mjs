@@ -49,7 +49,8 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
     await page.locator('input[name="login_email"]').fill(email);
     await page.locator('input[name="password"]').fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await page.waitForURL((url) => url.pathname.startsWith("/dashboard"), { timeout: 20_000 });
+    await page.waitForURL((url) => ["/dashboard", "/system"].some(path => url.pathname.startsWith(path)), { timeout: 20_000 });
+    if (new URL(page.url()).pathname.startsWith("/system")) await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
     return createBranchFromUi(page, branchName, { address, phone, _retried: true });
   }
 
@@ -67,7 +68,8 @@ async function refreshOwnerSession(page) {
   await page.locator('input[name="login_email"]').fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL((url) => url.pathname.startsWith("/dashboard"), { timeout: 20_000 });
+  await page.waitForURL((url) => ["/dashboard", "/system"].some(path => url.pathname.startsWith(path)), { timeout: 20_000 });
+  if (new URL(page.url()).pathname.startsWith("/system")) await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 }
 
 async function openBranchServicePicker(page, branchId, serviceName) {
@@ -103,7 +105,6 @@ export async function createServiceFromUi(page, branchId, serviceName, { descrip
   if (queuePrefix) await form.locator('input[name="queue_prefix"]').fill(queuePrefix);
   if (estimatedMinutes) await form.locator('input[name="estimated_minutes"]').fill(String(estimatedMinutes));
   await form.getByRole("button", { name: "Create service", exact: true }).click();
-  await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "services" && url.searchParams.get("message") === "Service added to the business service library.", { timeout: 20_000 });
   await dismissDashboardResultModal(page, "Service added to the business service library.");
 
   for (let assignmentAttempt = 0; assignmentAttempt < 2; assignmentAttempt += 1) {
