@@ -38,11 +38,11 @@ jobs:
       - name: Wait for this TEST deployment
         run: node scripts/verify-test-deployment.mjs
         env:
-          QUEUEDROP_TEST_BASE_URL: ${{ secrets.QUEUEDROP_TEST_BASE_URL }}
+          QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
           QUEUEDROP_TEST_SUPABASE_URL: ${{ secrets.QUEUEDROP_TEST_SUPABASE_URL }}
           QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.QUEUEDROP_TEST_SUPABASE_SERVICE_ROLE_KEY }}
       - name: Deployment smoke
         run: npm run test:smoke:required
         env:
-          QUEUEDROP_TEST_BASE_URL: ${{ secrets.QUEUEDROP_TEST_BASE_URL }}
+          QUEUEDROP_TEST_BASE_URL: https://queuedrop-test.jamesrae-rosario18.workers.dev
 
