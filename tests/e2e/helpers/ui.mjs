@@ -26,3 +26,24 @@ export async function openDashboardDestination(page, label, path, loadedSelector
   await expect(page.locator(loadedSelector).first()).toBeVisible();
   await expectNoAppError(page);
 }
+
+// Retry only an explicitly observed transient gateway failure on a safe GET.
+// Never turn a successful HTTP response with missing UI into a silent retry:
+// that must remain a real application regression.
+export async function gotoDashboardPage(page, path) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await page.goto(path, { waitUntil: "domcontentloaded" });
+    const status = response?.status();
+    if (status === 502 || status === 503 || status === 504) {
+      if (attempt === 3) throw new Error(`TEST GET ${path} returned HTTP ${status} after 3 attempts`);
+      await page.waitForTimeout(attempt * 1000);
+      continue;
+    }
+    if (status && status >= 400) throw new Error(`TEST GET ${path} returned HTTP ${status}`);
+    if (new URL(page.url()).pathname !== new URL(path, "https://test.invalid").pathname) {
+      throw new Error(`TEST GET ${path} redirected unexpectedly to ${page.url()}`);
+    }
+    await expectNoAppError(page);
+    return;
+  }
+}
