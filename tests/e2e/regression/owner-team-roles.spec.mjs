@@ -14,7 +14,7 @@ import {
   getProfile,
 } from "../helpers/admin-db.mjs";
 import { createBranchFromUi, scenarioId } from "../helpers/scenario-fixtures.mjs";
-import { dismissDashboardResultModal, expectNoAppError } from "../helpers/ui.mjs";
+import { dismissDashboardResultModal, expectNoAppError, gotoDashboardPage } from "../helpers/ui.mjs";
 
 const credentials = ownerCredentials();
 const adminReady = hasAdminTestEnvironment();
@@ -24,7 +24,7 @@ test.describe("owner team and role management", () => {
 
   test("Users and Roles navigation never renders unloaded empty data", async ({ page }) => {
     await loginAsOwner(page, credentials);
-    await page.goto("/dashboard/settings", { waitUntil: "domcontentloaded" });
+    await gotoDashboardPage(page, "/dashboard/settings");
     const accessGroup = page.locator('[data-settings-group="access"]');
     await expect(accessGroup).toBeVisible();
     if ((await accessGroup.getAttribute("aria-expanded")) !== "true") {
@@ -57,7 +57,7 @@ test.describe("owner team and role management", () => {
 
     try {
       await loginAsOwner(page, credentials);
-      await page.goto("/dashboard/settings?view=roles", { waitUntil: "domcontentloaded" });
+      await gotoDashboardPage(page, "/dashboard/settings?view=roles");
       await expectNoAppError(page);
       await page.getByRole("button", { name: "+ Create Custom Role", exact: true }).click();
       const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Create Role", exact: true }) }).first();
@@ -147,7 +147,7 @@ test.describe("owner team and role management", () => {
       expect(branch).not.toBeNull();
 
       // Create an own-branch staff role used only by this scenario.
-      await page.goto("/dashboard/settings?view=roles", { waitUntil: "domcontentloaded" });
+      await gotoDashboardPage(page, "/dashboard/settings?view=roles");
       await page.getByRole("button", { name: "+ Create Custom Role", exact: true }).click();
       const roleForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Create Role", exact: true }) }).first();
       await roleForm.locator('input[name="name"]').fill(roleName);
