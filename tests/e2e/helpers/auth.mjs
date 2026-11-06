@@ -17,7 +17,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
   await signInButton.click();
   await page.waitForURL((url) => {
     if (expectedDestination === "system" && url.pathname === "/system") return true;
-    if (expectedDestination === "dashboard" && /\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`)) return true;
+    if (expectedDestination === "dashboard" && (url.pathname === "/system" || /\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`))) return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
   }, { timeout: 20_000 });
 
@@ -28,7 +28,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
     );
   }
 
-  // The Account/Sign out controls now live inside a collapsible sidebar menu and
+  // Platform owners are intentionally redirected to /system on sign-in, even if\n  // they also own a TEST business. The dashboard scenarios must explicitly\n  // navigate to their business workspace after authentication.\n  if (expectedDestination === "dashboard" && loginResult.pathname === "/system") {\n    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });\n  }\n\n  // The Account/Sign out controls now live inside a collapsible sidebar menu and
   // the whole sidebar is off-canvas on phone/tablet until navigation is opened.
   // Use the authenticated dashboard shell itself as the viewport-independent
   // login-ready signal instead of requiring a currently visible Sign out button.
