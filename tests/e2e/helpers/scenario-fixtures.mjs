@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { dismissDashboardResultModal, expectNoAppError } from "./ui.mjs";
+import { dismissDashboardResultModal, expectNoAppError, gotoDashboardPage } from "./ui.mjs";
 
 export function scenarioId(prefix = "") {
   const value = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -7,7 +7,7 @@ export function scenarioId(prefix = "") {
 }
 
 export async function createBranchFromUi(page, branchName, { address = "", phone = "", _retried = false } = {}) {
-  await page.goto("/dashboard/settings?view=branch-general", { waitUntil: "domcontentloaded" });
+  await gotoDashboardPage(page, "/dashboard/settings?view=branch-general");
   await expectNoAppError(page);
 
   const branchesToggle = page.locator('[data-settings-group="branches"]');
@@ -81,7 +81,7 @@ async function openBranchServicePicker(page, branchId, serviceName) {
   // Re-render once, then refresh the owner session once. This stays scoped to
   // the exact newly-created service instead of adding a broad test retry.
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await page.goto(target, { waitUntil: "domcontentloaded" });
+    await gotoDashboardPage(page, target);
     await expectNoAppError(page);
     const assignForm = page.locator("form.settings-service-picker");
     await expect(assignForm).toBeVisible();
@@ -93,7 +93,7 @@ async function openBranchServicePicker(page, branchId, serviceName) {
 }
 
 export async function createServiceFromUi(page, branchId, serviceName, { description = "", queuePrefix = "E2E", estimatedMinutes = 15 } = {}) {
-  await page.goto("/dashboard/settings?view=services", { waitUntil: "domcontentloaded" });
+  await gotoDashboardPage(page, "/dashboard/settings?view=services");
   await expectNoAppError(page);
 
   const addService = page.locator("details.settings-catalog-create");
