@@ -41,7 +41,29 @@ jobs:
       - name: Build TEST Cloudflare Worker
         run: npm run build:vinext
       - name: Deploy TEST Cloudflare Worker
-        run: npm run deploy:vinext
+        shell: bash
+        run: |
+          # Cloudflare occasionally returns 503 "no healthy upstream" from its
+          # management API. Retry the identical artifact; do not rebuild or
+          # mask authentication, validation, or other non-transient errors.
+          for attempt in 1 2 3 4; do
+            set +e
+            npm run deploy:vinext > /tmp/queuedrop-cloudflare-deploy.log 2>&1
+            status=$?
+            set -e
+            cat /tmp/queuedrop-cloudflare-deploy.log
+            if [ "$status" -eq 0 ]; then exit 0; fi
+            if ! grep -Eq 'no healthy upstream|503 Service Unavailable|502 Bad Gateway|504 Gateway Timeout' /tmp/queuedrop-cloudflare-deploy.log; then
+              echo "::error::Non-transient Cloudflare deploy failure; not retrying"
+              exit "$status"
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "::error::Cloudflare management API still unavailable after four attempts"
+              exit "$status"
+            fi
+            echo "::warning::Transient Cloudflare API failure; retrying deployment attempt $((attempt + 1)) of 4"
+            sleep $((attempt * 15))
+          done
       - name: Stamp revision only after successful deploy
         shell: bash
         run: printf '%s' "$GITHUB_SHA" | npx wrangler secret put QUEUEDROP_DEPLOYMENT_SHA --name queuedrop-test
