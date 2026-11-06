@@ -32,7 +32,17 @@ export async function openDashboardDestination(page, label, path, loadedSelector
 // that must remain a real application regression.
 export async function gotoDashboardPage(page, path) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const response = await page.goto(path, { waitUntil: "domcontentloaded" });
+    let response;
+    try {
+      response = await page.goto(path, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    } catch (error) {
+      // Only a timed-out, safe GET navigation is retried, never mutations.
+      if (!/Timeout.*exceeded|TimeoutError/.test(String(error)) || attempt === 3) {
+        throw new Error(`TEST GET ${path} navigation failed on attempt ${attempt}: ${error.message}`);
+      }
+      await page.waitForTimeout(attempt * 1000);
+      continue;
+    }
     const status = response?.status();
     if (status === 502 || status === 503 || status === 504) {
       if (attempt === 3) throw new Error(`TEST GET ${path} returned HTTP ${status} after 3 attempts`);
