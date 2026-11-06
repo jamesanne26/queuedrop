@@ -51,4 +51,5 @@ jobs:
           fi
           echo "PASS: production Supabase auth health endpoint responded."
       - name: Preflight only - never deploy
-        run: echo "PASS: This workflow does not modify PROD or deploy any Worker."
+        run: |
+          echo "PASS: This workflow does not modify PROD or deploy any Worker."
