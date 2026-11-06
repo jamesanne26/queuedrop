@@ -26,14 +26,16 @@ if (!base || !["queuedrop-test.vercel.app", "queuedrop-test.jamesrae-rosario18.w
 const expected = process.env.GITHUB_SHA?.slice(0,12);
 if (!expected) throw new Error("GITHUB_SHA is required to verify this exact deployment.");
 const deadline = Date.now() + 10 * 60_000;
+let lastObservation = "no response";
 while (Date.now() < deadline) {
   try {
     const response = await fetch(new URL("/api/health", base), { signal: AbortSignal.timeout(10_000), cache: "no-store" });
     const health = await response.json();
+    lastObservation = `HTTP ${response.status}, status=${health.status}, database=${health.database}, environment=${health.environment}, revision=${health.revision}`;
     if (response.ok && health.status === "ok" && health.database === "ok" && health.revision === expected) {
       console.log(`TEST deployment ${expected} is ready, including database connectivity.`); process.exit(0);
     }
-  } catch { /* Deployment may still be building. */ }
+  } catch (error) { lastObservation = error instanceof Error ? error.message : String(error); }
   await new Promise(resolve => setTimeout(resolve, 10_000));
 }
-throw new Error(`TEST deployment did not become ready at revision ${expected}. Refusing to test an older build.`);
+throw new Error(`TEST deployment did not become ready at revision ${expected} via ${base}. Last observation: ${lastObservation}. Refusing to test an older build.`);
