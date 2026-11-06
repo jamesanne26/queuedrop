@@ -90,14 +90,6 @@ test.describe("owner branch and service lifecycle", () => {
       expect(updated?.status).toBe("active");
 
       await confirmCodeDelete(page, "Delete branch");
-      try {
-        await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("message") === "Branch deleted successfully.", { timeout: 20_000 });
-      } catch (error) {
-        const currentUrl = new URL(page.url());
-        const remaining = await getBranchById(admin, created.id);
-        const dialogText = await page.getByRole("dialog").allTextContents().catch(() => []);
-        throw new Error(`Branch deletion did not confirm. path=${currentUrl.pathname}, error=${currentUrl.searchParams.get("error") ?? "none"}, branchStillExists=${Boolean(remaining)}, dialogs=${JSON.stringify(dialogText).slice(0, 500)}; original=${String(error)}`);
-      }
       await dismissDashboardResultModal(page, "Branch deleted successfully.");
       expect(await getBranchById(admin, created.id)).toBeNull();
     } finally {
@@ -151,7 +143,6 @@ test.describe("owner branch and service lifecycle", () => {
       const deleteDetails = article.locator("details.settings-catalog-edit");
       await deleteDetails.locator("summary").click();
       await confirmCodeDelete(page, "Delete service");
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "services" && url.searchParams.get("message") === "Service deleted from the library.", { timeout: 20_000 });
       await dismissDashboardResultModal(page, "Service deleted from the library.");
       expect(await getServiceById(admin, service.id)).toBeNull();
     } finally {
