@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { gotoDashboardPage } from "./ui.mjs";
 
 export async function loginAsOwner(page, credentials, { expectedDestination = "dashboard" } = {}) {
   if (!["dashboard", "system"].includes(expectedDestination)) throw new Error("Unsupported E2E login destination");
@@ -26,26 +27,36 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
   // gateway failure can leave the browser on /auth/login with no error query.
   // Retrying a known 503 is safe; never retry an ambiguous submission or
   // invalid credentials (which could conceal an actual auth regression).
-  const loginResponsePromise = page.waitForResponse(
-    (response) => response.request().method() === "POST" &&
-      (response.url().includes("/auth/login") || response.url().includes("/auth/sign-in")),
-    { timeout: 20_000 },
-  ).catch(() => null);
-  await signInButton.click();
   const destination = (url) => {
     if (expectedDestination === "system" && url.pathname === "/system") return true;
     if (expectedDestination === "dashboard" && (url.pathname === "/system" || url.pathname === "/dashboard")) return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
   };
-  try {
-    await page.waitForURL(destination, { timeout: 20_000, waitUntil: "domcontentloaded" });
-  } catch (error) {
-    const loginResponse = await loginResponsePromise;
-    throw new Error(
-      `Owner login did not reach ${expectedDestination}; current URL=${page.url()}, ` +
-      `login POST status=${loginResponse?.status() ?? "not observed"}. ` +
-      `This is an auth/Cloudflare response failure, not a dashboard assertion. ${error.message}`,
-    );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const loginResponsePromise = page.waitForResponse(
+      (response) => response.request().method() === "POST" &&
+        (response.url().includes("/auth/login") || response.url().includes("/auth/sign-in")),
+      { timeout: 20_000 },
+    ).catch(() => null);
+    await signInButton.click();
+    try {
+      await page.waitForURL(destination, { timeout: 20_000, waitUntil: "domcontentloaded" });
+      break;
+    } catch (error) {
+      const response = await loginResponsePromise;
+      const status = response?.status();
+      // A confirmed gateway 503 is a transport failure, not an auth rejection.
+      // Reload and resubmit only for that exact response; no retry for unknown
+      // outcomes, incorrect credentials, or application validation errors.
+      if (status !== 503 || attempt === 2) {
+        throw new Error(`Owner login failed: URL=${page.url()}, POST status=${status ?? "not observed"}; ${error.message}`);
+      }
+      await page.waitForTimeout(1000 * (attempt + 1));
+      const fresh = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+      if (fresh?.status() !== 200) throw new Error(`Login recovery GET returned HTTP ${fresh?.status()}`);
+      await loginInput.fill(credentials.email);
+      await passwordInput.fill(credentials.password);
+    }
   }
 
   const loginResult = new URL(page.url());
@@ -58,13 +69,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
   // Platform owners land on /system even when they also own a TEST business.
   // Dashboard scenarios must navigate explicitly to their business workspace.
   if (expectedDestination === "dashboard" && loginResult.pathname === "/system") {
-    const dashboardResponse = await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    if (dashboardResponse && dashboardResponse.status() >= 400) {
-      throw new Error(`Dashboard navigation returned HTTP ${dashboardResponse.status()}`);
-    }
-    if (new URL(page.url()).pathname !== "/dashboard") {
-      throw new Error(`Dashboard login landed on unexpected path: ${new URL(page.url()).pathname}`);
-    }
+    await gotoDashboardPage(page, "/dashboard");
   }
 
   // The Account/Sign out controls now live inside a collapsible sidebar menu and
