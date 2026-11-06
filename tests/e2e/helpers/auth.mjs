@@ -52,8 +52,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
         throw new Error(`Owner login failed: URL=${page.url()}, POST status=${status ?? "not observed"}; ${error.message}`);
       }
       await page.waitForTimeout(1000 * (attempt + 1));
-      const fresh = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
-      if (fresh?.status() !== 200) throw new Error(`Login recovery GET returned HTTP ${fresh?.status()}`);
+      await gotoDashboardPage(page, "/auth/login");
       await loginInput.fill(credentials.email);
       await passwordInput.fill(credentials.password);
     }
