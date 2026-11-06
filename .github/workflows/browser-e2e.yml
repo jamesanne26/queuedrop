@@ -2,7 +2,9 @@ name: Browser E2E
 
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: ["Deploy Cloudflare TEST"]
+    types: [completed]
     branches: [test]
   schedule:
     - cron: "30 18 * * *"
@@ -16,6 +18,7 @@ permissions:
 
 jobs:
   browser-e2e:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -30,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'schedule' && 'test' || github.ref }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.event_name == 'schedule' && 'test' || github.ref) }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
