@@ -2,7 +2,15 @@ import { expect } from "@playwright/test";
 
 export async function loginAsOwner(page, credentials, { expectedDestination = "dashboard" } = {}) {
   if (!["dashboard", "system"].includes(expectedDestination)) throw new Error("Unsupported E2E login destination");
-  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  // Cloudflare TEST occasionally returns a transient 503 under the full-suite
+  // load. Retry only that transport failure; never retry bad credentials or
+  // silently accept a broken application page.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+    if (response?.status() !== 503) break;
+    if (attempt === 2) throw new Error("TEST login endpoint returned HTTP 503 on three attempts");
+    await page.waitForTimeout(1000 * (attempt + 1));
+  }
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
 
   const loginInput = page.locator('input[name="login_email"]');
