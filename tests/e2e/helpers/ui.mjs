@@ -36,8 +36,8 @@ export async function gotoDashboardPage(page, path) {
     try {
       response = await page.goto(path, { waitUntil: "domcontentloaded", timeout: 30_000 });
     } catch (error) {
-      // Only a timed-out, safe GET navigation is retried, never mutations.
-      if (!/Timeout.*exceeded|TimeoutError/.test(String(error)) || attempt === 3) {
+      // Retry only stalled or browser-aborted safe GET navigations, never mutations.
+      if (!/Timeout.*exceeded|TimeoutError|net::ERR_ABORTED/.test(String(error)) || attempt === 3) {
         throw new Error(`TEST GET ${path} navigation failed on attempt ${attempt}: ${error.message}`);
       }
       await page.waitForTimeout(attempt * 1000);
