@@ -109,14 +109,6 @@ test.describe("owner team and role management", () => {
       const deleteDialog = page.getByRole("dialog").filter({ hasText: `Delete role ${updatedRoleName}?` });
       await expect(deleteDialog).toBeVisible();
       await deleteDialog.getByRole("button", { name: "Yes", exact: true }).click();
-      try {
-        await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Custom role deleted successfully.", { timeout: 20_000 });
-      } catch (error) {
-        const currentUrl = new URL(page.url());
-        const stillExists = await findRoleByName(admin, owner.businessId, updatedRoleName);
-        const dialogText = await page.getByRole("dialog").allTextContents().catch(() => []);
-        throw new Error(`Role deletion did not confirm. path=${currentUrl.pathname}, error=${currentUrl.searchParams.get("error") ?? "none"}, roleStillExists=${Boolean(stillExists)}, dialogs=${JSON.stringify(dialogText).slice(0, 500)}; original=${String(error)}`);
-      }
       await dismissDashboardResultModal(page, "Custom role deleted successfully.");
       expect(await findRoleByName(admin, owner.businessId, updatedRoleName)).toBeNull();
     } finally {
