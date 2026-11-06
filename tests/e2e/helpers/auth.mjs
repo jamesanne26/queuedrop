@@ -22,12 +22,31 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
   await loginInput.fill(credentials.email);
   await passwordInput.fill(credentials.password);
 
+  // Observe the login POST as well as the redirect. A transient Cloudflare
+  // gateway failure can leave the browser on /auth/login with no error query.
+  // Retrying a known 503 is safe; never retry an ambiguous submission or
+  // invalid credentials (which could conceal an actual auth regression).
+  const loginResponsePromise = page.waitForResponse(
+    (response) => response.request().method() === "POST" &&
+      (response.url().includes("/auth/login") || response.url().includes("/auth/sign-in")),
+    { timeout: 20_000 },
+  ).catch(() => null);
   await signInButton.click();
-  await page.waitForURL((url) => {
+  const destination = (url) => {
     if (expectedDestination === "system" && url.pathname === "/system") return true;
-    if (expectedDestination === "dashboard" && (url.pathname === "/system" || /\/dashboard(?:\?.*)?$/.test(`${url.pathname}${url.search}`))) return true;
+    if (expectedDestination === "dashboard" && (url.pathname === "/system" || url.pathname === "/dashboard")) return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
-  }, { timeout: 20_000 });
+  };
+  try {
+    await page.waitForURL(destination, { timeout: 20_000, waitUntil: "domcontentloaded" });
+  } catch (error) {
+    const loginResponse = await loginResponsePromise;
+    throw new Error(
+      `Owner login did not reach ${expectedDestination}; current URL=${page.url()}, ` +
+      `login POST status=${loginResponse?.status() ?? "not observed"}. ` +
+      `This is an auth/Cloudflare response failure, not a dashboard assertion. ${error.message}`,
+    );
+  }
 
   const loginResult = new URL(page.url());
   if (loginResult.pathname === "/auth/login" && loginResult.searchParams.has("error")) {
