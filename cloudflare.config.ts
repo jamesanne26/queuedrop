@@ -1,15 +1,17 @@
 import { bindings, defineConfig, defineWorker } from "cf/config";
 import { createWorkersResponseStoreSelfContainedConfig } from "@vinext/cloudflare/cache/config";
 
+const isProduction = process.env.QUEUEDROP_CLOUDFLARE_TARGET === "production";
+const workerName = isProduction ? "queuedrop" : "queuedrop-test";
 const cache = await createWorkersResponseStoreSelfContainedConfig({
-  worker: "queuedrop-test",
-  bucket: "queuedrop-test-response-store-cache-bodies",
+  worker: workerName,
+  bucket: isProduction ? "queuedrop-response-store-cache-bodies" : "queuedrop-test-response-store-cache-bodies",
 });
 
 export default defineConfig({
   worker: defineWorker({
     ...cache,
-    name: "queuedrop-test",
+    name: workerName,
     entrypoint: "vinext/server/fetch-handler",
     compatibilityDate: "2026-11-05",
     compatibilityFlags: ["nodejs_compat"],
