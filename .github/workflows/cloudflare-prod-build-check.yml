@@ -2,6 +2,15 @@ name: Cloudflare PROD build validation (no deployment)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - test
+    paths:
+      - .github/workflows/cloudflare-prod-build-check.yml
+      - package.json
+      - package-lock.json
+      - vite.config.*
+      - vinext.config.*
 
 permissions:
   contents: read
