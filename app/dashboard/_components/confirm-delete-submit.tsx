@@ -64,7 +64,7 @@ export function ConfirmDeleteSubmit({
               {requireCode ? (
                 <button className="button button-danger" type="button" onClick={continueDelete}>Yes, continue</button>
               ) : (
-                <button className="button button-danger" type="submit" formAction={formAction}>Yes</button>
+                <button className="button button-danger" type="submit" formNoValidate formAction={formAction}>Yes</button>
               )}
             </div>
           </section>
@@ -86,7 +86,7 @@ export function ConfirmDeleteSubmit({
             </label>
             <div className="qd-modal-actions">
               <button className="button button-secondary" type="button" onClick={close}>Cancel</button>
-              <button className="button button-danger" type="submit" formAction={formAction} disabled={input !== code}>Confirm delete</button>
+              <button className="button button-danger" type="submit" formNoValidate formAction={formAction} disabled={input !== code}>Confirm delete</button>
             </div>
           </section>
         </div>
