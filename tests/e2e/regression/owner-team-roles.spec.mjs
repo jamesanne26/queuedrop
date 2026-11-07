@@ -112,9 +112,14 @@ test.describe("owner team and role management", () => {
       expect(role?.branch_scope).toBe("selected_branches");
       expect(role?.base_role).toBe("manager");
 
+      // A direct Settings refresh opens the roles list, not the editor.
+      // Re-open the persisted role explicitly before testing deletion.
+      await gotoDashboardPage(page, `/dashboard/settings?view=roles&role=${role.id}`);
+      const updatedRoleEditor = page.locator(`form#role-editor-${role.id}`);
+      await expect(updatedRoleEditor).toBeVisible();
       // Custom roles are deletable from the same role editor. Protected roles
       // never expose this action, while an unused custom role should delete cleanly.
-      await page.getByRole("button", { name: "Delete Role", exact: true }).click();
+      await updatedRoleEditor.getByRole("button", { name: "Delete Role", exact: true }).click();
       const deleteDialog = page.getByRole("dialog").filter({ hasText: `Delete role ${updatedRoleName}?` });
       await expect(deleteDialog).toBeVisible();
       await deleteDialog.getByRole("button", { name: "Yes", exact: true }).click();
