@@ -1,12 +1,9 @@
 name: Browser E2E
 
 on:
-  workflow_dispatch:
-  # Run only after TEST deploy completes; push-triggered E2E races the deployment.
-  workflow_run:
-    workflows: ["Deploy Cloudflare TEST"]
-    types: [completed]
+  push:
     branches: [test]
+  workflow_dispatch:
   schedule:
     - cron: "30 18 * * *"
 
@@ -19,7 +16,6 @@ permissions:
 
 jobs:
   browser-e2e:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -34,12 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.event_name == 'schedule' && 'test' || github.ref) }}
+          ref: ${{ github.event_name == 'schedule' && 'test' || github.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The revision verifier waits up to 10 minutes for the matching TEST
+      # deployment, preventing E2E from testing an older Cloudflare build.
       - name: Verify TEST schema and exact deployment
         run: |
           export GITHUB_SHA="$(git rev-parse HEAD)"
