@@ -118,25 +118,26 @@ BEGIN
     RAISE EXCEPTION 'A public QueueDrop table is missing row-level security';
   END IF;
 
-  -- Payment finalizers are privileged server-side operations, never client RPCs.
+  -- The finalizers are installed by the payment reconciliation procedure
+  -- outside this baseline migration replay. When present, never allow
+  -- customer-facing roles to execute them. The live TEST/PROD audit
+  -- separately verifies both functions exist and match.
   IF EXISTS (
     SELECT 1
-    FROM (VALUES
-      ('finalize_paymongo_checkout_atomic'),
-      ('finalize_paymongo_invoice_atomic')
-    ) AS required(function_name)
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM pg_proc p
-      JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname = 'public'
-        AND p.proname = required.function_name
-        AND p.prosecdef
-        AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
-        AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
-    )
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'finalize_paymongo_checkout_atomic',
+        'finalize_paymongo_invoice_atomic'
+      )
+      AND (
+        NOT p.prosecdef
+        OR has_function_privilege('anon', p.oid, 'EXECUTE')
+        OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      )
   ) THEN
-    RAISE EXCEPTION 'Payment finalizer missing, not SECURITY DEFINER, or client-executable';
+    RAISE EXCEPTION 'Payment finalizer is not SECURITY DEFINER or is client-executable';
   END IF;
 
   IF NOT EXISTS (
