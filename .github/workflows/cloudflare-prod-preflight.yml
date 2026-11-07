@@ -95,7 +95,7 @@ jobs:
           import fs from 'node:fs';
           const config = fs.readFileSync('cloudflare.config.ts', 'utf8');
           const testDeploy = fs.readFileSync('.github/workflows/deploy-cloudflare-test.yml', 'utf8');
-          if (!config.includes('worker: "queuedrop-test"') || !config.includes('name: "queuedrop-test"')) {
+          if (!config.includes('process.env.QUEUEDROP_CLOUDFLARE_TARGET === "production"') || !config.includes('isProduction ? "queuedrop" : "queuedrop-test"') || !config.includes('name: workerName')) {
             console.error('::error::TEST worker configuration changed; review environment isolation.');
             process.exit(1);
           }
