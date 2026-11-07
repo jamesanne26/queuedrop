@@ -75,6 +75,10 @@ jobs:
               "SUPABASE_SERVICE_ROLE_KEY",
               "PAYMONGO_SECRET_KEY",
               "PAYMONGO_WEBHOOK_SECRET",
+              "CRON_SECRET",
+              "QUEUEDROP_SUPPORT_EMAIL",
+              "RESEND_API_KEY",
+              "SEMAPHORE_API_KEY",
           }
           missing = sorted(required - present)
           if missing:
