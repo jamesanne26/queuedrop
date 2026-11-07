@@ -106,6 +106,39 @@ BEGIN
     RAISE EXCEPTION 'Queue position CHECK constraint is missing or unvalidated';
   END IF;
 
+  -- All tenant-facing public tables must retain row-level security after replay.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p')
+      AND NOT c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'A public QueueDrop table is missing row-level security';
+  END IF;
+
+  -- Payment finalizers are privileged server-side operations, never client RPCs.
+  IF EXISTS (
+    SELECT 1
+    FROM (VALUES
+      ('finalize_paymongo_checkout_atomic'),
+      ('finalize_paymongo_invoice_atomic')
+    ) AS required(function_name)
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public'
+        AND p.proname = required.function_name
+        AND p.prosecdef
+        AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+        AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    )
+  ) THEN
+    RAISE EXCEPTION 'Payment finalizer missing, not SECURITY DEFINER, or client-executable';
+  END IF;
+
   IF NOT EXISTS (
     SELECT 1
     FROM pg_proc p
