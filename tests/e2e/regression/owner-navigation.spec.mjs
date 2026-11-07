@@ -51,8 +51,14 @@ test.describe("owner dashboard navigation", () => {
       await expectNoAppError(page);
       let button = page.locator(`[data-settings-target="${view}"]`).first();
       if (!(await button.isVisible().catch(() => false))) {
-        if (view.startsWith("branch-")) await page.locator('[data-settings-group="branches"]').click();
-        if (["users", "roles", "permissions"].includes(view)) await page.locator('[data-settings-group="access"]').click();
+        const groupName = view.startsWith("branch-")
+          ? "branches"
+          : (["users", "roles", "permissions"].includes(view) ? "access" : null);
+        if (groupName) {
+          const group = page.locator(`[data-settings-group="${groupName}"]`);
+          await expect(group).toBeVisible();
+          if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
+        }
         button = page.locator(`[data-settings-target="${view}"]`).first();
       }
       await expect(button).toBeVisible();
