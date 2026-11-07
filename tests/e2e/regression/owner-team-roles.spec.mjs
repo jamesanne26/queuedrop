@@ -95,8 +95,17 @@ test.describe("owner team and role management", () => {
       await editForm.locator('input[name="description"]').fill("Updated E2E role description");
       await editForm.locator('select[name="branch_scope"]').selectOption("selected_branches");
       await page.getByRole("button", { name: "Save Role & Permissions", exact: true }).click();
-      await page.waitForURL((url) => url.pathname === "/dashboard/settings" && url.searchParams.get("view") === "roles" && url.searchParams.get("message") === "Role permissions updated successfully.", { timeout: 20_000 });
-      await dismissDashboardResultModal(page, "Role permissions updated successfully.");
+      // Validate the persisted write rather than a transient redirect query
+      // parameter. A streamed Settings refresh can replace the success URL
+      // before Playwright observes it; database state remains authoritative.
+      await expect.poll(
+        async () => await findRoleByName(admin, owner.businessId, updatedRoleName),
+        { timeout: 25_000 },
+      ).not.toBeNull();
+      const updateError = new URL(page.url()).searchParams.get("error");
+      expect(updateError, "Role update must not return an application error").toBeNull();
+      await gotoDashboardPage(page, "/dashboard/settings?view=roles");
+      await expectNoAppError(page);
 
       role = await findRoleByName(admin, owner.businessId, updatedRoleName);
       expect(role).not.toBeNull();
