@@ -87,6 +87,25 @@ jobs:
               sys.exit(1)
           print("PASS: required Cloudflare PROD binding names are present (values not exposed).")
           '
+      - name: Verify PROD deployment isolation and readiness safeguards
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const config = fs.readFileSync('cloudflare.config.ts', 'utf8');
+          const testDeploy = fs.readFileSync('.github/workflows/deploy-cloudflare-test.yml', 'utf8');
+          if (!config.includes('worker: "queuedrop-test"') || !config.includes('name: "queuedrop-test"')) {
+            console.error('::error::TEST worker configuration changed; review environment isolation.');
+            process.exit(1);
+          }
+          if (!testDeploy.includes('branches: [test]')) {
+            console.error('::error::TEST deployment branch guard missing.');
+            process.exit(1);
+          }
+          console.log('PASS: TEST deployment still targets the TEST Worker.');
+          console.log('NOTICE: Dedicated PROD build/deploy configuration must be validated before production deployment.');
+          NODE
       - name: Preflight only - never deploy
         run: |
           echo "PASS: This workflow does not modify PROD or deploy any Worker."
