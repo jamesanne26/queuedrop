@@ -87,6 +87,26 @@ jobs:
               sys.exit(1)
           print("PASS: required Cloudflare PROD binding names are present (values not exposed).")
           '
+      - name: Verify dedicated production R2 cache bucket exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --silent --show-error --max-time 20 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets")
+          printf '%s' "$response" | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          if not data.get("success"):
+              print("::error::Unable to verify Cloudflare R2 buckets")
+              sys.exit(1)
+          buckets = {item.get("name") for item in data.get("result", {}).get("buckets", [])}
+          required = "queuedrop-response-store-cache-bodies"
+          if required not in buckets:
+              print(f"::error::Missing isolated PROD R2 cache bucket: {required}")
+              sys.exit(1)
+          print("PASS: dedicated PROD cache bucket exists.")
+          '
       - name: Verify PROD deployment isolation and readiness safeguards
         shell: bash
         run: |
