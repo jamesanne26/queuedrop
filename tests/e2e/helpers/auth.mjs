@@ -6,10 +6,11 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
   // Cloudflare TEST occasionally returns a transient 503 under the full-suite
   // load. Retry only that transport failure; never retry bad credentials or
   // silently accept a broken application page.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maxTransient503Attempts = 5;
+  for (let attempt = 0; attempt < maxTransient503Attempts; attempt += 1) {
     const response = await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
     if (response?.status() !== 503) break;
-    if (attempt === 2) throw new Error("TEST login endpoint returned HTTP 503 on three attempts");
+    if (attempt === maxTransient503Attempts - 1) throw new Error(`TEST login endpoint returned HTTP 503 on ${maxTransient503Attempts} attempts`);
     await page.waitForTimeout(1000 * (attempt + 1));
   }
   await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
@@ -32,7 +33,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
     if (expectedDestination === "dashboard" && (url.pathname === "/system" || url.pathname === "/dashboard")) return true;
     return url.pathname === "/auth/login" && url.searchParams.has("error");
   };
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < maxTransient503Attempts; attempt += 1) {
     const loginResponsePromise = page.waitForResponse(
       (response) => response.request().method() === "POST" &&
         (response.url().includes("/auth/login") || response.url().includes("/auth/sign-in")),
@@ -48,7 +49,7 @@ export async function loginAsOwner(page, credentials, { expectedDestination = "d
       // A confirmed gateway 503 is a transport failure, not an auth rejection.
       // Reload and resubmit only for that exact response; no retry for unknown
       // outcomes, incorrect credentials, or application validation errors.
-      if (status !== 503 || attempt === 2) {
+      if (status !== 503 || attempt === maxTransient503Attempts - 1) {
         throw new Error(`Owner login failed: URL=${page.url()}, POST status=${status ?? "not observed"}; ${error.message}`);
       }
       await page.waitForTimeout(1000 * (attempt + 1));
