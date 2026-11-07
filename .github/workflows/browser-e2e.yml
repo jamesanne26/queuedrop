@@ -45,6 +45,24 @@ jobs:
         run: |
           export GITHUB_SHA="$(git rev-parse HEAD)"
           node scripts/verify-test-deployment.mjs
+      - name: Diagnose Cloudflare TEST availability before browser regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in "/api/health?liveness=1" "/auth/login"; do
+            echo "Checking TEST endpoint: $path"
+            ok=0
+            for attempt in 1 2 3; do
+              status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 "${QUEUEDROP_TEST_BASE_URL}$path") || status=000
+              echo "Attempt $attempt: HTTP $status"
+              if [ "$status" = 200 ]; then ok=1; break; fi
+              sleep $((attempt * 3))
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::Cloudflare TEST endpoint $path unavailable before E2E (last HTTP $status)"
+              exit 1
+            fi
+          done
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run browser E2E regression
