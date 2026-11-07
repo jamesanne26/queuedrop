@@ -1,9 +1,8 @@
 name: Browser E2E
 
 on:
-  push:
-    branches: [test]
   workflow_dispatch:
+  # Run only after TEST deploy completes; push-triggered E2E races the deployment.
   workflow_run:
     workflows: ["Deploy Cloudflare TEST"]
     types: [completed]
