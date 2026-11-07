@@ -45,7 +45,13 @@ export async function gotoDashboardPage(page, path) {
     }
     const status = response?.status();
     if (status === 502 || status === 503 || status === 504) {
-      if (attempt === 3) throw new Error(`TEST GET ${path} returned HTTP ${status} after 3 attempts`);
+      if (attempt === 3) {
+        // Preserve Cloudflare request identifiers for infrastructure triage.
+        // Do not log cookies, authorization headers, or response bodies.
+        const ray = response?.headers()["cf-ray"] || "unavailable";
+        const server = response?.headers()["server"] || "unavailable";
+        throw new Error(`TEST GET ${path} returned HTTP ${status} after 3 attempts (cf-ray=${ray}, server=${server})`);
+      }
       await page.waitForTimeout(attempt * 1000);
       continue;
     }
