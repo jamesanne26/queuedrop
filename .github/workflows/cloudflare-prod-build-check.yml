@@ -38,4 +38,5 @@ jobs:
       - name: Build PROD Cloudflare bundle without deployment
         run: npm run build:vinext
       - name: Confirm build did not deploy
-        run: echo "PASS: build-only workflow; no Wrangler deployment or DNS changes."
+        run: |
+          echo "PASS: build-only workflow; no Wrangler deployment or DNS changes."
