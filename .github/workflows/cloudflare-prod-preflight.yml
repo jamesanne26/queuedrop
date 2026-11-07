@@ -19,6 +19,7 @@ jobs:
       PROD_PAYMONGO_SECRET_KEY: ${{ secrets.QUEUEDROP_PROD_PAYMONGO_SECRET_KEY }}
       PROD_PAYMONGO_WEBHOOK_SECRET: ${{ secrets.QUEUEDROP_PROD_PAYMONGO_WEBHOOK_SECRET }}
     steps:
+      - uses: actions/checkout@v7
       - name: Validate required PROD credentials without revealing values
         shell: bash
         run: |
