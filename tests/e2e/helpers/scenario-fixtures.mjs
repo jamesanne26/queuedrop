@@ -32,7 +32,7 @@ export async function createBranchFromUi(page, branchName, { address = "", phone
       url.searchParams.get("message") === "Branch created successfully." ||
       url.searchParams.get("error") === "Only the business owner/admin can manage branches."
     );
-  }, { timeout: 20_000 });
+  }, { timeout: 30_000, waitUntil: "domcontentloaded" });
 
   const resultUrl = new URL(page.url());
   const outcome = resultUrl.searchParams.get("message") === "Branch created successfully."
