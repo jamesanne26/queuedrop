@@ -124,6 +124,28 @@ jobs:
             console.error('::error::TEST deployment branch guard missing.');
             process.exit(1);
           }
+          const requiredProdBindings = [
+            'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+            'SUPABASE_ANON_KEY',
+            'SUPABASE_SERVICE_ROLE_KEY',
+            'PAYMONGO_SECRET_KEY',
+            'PAYMONGO_WEBHOOK_SECRET',
+            'CRON_SECRET',
+            'QUEUEDROP_SUPPORT_EMAIL',
+            'RESEND_API_KEY',
+            'SEMAPHORE_API_KEY',
+          ];
+          for (const name of requiredProdBindings) {
+            if (!config.includes(name + ': bindings.secret()')) {
+              console.error('::error::Cloudflare config missing secret declaration: ' + name);
+              process.exit(1);
+            }
+          }
+          if (!config.includes('queuedrop-response-store-cache-bodies') || !config.includes('queuedrop-test-response-store-cache-bodies')) {
+            console.error('::error::Cloudflare PROD and TEST cache bucket isolation missing.');
+            process.exit(1);
+          }
+          console.log('PASS: required PROD secret declarations and isolated cache buckets are configured.');
           console.log('PASS: TEST deployment still targets the TEST Worker.');
           console.log('NOTICE: Dedicated PROD build/deploy configuration must be validated before production deployment.');
           NODE
